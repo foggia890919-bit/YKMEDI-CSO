@@ -137,9 +137,10 @@
   function applyMute(muted) {
     if (mode === 'video' && bgVideoEl) {
       bgVideoEl.muted = muted;
+      bgVideoEl.volume = 0.4;
       if (!muted) { var p = bgVideoEl.play(); if (p && p.catch) p.catch(function () {}); }
     } else if (ytPlayer && ytPlayer.mute) {
-      if (muted) ytPlayer.mute(); else { ytPlayer.unMute(); ytPlayer.setVolume(80); }
+      if (muted) ytPlayer.mute(); else { ytPlayer.unMute(); ytPlayer.setVolume(40); }
     }
   }
   function firstGesture() {

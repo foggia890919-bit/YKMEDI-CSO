@@ -140,15 +140,16 @@ main{position:relative;z-index:10}
 .cert-head{text-align:center;margin-bottom:24px}
 .cert-head .eyebrow{justify-content:center}
 .cert-head h3{font-size:clamp(18px,2.2vw,24px);font-weight:800;letter-spacing:-.01em;margin:0;color:#fff}
-.certs{display:flex;flex-wrap:wrap;justify-content:center;gap:12px;margin-bottom:44px}
-.cert{display:flex;align-items:center;gap:12px;padding:12px 18px;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:rgba(255,255,255,.03);transition:.2s}
+.certs{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+.cert{display:flex;align-items:center;gap:9px;padding:8px 12px;border:1px solid rgba(255,255,255,.12);border-radius:10px;background:rgba(255,255,255,.03);transition:.2s}
 .cert:hover{background:rgba(255,255,255,.06);border-color:rgba(242,98,14,.4)}
-.cert__seal{width:46px;height:46px;border-radius:9px;flex:none;display:grid;place-items:center;color:var(--navy);background:#fff;overflow:hidden}
+.cert__seal{width:34px;height:34px;border-radius:7px;flex:none;display:grid;place-items:center;color:var(--navy);background:#fff;overflow:hidden}
 .cert__seal img{width:100%;height:100%;object-fit:contain;display:block}
-.cert__seal svg{width:24px;height:24px}
-.cert__txt b{display:block;font-size:14.5px;font-weight:800;color:#fff;letter-spacing:-.01em;white-space:nowrap}
-.cert__txt span{font-size:11.5px;color:rgba(255,255,255,.55);font-weight:600}
-.footer__company{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;flex-wrap:wrap;padding-top:30px;border-top:1px solid rgba(255,255,255,.08)}
+.cert__seal svg{width:18px;height:18px}
+.cert__txt b{display:block;font-size:12.5px;font-weight:800;color:#fff;letter-spacing:-.01em;white-space:nowrap}
+.cert__txt span{font-size:10px;color:rgba(255,255,255,.5);font-weight:600}
+.footer__company{display:flex;justify-content:space-between;align-items:flex-end;gap:28px;flex-wrap:wrap;padding-top:30px;border-top:1px solid rgba(255,255,255,.08)}
+.footer__right{display:flex;flex-direction:column;align-items:flex-end;gap:14px}
 .footer__company .brand__name{color:#fff}
 .footer__brandrow{display:flex;align-items:center;gap:11px;margin-bottom:14px}
 .footer__brandrow .brand__logo{width:44px;height:44px;font-size:22px}
@@ -274,11 +275,28 @@ main{position:relative;z-index:10}
   .rail{right:14px}
   .footer__company{flex-direction:column;align-items:flex-start}
 }
-@media(max-width:520px){
+@media(max-width:600px){
+  .panel{padding:96px 58px 88px 20px}
+  .p-title{font-size:clamp(26px,7vw,40px);line-height:1.18;margin:0 0 18px}
+  .p-sub{font-size:16px;line-height:1.6;margin:0 0 26px}
+  .p-list{gap:16px}
+  .p-list li{gap:13px}
+  .p-list b{width:34px;height:34px;font-size:16px;border-radius:9px}
+  .p-list span strong{font-size:16.5px}
+  .p-list span,.p-list span i{font-size:13.5px}
   .actions{flex-direction:column;align-items:stretch}
   .btn{width:100%}
-  .certs{grid-template-columns:1fr}
-  .chips{grid-template-columns:1fr;max-width:340px}
+  .chips{max-width:none}
+  .eyebrow{margin-bottom:14px}
+  /* compact right rail (icon only) */
+  .rail{right:9px;gap:8px}
+  .rail__btn{width:46px;height:46px;border-radius:12px;gap:0}
+  .rail__btn svg{width:21px;height:21px}
+  .rail__cap{display:none}
+  .sound{right:12px;bottom:70px;width:46px;height:46px}
+  .sound svg{width:20px;height:20px}
+  .to-top{right:12px;bottom:14px;width:46px;height:46px}
+  .scroll-cue{font-size:11px}
 }
 
 /* mobile drawer */
@@ -339,33 +357,31 @@ main{position:relative;z-index:10}
   <!-- ===== CERT FOOTER ===== -->
   <footer class="footer">
     <div class="footer__inner">
-      <div class="cert-head">
-        <p class="eyebrow up">Certifications</p>
-        <h3 class="up">국가가 인증한 신뢰</h3>
-      </div>
-      <div class="certs">
-        <div class="cert up">
-          <span class="cert__seal"><img src="site/cert-venture.png" alt="벤처확인기업"></span>
-          <span class="cert__txt"><b>벤처확인기업</b><span>Venture Enterprise</span></span>
-        </div>
-        <div class="cert up">
-          <span class="cert__seal"><img src="site/cert-iso.png" alt="ISO 인증"></span>
-          <span class="cert__txt"><b>ISO 인증</b><span>ISO Certified</span></span>
-        </div>
-        <div class="cert up">
-          <span class="cert__seal"><img src="site/cert-mainbiz.png" alt="메인비즈"></span>
-          <span class="cert__txt"><b>메인비즈 인증</b><span>MAINBIZ</span></span>
-        </div>
-      </div>
       <div class="footer__company">
         <div>
-        <div class="footer__brandrow">
-          <span class="brand__logo">YK</span>
-          <span class="brand__name" style="text-shadow:none">와이케이메디</span>
-        </div>
+          <div class="footer__brandrow">
+            <span class="brand__logo">YK</span>
+            <span class="brand__name" style="text-shadow:none">와이케이메디</span>
+          </div>
           <p class="footer__legal">대표 김성준 &nbsp;|&nbsp; 사업자등록번호 556-81-01573<br>서울특별시 가산디지털1로 84 에이스하이엔드타워8차 201호</p>
         </div>
-        <p class="footer__copy">© 2020 YKMEDI. All rights reserved. &nbsp;·&nbsp; <a href="관리자페이지.html" style="color:rgba(255,255,255,.5);border-bottom:1px solid rgba(255,255,255,.25)">관리자</a></p>
+        <div class="footer__right">
+          <div class="certs">
+            <div class="cert">
+              <span class="cert__seal"><img src="site/cert-venture.png" alt="벤처확인기업"></span>
+              <span class="cert__txt"><b>벤처확인기업</b><span>Venture Enterprise</span></span>
+            </div>
+            <div class="cert">
+              <span class="cert__seal"><img src="site/cert-iso.png" alt="ISO 인증"></span>
+              <span class="cert__txt"><b>ISO 인증</b><span>ISO Certified</span></span>
+            </div>
+            <div class="cert">
+              <span class="cert__seal"><img src="site/cert-mainbiz.png" alt="메인비즈"></span>
+              <span class="cert__txt"><b>메인비즈 인증</b><span>MAINBIZ</span></span>
+            </div>
+          </div>
+          <p class="footer__copy">© 2020 YKMEDI. All rights reserved. &nbsp;·&nbsp; <a href="관리자페이지.html" style="color:rgba(255,255,255,.5);border-bottom:1px solid rgba(255,255,255,.25)">관리자</a></p>
+        </div>
       </div>
     </div>
   </footer>
