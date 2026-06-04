@@ -61,7 +61,7 @@
     var sections = Store.getSections();
     var html = '';
     sections.forEach(function (s, i) {
-      var Tag = i === 0 ? 'h1' : 'h2';
+      var Tag = 'h2';
       var ctas = ctaHtml(s.cta1) + ctaHtml(s.cta2);
       html += '<section class="panel" data-screen-label="' + ('0' + (i + 1)).slice(-2) + '">'
         + '<div class="panel__inner"><div class="panel__copy">'
