@@ -1,22 +1,15 @@
 import type { Metadata } from 'next';
-import { Cormorant_Garamond, Inter, Noto_Sans_KR } from 'next/font/google';
+import { Poppins, Noto_Sans_KR } from 'next/font/google';
 import './globals.css';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import ChatWidget from '@/app/chat/page';
 import Reveal from '@/components/Reveal';
 
-const cormorant = Cormorant_Garamond({
+const poppins = Poppins({
   subsets: ['latin'],
   weight: ['300', '400', '500', '600', '700'],
   variable: '--font-serif',
-  display: 'swap',
-});
-
-const inter = Inter({
-  subsets: ['latin'],
-  weight: ['300', '400', '500', '600', '700'],
-  variable: '--font-sans',
   display: 'swap',
 });
 
@@ -39,7 +32,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="ko" className={`${cormorant.variable} ${inter.variable} ${notoSansKr.variable}`}>
+    <html lang="ko" className={`${poppins.variable} ${notoSansKr.variable}`}>
       <head>
         {/* Facebook Pixel */}
         <script
