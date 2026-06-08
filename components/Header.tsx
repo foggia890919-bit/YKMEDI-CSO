@@ -21,22 +21,32 @@ export default function Header() {
     <header className="bg-white border-b border-gray-200">
       <div className="wellness-container">
         <div className="flex justify-between items-center py-4">
-          <Link href="/" className="text-2xl font-bold text-[#2d5016]">
-            비타앤오리진
+          <Link href="/" className="flex items-center gap-2">
+            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-active-lime text-lg">
+              🌿
+            </span>
+            <span className="flex flex-col leading-none">
+              <span className="text-xl font-extrabold tracking-tight text-midnight-forest">
+                VITA &amp; ORIGIN
+              </span>
+              <span className="text-[10px] tracking-[0.3em] text-active-lime-dark">
+                비타앤오리진
+              </span>
+            </span>
           </Link>
 
           <nav className="hidden md:flex gap-8">
-            <Link href="#products" className="text-gray-700 hover:text-[#2d5016]">
-              제품
+            <Link href="/shop" className="font-medium text-gray-700 hover:text-active-lime-dark">
+              Shop
             </Link>
-            <Link href="#story" className="text-gray-700 hover:text-[#2d5016]">
-              브랜드 스토리
+            <Link href="#story" className="font-medium text-gray-700 hover:text-active-lime-dark">
+              Our Story
             </Link>
-            <Link href="/shop" className="text-gray-700 hover:text-[#2d5016]">
-              쇼핑
+            <Link href="#varieties" className="font-medium text-gray-700 hover:text-active-lime-dark">
+              Varieties
             </Link>
-            <Link href="/cart" className="text-gray-700 hover:text-[#2d5016]">
-              장바구니
+            <Link href="/cart" className="font-medium text-gray-700 hover:text-active-lime-dark">
+              Cart
             </Link>
           </nav>
 
@@ -90,7 +100,7 @@ export default function Header() {
                 <Link href="/login" className="text-gray-700 hover:text-[#2d5016] text-sm">
                   로그인
                 </Link>
-                <Link href="/register" className="bg-[#2d5016] text-white px-4 py-2 rounded hover:bg-[#1f3810] text-sm">
+                <Link href="/register" className="rounded-full bg-active-lime px-5 py-2 text-sm font-bold text-midnight-forest hover:bg-active-lime-dark">
                   회원가입
                 </Link>
               </>
