@@ -3,22 +3,22 @@
 @tailwind utilities;
 
 :root {
-  --vita-green: #2d5016;
-  --vita-green-deep: #1f3810;
-  --vita-gold: #c8a24a;
-  --vita-gold-soft: #d9bd7e;
-  --vita-cream: #f5f1e8;
-  --vita-ivory: #faf7f0;
-  --vita-charcoal: #2b2b26;
-  --vita-stone: #8a857a;
+  --vita-green: #9b8ab8;
+  --vita-green-deep: #8a7a9f;
+  --vita-gold: #d4a5c8;
+  --vita-gold-soft: #e8c5db;
+  --vita-cream: #faf5f8;
+  --vita-ivory: #faf8fb;
+  --vita-charcoal: #4a4a4a;
+  --vita-stone: #9b9499;
 
   /* 따뜻한 톤 (아일릿 원희 스타일) */
-  --vita-peach: #fff5f1;
-  --vita-peach-light: #ffe8e0;
-  --vita-warm-beige: #f5e6d3;
-  --vita-warm-tan: #d4a574;
-  --vita-warm-brown: #8b7355;
-  --vita-soft-pink: #f5d5cc;
+  --vita-peach: #fef5f5;
+  --vita-peach-light: #fce8ea;
+  --vita-warm-beige: #f5f0f3;
+  --vita-warm-tan: #d9b5cc;
+  --vita-warm-brown: #9b8ab8;
+  --vita-soft-pink: #f0d5e8;
 }
 
 * {
