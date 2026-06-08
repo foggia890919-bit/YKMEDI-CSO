@@ -145,15 +145,18 @@ function EditableImage({
         body: formData,
       });
 
+      const data = await response.json();
+
       if (response.ok) {
-        const data = await response.json();
         onChange(data.url);
         alert('✅ 이미지가 업로드되었습니다!');
       } else {
-        alert('❌ 업로드 실패');
+        console.error('Upload error:', data);
+        alert(`❌ 업로드 실패: ${data.error || '알 수 없는 오류'}`);
       }
     } catch (error) {
-      alert('❌ 업로드 중 오류가 발생했습니다');
+      console.error('Upload exception:', error);
+      alert(`❌ 업로드 중 오류가 발생했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
     } finally {
       setUploading(false);
     }
