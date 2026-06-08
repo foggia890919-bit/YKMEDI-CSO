@@ -1,11 +1,10 @@
 {
-  "hero": "https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=1200&q=90",
+  "hero": "https://d8j0ntlcm91z4.cloudfront.net/user_3DKftYJhPYte6fzx7UlgD1iYDar/hf_20260608_220917_307d2ef4-b8d8-4899-892a-e693d9c0fff7.png",
   "products": {
-    "1": "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=600&q=90",
-    "2": "https://images.unsplash.com/photo-1585518419759-8ba96b8b92a2?w=600&q=90",
-    "3": "https://images.unsplash.com/photo-1556228578-8c89e6adf883?w=600&q=90",
-    "4": "https://images.unsplash.com/photo-1447933601403-0c6688de566e?w=600&q=90",
-    "5": "https://images.unsplash.com/photo-1474836212017-52cecde8f86e?w=600&q=90"
+    "1": "https://d8j0ntlcm91z4.cloudfront.net/user_3DKftYJhPYte6fzx7UlgD1iYDar/hf_20260608_220921_353127f1-0e9b-4fa7-beb8-f4bfa98dc750.png",
+    "2": "https://d8j0ntlcm91z4.cloudfront.net/user_3DKftYJhPYte6fzx7UlgD1iYDar/hf_20260608_220922_34e02bb0-8dd9-48c2-8dc7-fa41a5be4a85.png",
+    "3": "https://d8j0ntlcm91z4.cloudfront.net/user_3DKftYJhPYte6fzx7UlgD1iYDar/hf_20260608_220922_815e324e-5ee8-45b2-8245-50b76bb5e474.png",
+    "4": "https://d8j0ntlcm91z4.cloudfront.net/user_3DKftYJhPYte6fzx7UlgD1iYDar/hf_20260608_220923_677b78dc-39c4-4bc8-ac25-2897246541c3.png"
   },
   "brandStory": "https://images.unsplash.com/photo-1574943320219-553eb213f72d?w=1000&q=90"
 }
