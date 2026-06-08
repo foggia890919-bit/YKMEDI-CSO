@@ -1,3 +1,7 @@
+'use client';
+
+import { motion } from 'framer-motion';
+
 const TESTIMONIALS = [
   {
     name: '김은진',
@@ -23,31 +27,36 @@ const TESTIMONIALS = [
 
 export default function Testimonials() {
   return (
-    <section className="bg-vita-ivory py-24">
+    <section className="bg-lime-50/50 py-28">
       <div className="wellness-container">
-        <div className="reveal mb-16 text-center">
-          <span className="eyebrow justify-center mb-5">Reviews</span>
-          <h2 className="font-serif-display text-4xl text-vita-green md:text-5xl">
-            고객의 이야기
+        <div className="mb-16 text-center">
+          <span className="inline-block rounded-full bg-active-lime/15 px-4 py-2 text-sm font-bold text-active-lime-dark">
+            Reviews
+          </span>
+          <h2 className="mt-4 text-4xl font-extrabold text-midnight-forest md:text-5xl">
+            건강한 변화를 경험한 사람들
           </h2>
         </div>
 
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {TESTIMONIALS.map((t, idx) => (
-            <figure
+            <motion.figure
               key={idx}
-              className="reveal flex h-full flex-col rounded-2xl border border-vita-charcoal/5 bg-white p-7 shadow-sm"
-              style={{ transitionDelay: `${idx * 80}ms` }}
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: idx * 0.1, duration: 0.5 }}
+              className="flex h-full flex-col rounded-2xl border border-gray-100 bg-white p-7 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md"
             >
-              <div className="mb-4 text-vita-gold">★★★★★</div>
-              <blockquote className="flex-1 leading-relaxed text-vita-charcoal/80">
+              <div className="mb-4 text-active-orange">★★★★★</div>
+              <blockquote className="flex-1 leading-relaxed text-gray-600">
                 “{t.text}”
               </blockquote>
-              <figcaption className="mt-6 border-t border-vita-charcoal/5 pt-4">
-                <p className="font-serif-display text-lg text-vita-green">{t.name}</p>
-                <p className="text-sm text-vita-stone">{t.role}</p>
+              <figcaption className="mt-6 border-t border-gray-100 pt-4">
+                <p className="text-lg font-bold text-midnight-forest">{t.name}</p>
+                <p className="text-sm text-active-lime-dark">{t.role}</p>
               </figcaption>
-            </figure>
+            </motion.figure>
           ))}
         </div>
       </div>
