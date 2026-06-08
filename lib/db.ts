@@ -51,9 +51,35 @@ export interface Review {
 }
 
 // 메모리 스토어
+import bcrypt from 'bcryptjs';
+
 let users: User[] = [];
 let orders: Order[] = [];
 let reviews: Review[] = [];
+
+// 초기 테스트 계정 생성
+const initializeTestUser = async () => {
+  // 이미 테스트 계정이 있는지 확인
+  const existingUser = users.find((u) => u.email === 'test@example.com');
+  if (!existingUser) {
+    // bcrypt로 비밀번호 해시
+    const hashedPassword = await bcrypt.hash('test123', 10);
+    const testUser: User = {
+      id: '1',
+      email: 'test@example.com',
+      password: hashedPassword,
+      name: '관리자',
+      phone: '010-0000-0000',
+      address: '서울시',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    users.push(testUser);
+  }
+};
+
+// 앱 초기화 시 테스트 계정 생성
+initializeTestUser().catch(console.error);
 
 // 사용자 데이터베이스 함수
 export const db = {
