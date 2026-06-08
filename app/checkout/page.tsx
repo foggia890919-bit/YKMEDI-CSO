@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCartStore } from '@/lib/store';
 import { useAuthStore } from '@/lib/auth-store';
-import TossPayments from '@tosspayments/payment-sdk';
+import { loadTossPayments } from '@tosspayments/payment-sdk';
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -23,17 +23,20 @@ export default function CheckoutPage() {
   const [tossPayments, setTossPayments] = useState<any>(null);
 
   useEffect(() => {
-    try {
-      const clientKey = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY;
-      if (!clientKey) {
-        console.warn('Toss Client Key not configured');
-        return;
+    const initToss = async () => {
+      try {
+        const clientKey = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY;
+        if (!clientKey) {
+          console.warn('Toss Client Key not configured');
+          return;
+        }
+        const toss = await loadTossPayments(clientKey);
+        setTossPayments(toss);
+      } catch (error) {
+        console.error('Failed to initialize Toss Payments:', error);
       }
-      const toss = new TossPayments(clientKey);
-      setTossPayments(toss);
-    } catch (error) {
-      console.error('Failed to initialize Toss Payments:', error);
-    }
+    };
+    initToss();
   }, []);
 
   if (items.length === 0) {
@@ -72,18 +75,15 @@ export default function CheckoutPage() {
     const merchantUid = `order_${Date.now()}`;
 
     try {
-      await tossPayments.payment.requestPayment({
-        method: 'CARD',
-        amount: {
-          currency: 'KRW',
-          value: finalTotal,
-        },
+      await tossPayments.requestPayment('카드', {
+        amount: finalTotal,
         orderId: merchantUid,
         orderName: `비타앤오리진 올리브오일 ${items.length}개`,
         customerName: formData.name,
         customerEmail: formData.email,
         customerMobilePhone: formData.phone.replace(/-/g, ''),
-        redirectUrl: `${window.location.origin}/order-complete`,
+        successUrl: `${window.location.origin}/order-complete`,
+        failUrl: `${window.location.origin}/checkout`,
       });
     } catch (error: any) {
       if (error.code === 'USER_CANCEL') {

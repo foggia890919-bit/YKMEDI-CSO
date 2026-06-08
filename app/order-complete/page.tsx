@@ -3,11 +3,10 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { useCartStore } from '@/lib/store';
+import { Suspense } from 'react';
 
-export default function OrderCompletePage() {
+function OrderCompleteContent() {
   const searchParams = useSearchParams();
-  const { items, getTotalPrice, clearCart } = useCartStore();
   const [orderId, setOrderId] = useState('주문번호');
   const [saving, setSaving] = useState(false);
 
@@ -17,7 +16,7 @@ export default function OrderCompletePage() {
       const orderId = searchParams.get('orderId');
       const amount = searchParams.get('amount');
 
-      if (paymentKey && orderId && amount && items.length > 0 && !saving) {
+      if (paymentKey && orderId && amount && !saving) {
         setSaving(true);
         try {
           const response = await fetch('/api/orders', {
@@ -27,15 +26,14 @@ export default function OrderCompletePage() {
               merchantUid: orderId,
               paymentKey: paymentKey,
               amount: parseInt(amount),
-              items: items,
-              customer: {}, // Should be passed from checkout, but will be in the order
+              items: [],
+              customer: {},
               userId: localStorage.getItem('userId') || '',
             }),
           });
 
           if (response.ok) {
-            clearCart();
-            localStorage.removeItem('checkoutData');
+            localStorage.removeItem('cart');
             setOrderId(orderId);
           }
         } catch (error) {
@@ -49,8 +47,12 @@ export default function OrderCompletePage() {
     };
 
     saveOrderFromPayment();
-  }, [searchParams, items.length, saving, clearCart]);
+  }, [searchParams, saving]);
 
+  return renderContent(orderId);
+}
+
+function renderContent(orderId: string) {
   return (
     <div className="py-20">
       <div className="wellness-container max-w-2xl text-center">
@@ -100,15 +102,15 @@ export default function OrderCompletePage() {
             홈으로 가기
           </Link>
         </div>
-
-        {/* 광고 전환 추적 */}
-        <div style={{ display: 'none' }}>
-          <img
-            src="https://www.facebook.com/tr?id=YOUR_PIXEL_ID&ev=Purchase&noscript=1"
-            alt="facebook-pixel"
-          />
-        </div>
       </div>
     </div>
+  );
+}
+
+export default function OrderCompletePage() {
+  return (
+    <Suspense fallback={<div className="py-20 text-center">로딩 중...</div>}>
+      <OrderCompleteContent />
+    </Suspense>
   );
 }
