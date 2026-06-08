@@ -1,11 +1,55 @@
-import Link from 'next/link';
+'use client';
 
-export default function OrderCompletePage({
-  searchParams,
-}: {
-  searchParams: { orderId?: string };
-}) {
-  const orderId = searchParams.orderId || '주문번호';
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { useCartStore } from '@/lib/store';
+
+export default function OrderCompletePage() {
+  const searchParams = useSearchParams();
+  const { items, getTotalPrice, clearCart } = useCartStore();
+  const [orderId, setOrderId] = useState('주문번호');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const saveOrderFromPayment = async () => {
+      const paymentKey = searchParams.get('paymentKey');
+      const orderId = searchParams.get('orderId');
+      const amount = searchParams.get('amount');
+
+      if (paymentKey && orderId && amount && items.length > 0 && !saving) {
+        setSaving(true);
+        try {
+          const response = await fetch('/api/orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              merchantUid: orderId,
+              paymentKey: paymentKey,
+              amount: parseInt(amount),
+              items: items,
+              customer: {}, // Should be passed from checkout, but will be in the order
+              userId: localStorage.getItem('userId') || '',
+            }),
+          });
+
+          if (response.ok) {
+            clearCart();
+            localStorage.removeItem('checkoutData');
+            setOrderId(orderId);
+          }
+        } catch (error) {
+          console.error('Failed to save order:', error);
+        } finally {
+          setSaving(false);
+        }
+      } else if (orderId) {
+        setOrderId(orderId);
+      }
+    };
+
+    saveOrderFromPayment();
+  }, [searchParams, items.length, saving, clearCart]);
 
   return (
     <div className="py-20">

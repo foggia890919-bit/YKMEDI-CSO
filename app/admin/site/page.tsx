@@ -118,11 +118,13 @@ function EditableImage({
   onChange,
   aspectClass,
   label,
+  dimensions,
 }: {
   value: string;
   onChange: (v: string) => void;
   aspectClass: string;
   label: string;
+  dimensions?: string;
 }) {
   return (
     <div className="space-y-2">
@@ -145,6 +147,11 @@ function EditableImage({
         placeholder="이미지 URL 붙여넣기..."
         className="w-full text-xs bg-white border-2 border-dashed border-[#c8a24a]/40 rounded-lg px-2 py-1.5 focus:outline-none focus:border-[#c8a24a]"
       />
+      {dimensions && (
+        <div className="text-xs text-gray-600 bg-gray-50 p-2 rounded">
+          📐 <span className="font-semibold">{dimensions}</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -249,6 +256,17 @@ export default function SiteEditor() {
       </div>
 
       <div className="wellness-container py-8 space-y-6">
+        {/* 이미지 업로드 가이드 */}
+        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-6 mb-4">
+          <h2 className="font-semibold text-blue-900 mb-3">📸 이미지 URL 업로드 방법</h2>
+          <div className="text-sm text-blue-800 space-y-2">
+            <p>① Hixelsfield에서 이미지 생성</p>
+            <p>② 생성된 이미지를 다운로드 후, 이미지 호스팅 서비스(예: Imgur, Cloudinary, AWS S3)에 업로드</p>
+            <p>③ 얻은 URL을 아래 텍스트 박스에 붙여넣기</p>
+            <p>④ 저장하기 클릭하면 홈페이지에 바로 반영됩니다</p>
+          </div>
+        </div>
+
         {/* === 히어로 섹션 === */}
         <section className="bg-vita-ivory rounded-3xl p-8 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-widest text-[#c8a24a] mb-4">
@@ -326,6 +344,7 @@ export default function SiteEditor() {
                 onChange={(v) => setImages({ ...images, hero: v })}
                 aspectClass="aspect-[4/5]"
                 label="히어로 이미지"
+                dimensions="권장: 800x1000px 또는 1200x1500px (4:5 비율)"
               />
             </div>
           </div>
@@ -370,6 +389,7 @@ export default function SiteEditor() {
                   }
                   aspectClass="aspect-[4/5]"
                   label={`상품 ${id} 이미지`}
+                  dimensions="권장: 600x750px 또는 800x1000px (4:5 비율)"
                 />
               </div>
             ))}
@@ -396,6 +416,7 @@ export default function SiteEditor() {
                 onChange={(v) => setImages({ ...images, brandStory: v })}
                 aspectClass="aspect-[5/6]"
                 label="브랜드 스토리 이미지"
+                dimensions="권장: 750x900px 또는 1000x1200px (5:6 비율)"
               />
             </div>
             <div className="space-y-4">

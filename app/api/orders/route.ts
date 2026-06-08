@@ -9,6 +9,7 @@ interface Order {
   id: string;
   userId: string;
   impUid?: string;
+  paymentKey?: string;
   items: any[];
   totalAmount: number;
   status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
@@ -49,9 +50,10 @@ export async function POST(request: NextRequest) {
       id: data.merchantUid || `order_${Date.now()}`,
       userId: data.userId || '',
       impUid: data.impUid,
+      paymentKey: data.paymentKey,
       items: data.items || [],
       totalAmount: data.amount || 0,
-      status: 'pending',
+      status: data.paymentKey ? 'confirmed' : 'pending',
       customer: data.customer || {},
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),

@@ -1,16 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCartStore } from '@/lib/store';
 import { useAuthStore } from '@/lib/auth-store';
-
-declare global {
-  interface Window {
-    IMP: any;
-  }
-}
+import TossPayments from '@tosspayments/payment-sdk';
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -25,6 +20,21 @@ export default function CheckoutPage() {
     postalCode: '',
   });
   const [isProcessing, setIsProcessing] = useState(false);
+  const [tossPayments, setTossPayments] = useState<any>(null);
+
+  useEffect(() => {
+    try {
+      const clientKey = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY;
+      if (!clientKey) {
+        console.warn('Toss Client Key not configured');
+        return;
+      }
+      const toss = new TossPayments(clientKey);
+      setTossPayments(toss);
+    } catch (error) {
+      console.error('Failed to initialize Toss Payments:', error);
+    }
+  }, []);
 
   if (items.length === 0) {
     return (
@@ -53,62 +63,36 @@ export default function CheckoutPage() {
     e.preventDefault();
     setIsProcessing(true);
 
-    // 아임포트 초기화
-    if (!window.IMP) {
-      alert('결제 시스템을 초기화하지 못했습니다.');
+    if (!tossPayments) {
+      alert('결제 시스템을 초기화하지 못했습니다. 잠시 후 다시 시도해주세요.');
       setIsProcessing(false);
       return;
     }
 
-    window.IMP.init('YOUR_IAMPORT_ID');
+    const merchantUid = `order_${Date.now()}`;
 
-    // 결제 요청 데이터
-    const paymentData = {
-      pg: 'kcp', // 또는 'inicis', 'paypal' 등
-      pay_method: 'card',
-      merchant_uid: `order_${Date.now()}`,
-      amount: finalTotal,
-      name: `비타앤오리진 올리브오일 ${items.length}개`,
-      buyer_email: formData.email,
-      buyer_name: formData.name,
-      buyer_tel: formData.phone,
-      buyer_addr: `${formData.address} ${formData.detailAddress}`,
-      buyer_postcode: formData.postalCode,
-    };
-
-    window.IMP.request_pay(paymentData, async (response: any) => {
-      if (response.success) {
-        // 결제 성공 - 서버에 주문 정보 저장
-        try {
-          const orderResponse = await fetch('/api/orders', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              impUid: response.imp_uid,
-              merchantUid: paymentData.merchant_uid,
-              amount: finalTotal,
-              items: items,
-              customer: formData,
-              userId: user?.id || '',
-            }),
-          });
-
-          if (orderResponse.ok) {
-            clearCart();
-            alert('주문이 완료되었습니다!');
-            router.push(`/order-complete?orderId=${paymentData.merchant_uid}`);
-          } else {
-            alert('주문 저장 중 오류가 발생했습니다.');
-          }
-        } catch (error) {
-          alert('결제 처리 중 오류가 발생했습니다.');
-          console.error(error);
-        }
-      } else {
-        alert(`결제 실패: ${response.error_msg}`);
+    try {
+      await tossPayments.payment.requestPayment({
+        method: 'CARD',
+        amount: {
+          currency: 'KRW',
+          value: finalTotal,
+        },
+        orderId: merchantUid,
+        orderName: `비타앤오리진 올리브오일 ${items.length}개`,
+        customerName: formData.name,
+        customerEmail: formData.email,
+        customerMobilePhone: formData.phone.replace(/-/g, ''),
+        redirectUrl: `${window.location.origin}/order-complete`,
+      });
+    } catch (error: any) {
+      if (error.code === 'USER_CANCEL') {
+        setIsProcessing(false);
+        return;
       }
+      alert(`결제 요청 중 오류가 발생했습니다: ${error.message}`);
       setIsProcessing(false);
-    });
+    }
   };
 
   return (
@@ -273,10 +257,6 @@ export default function CheckoutPage() {
           </div>
         </div>
       </div>
-
-      {/* 아임포트 스크립트 */}
-      <script src="https://code.jquery.com/jquery-1.12.4.min.js"></script>
-      <script src="https://service.iamport.kr/js/iamport.payment-1.2.0.js"></script>
     </div>
   );
 }
