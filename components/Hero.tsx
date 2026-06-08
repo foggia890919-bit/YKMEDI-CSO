@@ -19,20 +19,20 @@ interface HeroContent {
 
 export default function Hero() {
   const [heroImage, setHeroImage] = useState(
-    'https://d8j0ntlcm91z4.cloudfront.net/user_3DKftYJhPYte6fzx7UlgD1iYDar/hf_20260608_184055_73c767ec-b72c-42a4-9f3b-12b302b51a96.jpeg'
+    'https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=1200&q=80'
   );
   const [content, setContent] = useState<HeroContent>({
-    eyebrow: 'Premium Olive Oil',
-    heading: '자연 그대로의\n생명력을 담다',
-    description: '지중해의 햇살과 시간이 빚어낸 엑스트라 버진 올리브오일.\n매일의 식탁에 건강한 웰니스를 더합니다.',
-    button1: '컬렉션 둘러보기',
-    button2: '브랜드 스토리',
-    stat1Title: '30+',
-    stat1Desc: '년의 전문성',
+    eyebrow: 'Vita & Origin',
+    heading: '진정한 웰니스의\n시작입니다',
+    description: '건강한 삶을 위한 정직한 선택. 지중해의 최고 명품 올리브를 엄선하여 제공합니다.',
+    button1: '컬렉션 보기',
+    button2: '우리의 이야기',
+    stat1Title: '5가지',
+    stat1Desc: '올리브오일 품종',
     stat2Title: '100%',
-    stat2Desc: '첫 수확 콜드프레스',
-    stat3Title: '4.9★',
-    stat3Desc: '고객 만족도',
+    stat2Desc: '콜드프레스',
+    stat3Title: '건강한',
+    stat3Desc: '웰니스 라이프',
   });
 
   useEffect(() => {
@@ -60,94 +60,87 @@ export default function Hero() {
   }, []);
 
   return (
-    <section className="relative overflow-hidden bg-vita-ivory">
-      {/* 배경 장식 */}
-      <div className="pointer-events-none absolute -top-32 -right-32 h-[520px] w-[520px] rounded-full bg-vita-gold/10 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-40 -left-24 h-[420px] w-[420px] rounded-full bg-vita-green/10 blur-3xl" />
+    <section className="relative overflow-hidden bg-white">
+      {/* 배경 장식 - 활발한 그린 톤 */}
+      <div className="pointer-events-none absolute -top-40 -right-24 h-[600px] w-[600px] rounded-full bg-green-100/40 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-32 -left-32 h-[500px] w-[500px] rounded-full bg-amber-100/30 blur-3xl" />
 
-      <div className="wellness-container relative grid grid-cols-1 items-center gap-12 py-20 md:py-28 lg:grid-cols-2">
-        {/* 텍스트 */}
-        <div className="reveal">
-          <span className="eyebrow mb-6">{content.eyebrow}</span>
-          <h1 className="font-serif-display text-5xl leading-[1.1] text-vita-green md:text-6xl lg:text-7xl">
-            {content.heading.split('\n').map((line, i) => (
-              <div key={i}>
-                {line.includes('생명력') ? (
-                  <>
-                    {line.split('생명력')[0]}
-                    <span className="text-vita-gold">생명력</span>
-                    {line.split('생명력')[1]}
-                  </>
-                ) : (
-                  line
-                )}
-              </div>
-            ))}
-          </h1>
-          <p className="mt-7 max-w-md text-lg leading-relaxed text-vita-stone">
-            {content.description.split('\n').map((line, i) => (
-              <div key={i}>{line}</div>
-            ))}
+      <div className="wellness-container relative grid grid-cols-1 items-center gap-16 py-24 md:py-32 lg:grid-cols-2">
+        {/* 텍스트 섹션 */}
+        <div className="reveal space-y-8">
+          <div>
+            <span className="inline-block rounded-full bg-green-50 px-4 py-2 text-sm font-bold text-green-600 mb-4">
+              ✨ {content.eyebrow}
+            </span>
+            <h1 className="text-6xl md:text-7xl lg:text-8xl font-bold leading-[1.1] text-charcoal">
+              {content.heading.split('\n').map((line, i) => (
+                <div key={i}>
+                  {line.includes('웰니스') ? (
+                    <>
+                      {line.split('웰니스')[0]}
+                      <span className="text-green-600">웰니스</span>
+                      {line.split('웰니스')[1]}
+                    </>
+                  ) : (
+                    line
+                  )}
+                </div>
+              ))}
+            </h1>
+          </div>
+
+          <p className="text-xl md:text-2xl leading-relaxed text-gray-600 max-w-2xl">
+            {content.description}
           </p>
 
-          <div className="mt-10 flex flex-wrap items-center gap-4">
-            <Link href="/shop" className="vita-button">
-              {content.button1}
+          {/* 버튼 그룹 */}
+          <div className="flex flex-wrap gap-4 pt-4">
+            <Link
+              href="/shop"
+              className="px-8 py-4 bg-green-600 text-white font-bold rounded-full hover:bg-green-700 transition-colors text-lg"
+            >
+              {content.button1} →
             </Link>
-            <Link href="#story" className="vita-button-ghost">
+            <Link
+              href="#story"
+              className="px-8 py-4 border-2 border-green-600 text-green-600 font-bold rounded-full hover:bg-green-50 transition-colors text-lg"
+            >
               {content.button2}
             </Link>
           </div>
 
           {/* 신뢰 지표 */}
-          <div className="mt-12 flex gap-10">
-            <div>
-              <p className="font-serif-display text-3xl text-vita-green">
-                {content.stat1Title.includes('+') ? (
-                  <>
-                    {content.stat1Title.replace('+', '')}<span className="text-vita-gold">+</span>
-                  </>
-                ) : (
-                  content.stat1Title
-                )}
+          <div className="grid grid-cols-3 gap-8 pt-8 border-t border-gray-200">
+            <div className="space-y-2">
+              <p className="text-4xl md:text-5xl font-bold text-green-600">
+                {content.stat1Title}
               </p>
-              <p className="mt-1 text-sm text-vita-stone">{content.stat1Desc}</p>
+              <p className="text-gray-600 font-medium">{content.stat1Desc}</p>
             </div>
-            <div className="border-l border-vita-charcoal/10 pl-10">
-              <p className="font-serif-display text-3xl text-vita-green">
-                {content.stat2Title.includes('%') ? (
-                  <>
-                    {content.stat2Title.replace('%', '')}<span className="text-vita-gold">%</span>
-                  </>
-                ) : (
-                  content.stat2Title
-                )}
+            <div className="space-y-2">
+              <p className="text-4xl md:text-5xl font-bold text-green-600">
+                {content.stat2Title}
               </p>
-              <p className="mt-1 text-sm text-vita-stone">{content.stat2Desc}</p>
+              <p className="text-gray-600 font-medium">{content.stat2Desc}</p>
             </div>
-            <div className="border-l border-vita-charcoal/10 pl-10">
-              <p className="font-serif-display text-3xl text-vita-green">
-                {content.stat3Title.includes('★') ? (
-                  <>
-                    {content.stat3Title.replace('★', '')}<span className="text-vita-gold">★</span>
-                  </>
-                ) : (
-                  content.stat3Title
-                )}
+            <div className="space-y-2">
+              <p className="text-3xl md:text-4xl font-bold text-green-600">
+                {content.stat3Title}
               </p>
-              <p className="mt-1 text-sm text-vita-stone">{content.stat3Desc}</p>
+              <p className="text-gray-600 font-medium text-sm">{content.stat3Desc}</p>
             </div>
           </div>
         </div>
 
-        {/* 이미지 슬롯 (힉스필드 AI 고급 히어로 이미지) */}
+        {/* 이미지 슬롯 */}
         <div className="reveal">
-          <div className="image-slot floaty aspect-[4/5] rounded-[28px] shadow-2xl overflow-hidden">
+          <div className="relative aspect-square rounded-3xl overflow-hidden shadow-2xl group">
             <img
               src={heroImage}
-              alt="비타앤오리진 프리미엄 올리브오일 - 지중해의 황금빛"
-              className="h-full w-full object-cover"
+              alt="Vita & Origin 프리미엄 올리브오일"
+              className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-500"
             />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
           </div>
         </div>
       </div>

@@ -22,8 +22,8 @@ interface ProductsContent {
 export default function Products() {
   const [products, setProducts] = useState<Product[]>([]);
   const [content, setContent] = useState<ProductsContent>({
-    title: '엄선된 컬렉션',
-    subtitle: '지중해 각지의 명품 산지에서 직접 선별한 네 가지 시그니처 오일',
+    title: '우리의 컬렉션',
+    subtitle: '지중해의 최고 올리브 농장에서 엄선한 5가지 프리미엄 오일',
   });
   const [productImages, setProductImages] = useState<Record<number, string>>({});
 
@@ -58,63 +58,90 @@ export default function Products() {
   }, []);
 
   return (
-    <section id="products" className="bg-vita-ivory py-24">
+    <section id="products" className="bg-white py-32">
       <div className="wellness-container">
-        <div className="reveal mb-16 text-center">
-          <span className="eyebrow justify-center mb-5">Bestsellers</span>
-          <h2 className="font-serif-display text-4xl text-vita-green md:text-5xl">
+        {/* 섹션 헤더 */}
+        <div className="reveal mb-20 max-w-2xl">
+          <span className="inline-block rounded-full bg-green-100 px-4 py-2 text-sm font-bold text-green-600 mb-4">
+            🌿 컬렉션
+          </span>
+          <h2 className="text-5xl md:text-6xl font-bold text-charcoal mb-6">
             {content.title}
           </h2>
-          <p className="mx-auto mt-5 max-w-xl text-vita-stone">
+          <p className="text-xl text-gray-600">
             {content.subtitle}
           </p>
         </div>
 
-        <div className="grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-4">
+        {/* 대시보드 그리드 - 반응형 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
           {products.map((product, idx) => (
             <Link
               key={product.id}
               href={`/product/${product.id}`}
-              className="product-card reveal group block"
-              style={{ transitionDelay: `${idx * 80}ms` }}
+              className="group rounded-2xl overflow-hidden bg-white border-2 border-gray-100 hover:border-green-300 hover:shadow-lg transition-all duration-300"
+              style={{ transitionDelay: `${idx * 50}ms` }}
             >
-              {/* 고급 AI 생성 상품 이미지 */}
-              <div className="image-slot aspect-[4/5] overflow-hidden">
+              {/* 이미지 */}
+              <div className="relative aspect-square overflow-hidden bg-gray-100">
                 <img
                   src={productImages[product.id] || product.image}
                   alt={product.name}
-                  className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-500"
                 />
+                <div className="absolute top-4 right-4 bg-green-600 text-white px-3 py-1 rounded-full text-sm font-bold">
+                  {product.tags[0]}
+                </div>
               </div>
 
-              <div className="p-6">
-                <p className="text-xs font-semibold uppercase tracking-widest text-vita-gold">
-                  {product.origin}
-                </p>
-                <h3 className="font-serif-display mt-2 text-xl text-vita-charcoal">
-                  {product.name}
-                </h3>
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  {product.tags.map((tag) => (
+              {/* 콘텐츠 */}
+              <div className="p-5 space-y-4">
+                <div>
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
+                    {product.origin}
+                  </p>
+                  <h3 className="text-lg font-bold text-charcoal group-hover:text-green-600 transition-colors">
+                    {product.name}
+                  </h3>
+                  <p className="text-sm text-gray-600 mt-2 line-clamp-2">
+                    {product.description}
+                  </p>
+                </div>
+
+                {/* 태그 */}
+                <div className="flex flex-wrap gap-2">
+                  {product.tags.slice(1).map((tag) => (
                     <span
                       key={tag}
-                      className="rounded-full bg-vita-cream px-2.5 py-1 text-xs text-vita-green"
+                      className="text-xs bg-gray-50 text-gray-600 px-2.5 py-1 rounded-lg"
                     >
                       {tag}
                     </span>
                   ))}
                 </div>
-                <div className="mt-5 flex items-center justify-between">
-                  <span className="font-serif-display text-2xl text-vita-green">
+
+                {/* 가격 */}
+                <div className="border-t border-gray-100 pt-4 flex items-center justify-between">
+                  <span className="text-xl font-bold text-green-600">
                     ₩{product.price.toLocaleString()}
                   </span>
-                  <span className="text-sm font-semibold text-vita-gold transition-transform duration-300 group-hover:translate-x-1">
-                    보기 →
+                  <span className="text-green-600 font-bold group-hover:translate-x-1 transition-transform">
+                    →
                   </span>
                 </div>
               </div>
             </Link>
           ))}
+        </div>
+
+        {/* 전체 보기 버튼 */}
+        <div className="mt-16 text-center">
+          <Link
+            href="/shop"
+            className="inline-block px-10 py-4 bg-green-600 text-white font-bold rounded-full hover:bg-green-700 transition-colors text-lg"
+          >
+            전체 컬렉션 보기 →
+          </Link>
         </div>
       </div>
     </section>
