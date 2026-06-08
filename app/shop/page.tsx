@@ -1,58 +1,42 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
-const PRODUCTS = [
-  {
-    id: 1,
-    name: 'Premium Extra Virgin',
-    price: 45000,
-    description: '그리스 크레타 올리브오일',
-    tags: ['상큼함', '생과일향']
-  },
-  {
-    id: 2,
-    name: 'Golden Selection',
-    price: 38000,
-    description: '스페인 안달루시아 올리브오일',
-    tags: ['균형잡힌맛', '부드러움']
-  },
-  {
-    id: 3,
-    name: 'Heritage Estate',
-    price: 52000,
-    description: '이탈리아 토스카나 올리브오일',
-    tags: ['진한맛', '견과류향']
-  },
-  {
-    id: 4,
-    name: 'Morning Blend',
-    price: 32000,
-    description: '튀니지 올리브오일',
-    tags: ['가벼움', '상큼함']
-  },
-  {
-    id: 5,
-    name: 'Luxury Gift Set',
-    price: 120000,
-    description: '4종 올리브오일 선물 세트',
-    tags: ['선물', '세트']
-  },
-  {
-    id: 6,
-    name: 'Daily Essential',
-    price: 28000,
-    description: '초보자용 올리브오일 1L',
-    tags: ['추천', '경제적']
-  },
-];
+interface Product {
+  id: number;
+  name: string;
+  price: number;
+  origin: string;
+  tags: string[];
+  image: string;
+  details: string;
+}
 
 export default function ShopPage() {
+  const [products, setProducts] = useState<Product[]>([]);
   const [sortBy, setSortBy] = useState('featured');
   const [filterPrice, setFilterPrice] = useState('all');
+  const [loading, setLoading] = useState(true);
 
-  let displayedProducts = [...PRODUCTS];
+  useEffect(() => {
+    const loadProducts = async () => {
+      try {
+        const res = await fetch('/api/products');
+        if (res.ok) {
+          const data = await res.json();
+          setProducts(data);
+        }
+      } catch (error) {
+        console.error('Failed to load products:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadProducts();
+  }, []);
+
+  let displayedProducts = [...products];
 
   if (sortBy === 'price-low') {
     displayedProducts.sort((a, b) => a.price - b.price);
@@ -70,20 +54,29 @@ export default function ShopPage() {
   }
 
   return (
-    <div className="py-12">
+    <div className="min-h-screen bg-gradient-to-b from-white to-[#faf8f6] py-12">
       <div className="wellness-container">
-        <h1 className="text-4xl font-bold text-[#2d5016] mb-8">상품 쇼핑</h1>
+        {/* 페이지 헤더 */}
+        <div className="mb-14">
+          <h1 className="font-serif-display text-5xl text-[#2d5016] mb-4">
+            엄선된 올리브오일 컬렉션
+          </h1>
+          <p className="text-lg text-[#8b7355] font-light max-w-2xl">
+            지중해의 햇살과 시간이 빚어낸 프리미엄 올리브오일을 만나보세요.
+            각 병에는 농장의 정성과 자연의 순수함이 담겨있습니다.
+          </p>
+        </div>
 
         {/* 필터 및 정렬 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8 bg-white p-4 rounded-lg shadow-sm">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
+        <div className="mb-12 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-white p-6 rounded-2xl border border-[#e8d9cc] shadow-sm">
+            <label className="block text-sm uppercase tracking-widest font-semibold text-[#8b7355] mb-3">
               정렬
             </label>
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
-              className="w-full border border-gray-300 rounded px-3 py-2"
+              className="w-full border-2 border-[#e8d9cc] rounded-lg px-4 py-3 text-[#8b7355] focus:outline-none focus:border-[#c8a24a] bg-white"
             >
               <option value="featured">추천순</option>
               <option value="price-low">가격: 낮은순</option>
@@ -91,14 +84,14 @@ export default function ShopPage() {
             </select>
           </div>
 
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
+          <div className="bg-white p-6 rounded-2xl border border-[#e8d9cc] shadow-sm">
+            <label className="block text-sm uppercase tracking-widest font-semibold text-[#8b7355] mb-3">
               가격 범위
             </label>
             <select
               value={filterPrice}
               onChange={(e) => setFilterPrice(e.target.value)}
-              className="w-full border border-gray-300 rounded px-3 py-2"
+              className="w-full border-2 border-[#e8d9cc] rounded-lg px-4 py-3 text-[#8b7355] focus:outline-none focus:border-[#c8a24a] bg-white"
             >
               <option value="all">전체</option>
               <option value="under-40">40,000원 이하</option>
@@ -109,41 +102,70 @@ export default function ShopPage() {
         </div>
 
         {/* 상품 그리드 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {displayedProducts.map((product) => (
-            <div key={product.id} className="product-card">
-              <div className="h-48 bg-gradient-to-br from-[#f5f3f0] to-[#e8e4df] flex items-center justify-center text-6xl">
-                🫒
-              </div>
-              <div className="p-4">
-                <h3 className="font-bold text-lg mb-2">{product.name}</h3>
-                <p className="text-sm text-gray-600 mb-3">{product.description}</p>
-                <div className="flex flex-wrap gap-1 mb-4">
-                  {product.tags.map((tag) => (
-                    <span key={tag} className="text-xs bg-[#f5f3f0] text-[#2d5016] px-2 py-1 rounded">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-2xl font-bold text-[#2d5016]">
-                    ₩{product.price.toLocaleString()}
-                  </span>
-                  <Link
-                    href={`/product/${product.id}`}
-                    className="bg-[#2d5016] text-white px-4 py-2 rounded hover:bg-[#1f3810] transition"
-                  >
-                    보기
-                  </Link>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+        {loading ? (
+          <div className="text-center py-20">
+            <p className="text-lg text-[#8b7355]">상품을 불러오는 중...</p>
+          </div>
+        ) : displayedProducts.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {displayedProducts.map((product) => (
+              <Link
+                key={product.id}
+                href={`/product/${product.id}`}
+                className="group"
+              >
+                <div className="bg-white rounded-3xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 border border-[#e8d9cc] h-full flex flex-col">
+                  {/* 상품 이미지 */}
+                  <div className="h-64 bg-gradient-to-br from-[#fff5f1] via-[#ffe8e0] to-[#fce4d6] flex items-center justify-center overflow-hidden">
+                    <div className="text-8xl group-hover:scale-110 transition-transform duration-300">
+                      🫒
+                    </div>
+                  </div>
 
-        {displayedProducts.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-gray-600 text-lg">조건에 맞는 상품이 없습니다.</p>
+                  {/* 상품 정보 */}
+                  <div className="p-6 flex flex-col flex-1">
+                    <p className="text-xs uppercase tracking-widest text-[#d4a574] font-semibold mb-2">
+                      {product.origin}
+                    </p>
+                    <h3 className="font-serif-display text-2xl text-[#2d5016] mb-3 group-hover:text-[#c8a24a] transition-colors">
+                      {product.name}
+                    </h3>
+
+                    {/* 태그 */}
+                    {product.tags && product.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-4">
+                        {product.tags.slice(0, 2).map((tag) => (
+                          <span
+                            key={tag}
+                            className="text-xs bg-gradient-to-r from-[#fff5f1] to-[#ffe8e0] text-[#c8a24a] px-3 py-1 rounded-full font-medium"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* 가격 */}
+                    <div className="mt-auto pt-4 border-t border-[#e8d9cc]">
+                      <div className="flex justify-between items-center">
+                        <span className="font-serif-display text-3xl text-[#2d5016] font-bold">
+                          ₩{product.price.toLocaleString()}
+                        </span>
+                        <span className="text-[#c8a24a] font-semibold group-hover:translate-x-1 transition-transform duration-300">
+                          →
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-20">
+            <p className="text-xl text-[#8b7355] font-light">
+              조건에 맞는 상품이 없습니다. 😌
+            </p>
           </div>
         )}
       </div>

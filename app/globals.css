@@ -11,6 +11,14 @@
   --vita-ivory: #faf7f0;
   --vita-charcoal: #2b2b26;
   --vita-stone: #8a857a;
+
+  /* 따뜻한 톤 (아일릿 원희 스타일) */
+  --vita-peach: #fff5f1;
+  --vita-peach-light: #ffe8e0;
+  --vita-warm-beige: #f5e6d3;
+  --vita-warm-tan: #d4a574;
+  --vita-warm-brown: #8b7355;
+  --vita-soft-pink: #f5d5cc;
 }
 
 * {
