@@ -1,10 +1,10 @@
 {
-  "hero": "https://images.unsplash.com/photo-1474836212017-52cecde8f86e?w=800&h=1000&fit=crop",
+  "hero": "https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=1000&q=80",
   "products": {
-    "1": "https://images.unsplash.com/photo-1474836212017-52cecde8f86e?w=600&h=750&fit=crop",
-    "2": "https://images.unsplash.com/photo-1418065460487-3e41de6ce85d?w=600&h=750&fit=crop",
-    "3": "https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=600&h=750&fit=crop",
-    "4": "https://images.unsplash.com/photo-1585518419759-8ba96b8b92a2?w=600&h=750&fit=crop"
+    "1": "https://images.unsplash.com/photo-1474836212017-52cecde8f86e?w=600&q=80",
+    "2": "https://images.unsplash.com/photo-1418065460487-3e41de6ce85d?w=600&q=80",
+    "3": "https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=600&q=80",
+    "4": "https://images.unsplash.com/photo-1585518419759-8ba96b8b92a2?w=600&q=80"
   },
-  "brandStory": "https://images.unsplash.com/photo-1474836212017-52cecde8f86e?w=750&h=900&fit=crop"
+  "brandStory": "https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=800&q=80"
 }
