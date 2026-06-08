@@ -1,6 +1,26 @@
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 
 export default function Hero() {
+  const [heroImage, setHeroImage] = useState(
+    'https://d8j0ntlcm91z4.cloudfront.net/user_3DKftYJhPYte6fzx7UlgD1iYDar/hf_20260608_184055_73c767ec-b72c-42a4-9f3b-12b302b51a96.jpeg'
+  );
+
+  useEffect(() => {
+    const loadImages = async () => {
+      try {
+        const res = await fetch('/api/images');
+        if (res.ok) {
+          const data = await res.json();
+          setHeroImage(data.hero);
+        }
+      } catch (error) {
+        console.error('Failed to load images:', error);
+      }
+    };
+    loadImages();
+  }, []);
+
   return (
     <section className="relative overflow-hidden bg-vita-ivory">
       {/* 배경 장식 */}
@@ -51,7 +71,7 @@ export default function Hero() {
         <div className="reveal">
           <div className="image-slot floaty aspect-[4/5] rounded-[28px] shadow-2xl overflow-hidden">
             <img
-              src="https://d8j0ntlcm91z4.cloudfront.net/user_3DKftYJhPYte6fzx7UlgD1iYDar/hf_20260608_184055_73c767ec-b72c-42a4-9f3b-12b302b51a96.jpeg"
+              src={heroImage}
               alt="비타앤오리진 프리미엄 올리브오일 - 지중해의 황금빛"
               className="h-full w-full object-cover"
             />

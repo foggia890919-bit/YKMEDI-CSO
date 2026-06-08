@@ -1,4 +1,27 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+
 export default function BrandStory() {
+  const [brandStoryImage, setBrandStoryImage] = useState(
+    'https://d8j0ntlcm91z4.cloudfront.net/user_3DKftYJhPYte6fzx7UlgD1iYDar/hf_20260608_184111_a220615c-a3d1-45b3-9a9d-e521ff1a9eb5.png'
+  );
+
+  useEffect(() => {
+    const loadImages = async () => {
+      try {
+        const res = await fetch('/api/images');
+        if (res.ok) {
+          const data = await res.json();
+          setBrandStoryImage(data.brandStory);
+        }
+      } catch (error) {
+        console.error('Failed to load images:', error);
+      }
+    };
+    loadImages();
+  }, []);
+
   const points = [
     '100% 자연 상태 보존',
     '첫 수확 콜드프레스',
@@ -14,7 +37,7 @@ export default function BrandStory() {
           <div className="reveal order-2 lg:order-1">
             <div className="image-slot aspect-[5/6] rounded-[28px] shadow-xl overflow-hidden">
               <img
-                src="https://d8j0ntlcm91z4.cloudfront.net/user_3DKftYJhPYte6fzx7UlgD1iYDar/hf_20260608_184111_a220615c-a3d1-45b3-9a9d-e521ff1a9eb5.png"
+                src={brandStoryImage}
                 alt="올리브 나무와 지중해 풍경 - 30년의 농장 이야기"
                 className="h-full w-full object-cover"
               />

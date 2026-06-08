@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 
 const PRODUCTS = [
   {
@@ -38,6 +39,28 @@ const PRODUCTS = [
 ];
 
 export default function Products() {
+  const [productImages, setProductImages] = useState({
+    1: 'https://d8j0ntlcm91z4.cloudfront.net/user_3DKftYJhPYte6fzx7UlgD1iYDar/hf_20260608_184100_37751ea1-feb0-4142-a80d-ae22e1c27fb7.png',
+    2: 'https://d8j0ntlcm91z4.cloudfront.net/user_3DKftYJhPYte6fzx7UlgD1iYDar/hf_20260608_184101_6db206a9-fcd2-42e4-81b4-2169931065d2.png',
+    3: 'https://d8j0ntlcm91z4.cloudfront.net/user_3DKftYJhPYte6fzx7UlgD1iYDar/hf_20260608_184102_804eb490-04ce-4fb5-a7ca-ca561e72623c.png',
+    4: 'https://d8j0ntlcm91z4.cloudfront.net/user_3DKftYJhPYte6fzx7UlgD1iYDar/hf_20260608_184103_7ae3f5cb-0991-4f1b-ad5a-7b100eb45e65.png',
+  });
+
+  useEffect(() => {
+    const loadImages = async () => {
+      try {
+        const res = await fetch('/api/images');
+        if (res.ok) {
+          const data = await res.json();
+          setProductImages(data.products);
+        }
+      } catch (error) {
+        console.error('Failed to load images:', error);
+      }
+    };
+    loadImages();
+  }, []);
+
   return (
     <section id="products" className="bg-vita-ivory py-24">
       <div className="wellness-container">
@@ -62,7 +85,7 @@ export default function Products() {
               {/* 고급 AI 생성 상품 이미지 */}
               <div className="image-slot aspect-[4/5] overflow-hidden">
                 <img
-                  src={product.image}
+                  src={productImages[product.id as 1 | 2 | 3 | 4]}
                   alt={product.name}
                   className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                 />
