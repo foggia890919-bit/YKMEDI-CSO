@@ -21,7 +21,7 @@ export default function CheckoutPage() {
   });
   const [isProcessing, setIsProcessing] = useState(false);
   const [tossPayments, setTossPayments] = useState<any>(null);
-  const [paymentMethod, setPaymentMethod] = useState<'toss' | 'naver' | 'kakao'>('toss');
+  const [paymentMethod, setPaymentMethod] = useState<'toss' | 'naver' | 'kakao' | 'samsung'>('toss');
 
   useEffect(() => {
     const initToss = async () => {
@@ -87,6 +87,34 @@ export default function CheckoutPage() {
         return;
       }
       alert(`Toss 결제 요청 중 오류가 발생했습니다: ${error.message}`);
+      setIsProcessing(false);
+    }
+  };
+
+  const handleSamsungPayment = async (merchantUid: string) => {
+    if (!tossPayments) {
+      alert('결제 시스템을 초기화하지 못했습니다. 잠시 후 다시 시도해주세요.');
+      setIsProcessing(false);
+      return;
+    }
+
+    try {
+      await tossPayments.requestPayment('삼성페이', {
+        amount: finalTotal,
+        orderId: merchantUid,
+        orderName: `비타앤오리진 올리브오일 ${items.length}개`,
+        customerName: formData.name,
+        customerEmail: formData.email,
+        customerMobilePhone: formData.phone.replace(/-/g, ''),
+        successUrl: `${window.location.origin}/order-complete`,
+        failUrl: `${window.location.origin}/checkout`,
+      });
+    } catch (error: any) {
+      if (error.code === 'USER_CANCEL') {
+        setIsProcessing(false);
+        return;
+      }
+      alert(`삼성페이 결제 요청 중 오류가 발생했습니다: ${error.message}`);
       setIsProcessing(false);
     }
   };
@@ -172,6 +200,9 @@ export default function CheckoutPage() {
     switch (paymentMethod) {
       case 'toss':
         await handleTossPayment(merchantUid);
+        break;
+      case 'samsung':
+        await handleSamsungPayment(merchantUid);
         break;
       case 'naver':
         await handleNaverPayment(merchantUid);
@@ -291,11 +322,12 @@ export default function CheckoutPage() {
 
               <div className="mt-8 pt-8 border-t">
                 <h3 className="text-lg font-bold text-[#2d5016] mb-4">결제 수단 선택</h3>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                   {[
                     { id: 'toss', label: '🛒 Toss', desc: '토스' },
                     { id: 'naver', label: '☘️ Naver Pay', desc: '네이버페이' },
                     { id: 'kakao', label: '💛 Kakao Pay', desc: '카카오페이' },
+                    { id: 'samsung', label: '🔷 Samsung Pay', desc: '삼성페이' },
                   ].map((method) => (
                     <label
                       key={method.id}
