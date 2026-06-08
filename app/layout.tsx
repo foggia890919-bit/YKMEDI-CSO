@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
+import ChatWidget from '@/app/chat/page';
 
 export const metadata: Metadata = {
   title: '비타앤오리진 | 프리미엄 올리브오일',
@@ -81,6 +82,7 @@ export default function RootLayout({
       <body>
         <Header />
         <main>{children}</main>
+        <ChatWidget />
         <Footer />
       </body>
     </html>
