@@ -7,73 +7,91 @@ const PRODUCTS = [
     id: 1,
     name: 'Premium Extra Virgin',
     price: 45000,
-    image: '🫒',
-    description: '그리스 크레타 올리브오일',
-    tags: ['상큼함', '생과일향']
+    description: '그리스 크레타',
+    tags: ['상큼함', '생과일향'],
   },
   {
     id: 2,
     name: 'Golden Selection',
     price: 38000,
-    image: '🫒',
-    description: '스페인 안달루시아 올리브오일',
-    tags: ['균형잡힌맛', '부드러움']
+    description: '스페인 안달루시아',
+    tags: ['균형잡힌맛', '부드러움'],
   },
   {
     id: 3,
     name: 'Heritage Estate',
     price: 52000,
-    image: '🫒',
-    description: '이탈리아 토스카나 올리브오일',
-    tags: ['진한맛', '견과류향']
+    description: '이탈리아 토스카나',
+    tags: ['진한맛', '견과류향'],
   },
   {
     id: 4,
     name: 'Morning Blend',
     price: 32000,
-    image: '🫒',
-    description: '튀니지 올리브오일',
-    tags: ['가벼움', '상큼함']
-  }
+    description: '튀니지',
+    tags: ['가벼움', '상큼함'],
+  },
 ];
 
 export default function Products() {
   return (
-    <section id="products" className="py-16">
+    <section id="products" className="bg-vita-ivory py-24">
       <div className="wellness-container">
-        <h2 className="text-4xl font-bold text-[#2d5016] mb-12 text-center">
-          베스트셀러 제품
-        </h2>
+        <div className="reveal mb-16 text-center">
+          <span className="eyebrow justify-center mb-5">Bestsellers</span>
+          <h2 className="font-serif-display text-4xl text-vita-green md:text-5xl">
+            엄선된 컬렉션
+          </h2>
+          <p className="mx-auto mt-5 max-w-xl text-vita-stone">
+            지중해 각지의 명품 산지에서 직접 선별한 네 가지 시그니처 오일
+          </p>
+        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {PRODUCTS.map((product) => (
-            <div key={product.id} className="product-card">
-              <div className="h-48 bg-gradient-to-br from-[#f5f3f0] to-[#e8e4df] flex items-center justify-center text-6xl">
-                {product.image}
+        <div className="grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-4">
+          {PRODUCTS.map((product, idx) => (
+            <Link
+              key={product.id}
+              href={`/product/${product.id}`}
+              className="product-card reveal group block"
+              style={{ transitionDelay: `${idx * 80}ms` }}
+            >
+              {/* 이미지 슬롯 */}
+              <div className="image-slot aspect-[4/5]">
+                {/* <img src={`/images/product-${product.id}.jpg`} alt={product.name} /> */}
+                <div className="flex h-full w-full items-center justify-center">
+                  <span className="text-6xl transition-transform duration-500 group-hover:scale-110">
+                    🫒
+                  </span>
+                </div>
               </div>
-              <div className="p-4">
-                <h3 className="font-bold text-lg mb-2">{product.name}</h3>
-                <p className="text-sm text-gray-600 mb-3">{product.description}</p>
-                <div className="flex flex-wrap gap-1 mb-4">
+
+              <div className="p-6">
+                <p className="text-xs font-semibold uppercase tracking-widest text-vita-gold">
+                  {product.description}
+                </p>
+                <h3 className="font-serif-display mt-2 text-xl text-vita-charcoal">
+                  {product.name}
+                </h3>
+                <div className="mt-3 flex flex-wrap gap-1.5">
                   {product.tags.map((tag) => (
-                    <span key={tag} className="text-xs bg-[#f5f3f0] text-[#2d5016] px-2 py-1 rounded">
+                    <span
+                      key={tag}
+                      className="rounded-full bg-vita-cream px-2.5 py-1 text-xs text-vita-green"
+                    >
                       {tag}
                     </span>
                   ))}
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-2xl font-bold text-[#2d5016]">
+                <div className="mt-5 flex items-center justify-between">
+                  <span className="font-serif-display text-2xl text-vita-green">
                     ₩{product.price.toLocaleString()}
                   </span>
-                  <Link
-                    href={`/product/${product.id}`}
-                    className="bg-[#2d5016] text-white px-4 py-2 rounded hover:bg-[#1f3810] transition"
-                  >
-                    보기
-                  </Link>
+                  <span className="text-sm font-semibold text-vita-gold transition-transform duration-300 group-hover:translate-x-1">
+                    보기 →
+                  </span>
                 </div>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       </div>

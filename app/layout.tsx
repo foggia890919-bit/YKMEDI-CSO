@@ -1,8 +1,24 @@
 import type { Metadata } from 'next';
+import { Playfair_Display, Noto_Sans_KR } from 'next/font/google';
 import './globals.css';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import ChatWidget from '@/app/chat/page';
+import Reveal from '@/components/Reveal';
+
+const playfair = Playfair_Display({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-serif',
+  display: 'swap',
+});
+
+const notoSansKr = Noto_Sans_KR({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '700'],
+  variable: '--font-sans',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: '비타앤오리진 | 프리미엄 올리브오일',
@@ -16,7 +32,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="ko">
+    <html lang="ko" className={`${playfair.variable} ${notoSansKr.variable}`}>
       <head>
         {/* Facebook Pixel */}
         <script
@@ -80,6 +96,7 @@ export default function RootLayout({
         />
       </head>
       <body>
+        <Reveal />
         <Header />
         <main>{children}</main>
         <ChatWidget />

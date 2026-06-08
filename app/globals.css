@@ -2,6 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --vita-green: #2d5016;
+  --vita-green-deep: #1f3810;
+  --vita-gold: #c8a24a;
+  --vita-gold-soft: #d9bd7e;
+  --vita-cream: #f5f1e8;
+  --vita-ivory: #faf7f0;
+  --vita-charcoal: #2b2b26;
+  --vita-stone: #8a857a;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -13,21 +24,141 @@ html {
 }
 
 body {
-  background: #fafaf8;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: var(--vita-ivory);
+  color: var(--vita-charcoal);
+  font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-/* 웰니스 컨셉 스타일 */
+/* 타이포그래피 */
+.font-serif-display {
+  font-family: var(--font-serif), 'Playfair Display', Georgia, serif;
+}
+
+h1, h2, h3 {
+  font-family: var(--font-serif), 'Playfair Display', Georgia, serif;
+  letter-spacing: -0.01em;
+}
+
+/* 레이아웃 */
 .wellness-container {
-  max-width: 1200px;
+  max-width: 1240px;
   margin: 0 auto;
-  padding: 0 1rem;
+  padding: 0 1.5rem;
 }
 
+/* 버튼 */
 .vita-button {
-  @apply px-6 py-3 bg-[#2d5016] text-white rounded-lg hover:bg-[#1f3810] transition-colors;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.95rem 2rem;
+  background: var(--vita-green);
+  color: #fff;
+  border-radius: 999px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  transition: all 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  box-shadow: 0 8px 24px -10px rgba(45, 80, 22, 0.55);
+}
+.vita-button:hover {
+  background: var(--vita-green-deep);
+  transform: translateY(-2px);
+  box-shadow: 0 14px 30px -10px rgba(45, 80, 22, 0.6);
 }
 
-.product-card {
-  @apply bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow overflow-hidden;
+.vita-button-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.95rem 2rem;
+  border: 1.5px solid var(--vita-green);
+  color: var(--vita-green);
+  border-radius: 999px;
+  font-weight: 600;
+  transition: all 0.35s cubic-bezier(0.22, 1, 0.36, 1);
 }
+.vita-button-ghost:hover {
+  background: var(--vita-green);
+  color: #fff;
+}
+
+/* 카드 */
+.product-card {
+  background: #fff;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid rgba(43, 43, 38, 0.06);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.45s ease;
+}
+.product-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 30px 60px -30px rgba(43, 43, 38, 0.28);
+}
+
+/* 이미지 자리 (힉스필드 이미지 들어갈 슬롯) */
+.image-slot {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 120% at 30% 20%, rgba(200,162,74,0.18), transparent 55%),
+    linear-gradient(135deg, var(--vita-cream), #e7e0d0);
+}
+.image-slot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.image-slot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 80px rgba(43,43,38,0.06);
+  pointer-events: none;
+}
+
+/* 작은 라벨 */
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--vita-gold);
+}
+.eyebrow::before {
+  content: "";
+  width: 26px;
+  height: 1px;
+  background: var(--vita-gold);
+}
+
+/* 스크롤 등장 애니메이션 */
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.9s cubic-bezier(0.22, 1, 0.36, 1), transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1; transform: none; transition: none; }
+  html { scroll-behavior: auto; }
+}
+
+/* 은은한 떠다니는 모션 */
+@keyframes floaty {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+.floaty { animation: floaty 6s ease-in-out infinite; }
