@@ -91,12 +91,17 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="py-12 bg-gray-50 min-h-screen">
-      <div className="wellness-container">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-[#2d5016] mb-2">관리자 대시보드</h1>
-          <p className="text-gray-600">환영합니다, {user?.name}님</p>
+    <div className="min-h-screen bg-gradient-to-b from-white to-[#faf8f6]">
+      {/* 관리자 헤더 */}
+      <div className="bg-gradient-to-r from-[#2d5016] to-[#3d6b1f] text-white py-8 mb-12">
+        <div className="wellness-container">
+          <h1 className="font-serif-display text-4xl mb-2">🔐 관리자 대시보드</h1>
+          <p className="text-white/80">환영합니다, <span className="font-semibold">{user?.name}님</span></p>
         </div>
+      </div>
+
+      <div className="wellness-container py-12">
+        <div className="mb-8"></div>
 
         {/* 주요 지표 */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
@@ -253,17 +258,37 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* 빠른 링크 */}
-        <div className="mt-8 flex gap-4 flex-wrap">
-          <Link href="/orders" className="vita-button">
-            주문 관리
-          </Link>
-          <Link href="/products" className="bg-gray-600 text-white px-6 py-3 rounded hover:bg-gray-700">
-            상품 관리
-          </Link>
-          <Link href="/reviews" className="bg-gray-600 text-white px-6 py-3 rounded hover:bg-gray-700">
-            리뷰 관리
-          </Link>
+        {/* 관리 페이지 빠른 접근 */}
+        <div className="mt-12 bg-gradient-to-r from-[#f5f3f0] to-[#e8e4df] rounded-lg p-8 border border-[#d9c5b0]">
+          <h2 className="text-2xl font-bold text-[#2d5016] mb-6">📱 콘텐츠 관리</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Link
+              href="/admin/products"
+              className="bg-white p-6 rounded-lg border-2 border-[#c8a24a] hover:shadow-lg transition-all duration-300 group"
+            >
+              <div className="text-3xl mb-3">🛍️</div>
+              <h3 className="font-bold text-[#2d5016] mb-2 group-hover:text-[#c8a24a]">상품 관리</h3>
+              <p className="text-sm text-gray-600">상품 추가, 수정, 삭제</p>
+            </Link>
+
+            <Link
+              href="/admin/content"
+              className="bg-white p-6 rounded-lg border-2 border-[#c8a24a] hover:shadow-lg transition-all duration-300 group"
+            >
+              <div className="text-3xl mb-3">✍️</div>
+              <h3 className="font-bold text-[#2d5016] mb-2 group-hover:text-[#c8a24a]">텍스트 관리</h3>
+              <p className="text-sm text-gray-600">홈페이지 문구 수정</p>
+            </Link>
+
+            <Link
+              href="/admin/images"
+              className="bg-white p-6 rounded-lg border-2 border-[#c8a24a] hover:shadow-lg transition-all duration-300 group"
+            >
+              <div className="text-3xl mb-3">🖼️</div>
+              <h3 className="font-bold text-[#2d5016] mb-2 group-hover:text-[#c8a24a]">이미지 관리</h3>
+              <p className="text-sm text-gray-600">이미지 URL 변경</p>
+            </Link>
+          </div>
         </div>
       </div>
     </div>
