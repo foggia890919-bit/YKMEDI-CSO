@@ -87,42 +87,6 @@ export default function ChatPage() {
     }, 1500);
   };
 
-  if (!isAuthenticated) {
-    return (
-      <div className="fixed bottom-4 right-4 z-50">
-        <button
-          onClick={() => setIsOpen(!isOpen)}
-          className="bg-[#2d5016] text-white rounded-full p-4 shadow-lg hover:shadow-xl transition"
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-            />
-          </svg>
-        </button>
-
-        {isOpen && (
-          <div className="absolute bottom-16 right-0 w-80 bg-white rounded-lg shadow-xl overflow-hidden">
-            <div className="bg-[#2d5016] text-white p-4">
-              <h3 className="font-bold">고객 지원</h3>
-              <p className="text-xs mt-1">로그인 후 실시간 채팅이 가능합니다.</p>
-            </div>
-
-            <div className="p-4 text-center">
-              <p className="text-gray-600 mb-4">로그인이 필요합니다.</p>
-              <Link href="/login" className="vita-button inline-block text-sm">
-                로그인하기
-              </Link>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
   return (
     <div className="fixed bottom-4 right-4 z-50">
       <button
