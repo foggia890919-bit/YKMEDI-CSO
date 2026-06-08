@@ -1,31 +1,64 @@
 import { NextRequest, NextResponse } from 'next/server';
+import fs from 'fs';
+import path from 'path';
 
-// 주문 데이터를 메모리에 저장 (실제로는 데이터베이스에 저장)
-const orders: any[] = [];
+const DATA_DIR = path.join(process.cwd(), '.data');
+const ORDERS_FILE = path.join(DATA_DIR, 'orders.json');
+
+interface Order {
+  id: string;
+  userId: string;
+  impUid?: string;
+  items: any[];
+  totalAmount: number;
+  status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
+  customer: any;
+  createdAt: string;
+  updatedAt: string;
+}
+
+const ensureDataDir = () => {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+};
+
+const loadOrders = (): Order[] => {
+  try {
+    ensureDataDir();
+    if (fs.existsSync(ORDERS_FILE)) {
+      return JSON.parse(fs.readFileSync(ORDERS_FILE, 'utf-8'));
+    }
+  } catch (error) {
+    console.error('Failed to load orders:', error);
+  }
+  return [];
+};
+
+const saveOrders = (orders: Order[]) => {
+  ensureDataDir();
+  fs.writeFileSync(ORDERS_FILE, JSON.stringify(orders, null, 2));
+};
 
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
+    const orders = loadOrders();
 
-    const order = {
-      id: data.merchantUid,
+    const order: Order = {
+      id: data.merchantUid || `order_${Date.now()}`,
+      userId: data.userId || '',
       impUid: data.impUid,
-      amount: data.amount,
-      items: data.items,
-      customer: data.customer,
+      items: data.items || [],
+      totalAmount: data.amount || 0,
       status: 'pending',
+      customer: data.customer || {},
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
 
     orders.push(order);
-
-    // 실제로는 여기서 아임포트 API로 결제를 검증해야 함
-    // const verifyUrl = `https://api.iamport.kr/payments/${data.impUid}`;
-    // const headers = { Authorization: process.env.IAMPORT_SECRET };
-    // const verification = await fetch(verifyUrl, { headers });
-
-    // 환영 이메일 전송 (실제로는 이메일 서비스 사용)
-    console.log('Order created:', order);
+    saveOrders(orders);
 
     return NextResponse.json(
       {
@@ -45,8 +78,12 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  const orders = loadOrders();
   const orderId = request.nextUrl.searchParams.get('orderId');
+  const userId = request.nextUrl.searchParams.get('userId');
+  const all = request.nextUrl.searchParams.get('all');
 
+  // 특정 주문 조회
   if (orderId) {
     const order = orders.find((o) => o.id === orderId);
     if (order) {
@@ -55,5 +92,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: '주문을 찾을 수 없습니다.' }, { status: 404 });
   }
 
-  return NextResponse.json(orders);
+  // 관리자: 전체 주문 조회
+  if (all === 'true') {
+    return NextResponse.json(orders);
+  }
+
+  // 사용자별 주문 조회
+  if (userId) {
+    const userOrders = orders.filter((o) => o.userId === userId);
+    return NextResponse.json(userOrders);
+  }
+
+  return NextResponse.json([]);
 }

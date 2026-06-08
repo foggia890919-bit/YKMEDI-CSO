@@ -45,22 +45,28 @@ export default function MyPage() {
     setMessage('');
 
     try {
-      // 실제로는 API를 통해 저장
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      if (user) {
-        setUser({
-          ...user,
+      const res = await fetch('/api/auth/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: user?.id,
           name: formData.name,
           phone: formData.phone,
           address: formData.address,
-        });
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (user) {
+          setUser({ ...user, ...data.user });
+        }
+        setMessage('정보가 저장되었습니다.');
+        setIsEditing(false);
+        setTimeout(() => setMessage(''), 3000);
+      } else {
+        setMessage('저장 중 오류가 발생했습니다.');
       }
-
-      setMessage('정보가 저장되었습니다.');
-      setIsEditing(false);
-
-      setTimeout(() => setMessage(''), 3000);
     } catch (error) {
       setMessage('저장 중 오류가 발생했습니다.');
     } finally {

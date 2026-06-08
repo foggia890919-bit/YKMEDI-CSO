@@ -18,8 +18,8 @@ interface Order {
   items: OrderItem[];
   totalAmount: number;
   status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export default function OrdersPage() {
@@ -35,50 +35,18 @@ export default function OrdersPage() {
       return;
     }
 
-    fetchOrders();
-  }, [isAuthenticated, router]);
+    if (user?.id) {
+      fetchOrders();
+    }
+  }, [isAuthenticated, router, user]);
 
   const fetchOrders = async () => {
     try {
-      // 실제로는 API에서 사용자의 주문을 가져옴
-      const mockOrders: Order[] = [
-        {
-          id: 'order_1719532800000',
-          userId: user?.id || '',
-          items: [
-            { id: 1, name: 'Premium Extra Virgin', price: 45000, quantity: 2 },
-          ],
-          totalAmount: 93000,
-          status: 'delivered',
-          createdAt: new Date('2024-06-28'),
-          updatedAt: new Date('2024-07-01'),
-        },
-        {
-          id: 'order_1719619200000',
-          userId: user?.id || '',
-          items: [
-            { id: 3, name: 'Heritage Estate', price: 52000, quantity: 1 },
-            { id: 4, name: 'Morning Blend', price: 32000, quantity: 1 },
-          ],
-          totalAmount: 87000,
-          status: 'shipped',
-          createdAt: new Date('2024-06-29'),
-          updatedAt: new Date('2024-07-02'),
-        },
-        {
-          id: 'order_1719705600000',
-          userId: user?.id || '',
-          items: [
-            { id: 2, name: 'Golden Selection', price: 38000, quantity: 3 },
-          ],
-          totalAmount: 114000,
-          status: 'pending',
-          createdAt: new Date('2024-06-30'),
-          updatedAt: new Date('2024-06-30'),
-        },
-      ];
-
-      setOrders(mockOrders);
+      const res = await fetch(`/api/orders?userId=${user?.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setOrders(Array.isArray(data) ? data : []);
+      }
     } catch (error) {
       console.error('Failed to fetch orders:', error);
     } finally {

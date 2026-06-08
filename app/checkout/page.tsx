@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCartStore } from '@/lib/store';
+import { useAuthStore } from '@/lib/auth-store';
 
 declare global {
   interface Window {
@@ -14,6 +15,7 @@ declare global {
 export default function CheckoutPage() {
   const router = useRouter();
   const { items, getTotalPrice, clearCart } = useCartStore();
+  const { user } = useAuthStore();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -87,6 +89,7 @@ export default function CheckoutPage() {
               amount: finalTotal,
               items: items,
               customer: formData,
+              userId: user?.id || '',
             }),
           });
 
