@@ -3,22 +3,15 @@
 @tailwind utilities;
 
 :root {
-  --vita-green: #9b8ab8;
-  --vita-green-deep: #8a7a9f;
-  --vita-gold: #d4a5c8;
-  --vita-gold-soft: #e8c5db;
-  --vita-cream: #faf5f8;
-  --vita-ivory: #faf8fb;
-  --vita-charcoal: #4a4a4a;
-  --vita-stone: #9b9499;
-
-  /* 따뜻한 톤 (아일릿 원희 스타일) */
-  --vita-peach: #fef5f5;
-  --vita-peach-light: #fce8ea;
-  --vita-warm-beige: #f5f0f3;
-  --vita-warm-tan: #d9b5cc;
-  --vita-warm-brown: #9b8ab8;
-  --vita-soft-pink: #f0d5e8;
+  /* 주요 색상 3가지 */
+  --vita-green: #2d5016;
+  --vita-green-deep: #1f3810;
+  --vita-gold: #c8a24a;
+  --vita-gold-soft: #d9bd7e;
+  --vita-cream: #f5f1e8;
+  --vita-ivory: #faf7f0;
+  --vita-charcoal: #2b2b26;
+  --vita-stone: #8a857a;
 }
 
 * {
@@ -32,8 +25,7 @@ html {
 }
 
 body {
-  background: linear-gradient(135deg, var(--vita-ivory) 0%, rgba(250, 248, 251, 0.8) 50%, var(--vita-peach) 100%);
-  background-attachment: fixed;
+  background: var(--vita-ivory);
   color: var(--vita-charcoal);
   font-family: var(--font-serif), var(--font-sans-kr), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -74,12 +66,12 @@ h1, h2, h3 {
   font-weight: 600;
   letter-spacing: 0.01em;
   transition: all 0.35s cubic-bezier(0.22, 1, 0.36, 1);
-  box-shadow: 0 8px 24px -10px rgba(155, 138, 184, 0.35);
+  box-shadow: 0 8px 24px -10px rgba(45, 80, 22, 0.3);
 }
 .vita-button:hover {
   background: var(--vita-green-deep);
   transform: translateY(-2px);
-  box-shadow: 0 14px 30px -10px rgba(155, 138, 184, 0.4);
+  box-shadow: 0 14px 30px -10px rgba(45, 80, 22, 0.35);
 }
 
 .vita-button-ghost {
@@ -104,14 +96,14 @@ h1, h2, h3 {
   background: rgba(255, 255, 255, 0.85);
   border-radius: 24px;
   overflow: hidden;
-  border: 1px solid rgba(200, 180, 200, 0.3);
-  box-shadow: 0 8px 32px rgba(155, 138, 184, 0.1);
+  border: 1px solid rgba(45, 80, 22, 0.1);
+  box-shadow: 0 8px 32px rgba(45, 80, 22, 0.08);
   transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.45s ease;
   backdrop-filter: blur(10px);
 }
 .product-card:hover {
   transform: translateY(-6px);
-  box-shadow: 0 20px 48px rgba(155, 138, 184, 0.2);
+  box-shadow: 0 20px 48px rgba(45, 80, 22, 0.15);
 }
 
 /* 이미지 자리 - 부드러운 그라데이션 */
@@ -119,8 +111,8 @@ h1, h2, h3 {
   position: relative;
   overflow: hidden;
   background:
-    radial-gradient(120% 120% at 30% 20%, rgba(212, 165, 200, 0.12), transparent 55%),
-    linear-gradient(135deg, rgba(250, 248, 251, 0.6), rgba(240, 213, 232, 0.3));
+    radial-gradient(120% 120% at 30% 20%, rgba(200, 162, 74, 0.08), transparent 55%),
+    linear-gradient(135deg, rgba(250, 247, 240, 0.8), rgba(245, 241, 232, 0.5));
 }
 .image-slot img {
   width: 100%;
