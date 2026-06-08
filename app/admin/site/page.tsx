@@ -119,13 +119,46 @@ function EditableImage({
   aspectClass,
   label,
   dimensions,
+  imageType,
 }: {
   value: string;
   onChange: (v: string) => void;
   aspectClass: string;
   label: string;
   dimensions?: string;
+  imageType: 'hero' | 'products' | 'brandStory';
 }) {
+  const [uploading, setUploading] = useState(false);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('type', imageType);
+
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        onChange(data.url);
+        alert('✅ 이미지가 업로드되었습니다!');
+      } else {
+        alert('❌ 업로드 실패');
+      }
+    } catch (error) {
+      alert('❌ 업로드 중 오류가 발생했습니다');
+    } finally {
+      setUploading(false);
+    }
+  };
+
   return (
     <div className="space-y-2">
       <div className={`relative ${aspectClass} rounded-2xl overflow-hidden bg-gray-100 group`}>
@@ -140,11 +173,27 @@ function EditableImage({
           <span className="text-white text-sm font-semibold">🖼️ {label}</span>
         </div>
       </div>
+
+      <div className="flex gap-2">
+        <label className="flex-1">
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleFileUpload}
+            disabled={uploading}
+            className="hidden"
+          />
+          <div className="w-full text-center bg-green-50 border-2 border-green-300 text-green-700 rounded-lg px-2 py-1.5 cursor-pointer hover:bg-green-100 transition text-xs font-semibold disabled:opacity-50">
+            {uploading ? '업로드 중...' : '📤 파일 선택'}
+          </div>
+        </label>
+      </div>
+
       <input
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="이미지 URL 붙여넣기..."
+        placeholder="또는 이미지 URL 붙여넣기..."
         className="w-full text-xs bg-white border-2 border-dashed border-[#c8a24a]/40 rounded-lg px-2 py-1.5 focus:outline-none focus:border-[#c8a24a]"
       />
       {dimensions && (
@@ -344,6 +393,7 @@ export default function SiteEditor() {
                 onChange={(v) => setImages({ ...images, hero: v })}
                 aspectClass="aspect-[4/5]"
                 label="히어로 이미지"
+                imageType="hero"
                 dimensions="권장: 800x1000px 또는 1200x1500px (4:5 비율)"
               />
             </div>
@@ -389,6 +439,7 @@ export default function SiteEditor() {
                   }
                   aspectClass="aspect-[4/5]"
                   label={`상품 ${id} 이미지`}
+                  imageType="products"
                   dimensions="권장: 600x750px 또는 800x1000px (4:5 비율)"
                 />
               </div>
@@ -416,6 +467,7 @@ export default function SiteEditor() {
                 onChange={(v) => setImages({ ...images, brandStory: v })}
                 aspectClass="aspect-[5/6]"
                 label="브랜드 스토리 이미지"
+                imageType="brandStory"
                 dimensions="권장: 750x900px 또는 1000x1200px (5:6 비율)"
               />
             </div>
