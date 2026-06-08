@@ -10,6 +10,8 @@ interface Order {
   userId: string;
   impUid?: string;
   paymentKey?: string;
+  paymentMethod: 'toss' | 'naver' | 'kakao' | 'samsung';
+  settlementStatus: 'pending' | 'settled' | 'failed';
   items: any[];
   totalAmount: number;
   status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
@@ -51,6 +53,8 @@ export async function POST(request: NextRequest) {
       userId: data.userId || '',
       impUid: data.impUid,
       paymentKey: data.paymentKey,
+      paymentMethod: data.paymentMethod || 'toss',
+      settlementStatus: data.paymentKey || data.impUid ? 'pending' : 'pending',
       items: data.items || [],
       totalAmount: data.amount || 0,
       status: data.paymentKey ? 'confirmed' : 'pending',

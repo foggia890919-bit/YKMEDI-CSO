@@ -15,6 +15,7 @@ function OrderCompleteContent() {
       const paymentKey = searchParams.get('paymentKey');
       const orderId = searchParams.get('orderId');
       const amount = searchParams.get('amount');
+      const paymentMethod = searchParams.get('paymentMethod') || 'toss';
 
       if (paymentKey && orderId && amount && !saving) {
         setSaving(true);
@@ -26,6 +27,7 @@ function OrderCompleteContent() {
               merchantUid: orderId,
               paymentKey: paymentKey,
               amount: parseInt(amount),
+              paymentMethod: paymentMethod,
               items: [],
               customer: {},
               userId: localStorage.getItem('userId') || '',

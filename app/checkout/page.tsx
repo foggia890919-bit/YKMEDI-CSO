@@ -78,7 +78,7 @@ export default function CheckoutPage() {
         customerName: formData.name,
         customerEmail: formData.email,
         customerMobilePhone: formData.phone.replace(/-/g, ''),
-        successUrl: `${window.location.origin}/order-complete`,
+        successUrl: `${window.location.origin}/order-complete?paymentMethod=toss`,
         failUrl: `${window.location.origin}/checkout`,
       });
     } catch (error: any) {
@@ -106,7 +106,7 @@ export default function CheckoutPage() {
         customerName: formData.name,
         customerEmail: formData.email,
         customerMobilePhone: formData.phone.replace(/-/g, ''),
-        successUrl: `${window.location.origin}/order-complete`,
+        successUrl: `${window.location.origin}/order-complete?paymentMethod=samsung`,
         failUrl: `${window.location.origin}/checkout`,
       });
     } catch (error: any) {
@@ -141,7 +141,7 @@ export default function CheckoutPage() {
           totalPayAmount: finalTotal,
           taxScopeAmount: 0,
           taxExemptionAmount: finalTotal,
-          returnUrl: `${window.location.origin}/order-complete`,
+          returnUrl: `${window.location.origin}/order-complete?paymentMethod=naver`,
         });
       };
       document.head.appendChild(script);
@@ -170,8 +170,8 @@ export default function CheckoutPage() {
 
         kakao.Payment.requestPayment({
           tid: merchantUid,
-          next_redirect_pc_url: `${window.location.origin}/order-complete`,
-          next_redirect_mobile_url: `${window.location.origin}/order-complete`,
+          next_redirect_pc_url: `${window.location.origin}/order-complete?paymentMethod=kakao`,
+          next_redirect_mobile_url: `${window.location.origin}/order-complete?paymentMethod=kakao`,
           cid: 'TC0ONETIME',
           partner_order_id: merchantUid,
           partner_user_id: formData.email || 'USER',
@@ -179,7 +179,7 @@ export default function CheckoutPage() {
           quantity: items.length,
           total_amount: finalTotal,
           tax_free_amount: 0,
-          approval_url: `${window.location.origin}/order-complete`,
+          approval_url: `${window.location.origin}/order-complete?paymentMethod=kakao`,
           cancel_url: `${window.location.origin}/checkout`,
           fail_url: `${window.location.origin}/checkout`,
         });
