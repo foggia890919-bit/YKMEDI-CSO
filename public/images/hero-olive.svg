@@ -1,0 +1,30 @@
+<svg width="800" height="1000" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="heroGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#faf7f0;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#f5f1e8;stop-opacity:1" />
+    </linearGradient>
+    <radialGradient id="accentGold" cx="30%" cy="20%">
+      <stop offset="0%" style="stop-color:#c8a24a;stop-opacity:0.2" />
+      <stop offset="100%" style="stop-color:#c8a24a;stop-opacity:0" />
+    </radialGradient>
+  </defs>
+  
+  <rect width="800" height="1000" fill="url(#heroGradient)"/>
+  <circle cx="300" cy="200" r="400" fill="url(#accentGold)"/>
+  
+  <g opacity="0.15">
+    <circle cx="700" cy="800" r="250" fill="#2d5016"/>
+  </g>
+  
+  <!-- Decorative bottle silhouette -->
+  <g opacity="0.08">
+    <rect x="300" y="200" width="200" height="600" rx="20" fill="#2d5016"/>
+    <ellipse cx="400" cy="180" rx="120" ry="40" fill="#2d5016"/>
+  </g>
+  
+  <!-- Text -->
+  <text x="400" y="850" font-family="Georgia, serif" font-size="48" font-weight="500" text-anchor="middle" fill="#2d5016" opacity="0.3">
+    Premium Olive Oil
+  </text>
+</svg>

@@ -56,13 +56,12 @@ export default function Products() {
               style={{ transitionDelay: `${idx * 80}ms` }}
             >
               {/* 이미지 슬롯 */}
-              <div className="image-slot aspect-[4/5]">
-                {/* <img src={`/images/product-${product.id}.jpg`} alt={product.name} /> */}
-                <div className="flex h-full w-full items-center justify-center">
-                  <span className="text-6xl transition-transform duration-500 group-hover:scale-110">
-                    🫒
-                  </span>
-                </div>
+              <div className="image-slot aspect-[4/5] overflow-hidden">
+                <img
+                  src={`/images/product-${product.id}.svg`}
+                  alt={product.name}
+                  className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                />
               </div>
 
               <div className="p-6">

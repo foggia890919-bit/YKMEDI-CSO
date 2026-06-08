@@ -1,22 +1,29 @@
 import type { Metadata } from 'next';
-import { Playfair_Display, Noto_Sans_KR } from 'next/font/google';
+import { Cormorant_Garamond, Inter, Noto_Sans_KR } from 'next/font/google';
 import './globals.css';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import ChatWidget from '@/app/chat/page';
 import Reveal from '@/components/Reveal';
 
-const playfair = Playfair_Display({
+const cormorant = Cormorant_Garamond({
   subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
+  weight: ['300', '400', '500', '600', '700'],
   variable: '--font-serif',
+  display: 'swap',
+});
+
+const inter = Inter({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700'],
+  variable: '--font-sans',
   display: 'swap',
 });
 
 const notoSansKr = Noto_Sans_KR({
   subsets: ['latin'],
   weight: ['300', '400', '500', '700'],
-  variable: '--font-sans',
+  variable: '--font-sans-kr',
   display: 'swap',
 });
 
@@ -32,7 +39,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="ko" className={`${playfair.variable} ${notoSansKr.variable}`}>
+    <html lang="ko" className={`${cormorant.variable} ${inter.variable} ${notoSansKr.variable}`}>
       <head>
         {/* Facebook Pixel */}
         <script

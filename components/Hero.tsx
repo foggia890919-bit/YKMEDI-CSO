@@ -47,17 +47,14 @@ export default function Hero() {
           </div>
         </div>
 
-        {/* 이미지 슬롯 (힉스필드 히어로 이미지가 들어갈 자리) */}
+        {/* 이미지 슬롯 (힉스필드 히어로 이미지) */}
         <div className="reveal">
-          <div className="image-slot floaty aspect-[4/5] rounded-[28px] shadow-2xl">
-            {/* 이미지 준비되면 아래 주석 해제:
-            <img src="/images/hero.jpg" alt="비타앤오리진 올리브오일" /> */}
-            <div className="flex h-full w-full flex-col items-center justify-center text-center">
-              <span className="text-7xl">🫒</span>
-              <p className="mt-4 px-8 text-sm text-vita-stone">
-                지중해 햇살 아래의 황금빛 올리브오일
-              </p>
-            </div>
+          <div className="image-slot floaty aspect-[4/5] rounded-[28px] shadow-2xl overflow-hidden">
+            <img
+              src="/images/hero-olive.svg"
+              alt="비타앤오리진 프리미엄 올리브오일 - 지중해의 황금빛"
+              className="h-full w-full object-cover"
+            />
           </div>
         </div>
       </div>

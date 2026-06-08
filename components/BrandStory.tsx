@@ -12,12 +12,12 @@ export default function BrandStory() {
         <div className="grid grid-cols-1 items-center gap-16 lg:grid-cols-2">
           {/* 이미지 슬롯 (브랜드 스토리 이미지) */}
           <div className="reveal order-2 lg:order-1">
-            <div className="image-slot aspect-[5/6] rounded-[28px] shadow-xl">
-              {/* <img src="/images/brand-story.jpg" alt="올리브 나무와 지중해 풍경" /> */}
-              <div className="flex h-full w-full flex-col items-center justify-center text-center">
-                <span className="text-7xl">🌿</span>
-                <p className="mt-4 text-sm text-vita-stone">30년의 올리브 농장 이야기</p>
-              </div>
+            <div className="image-slot aspect-[5/6] rounded-[28px] shadow-xl overflow-hidden">
+              <img
+                src="/images/brand-story.svg"
+                alt="올리브 나무와 지중해 풍경 - 30년의 농장 이야기"
+                className="h-full w-full object-cover"
+              />
             </div>
           </div>
 
