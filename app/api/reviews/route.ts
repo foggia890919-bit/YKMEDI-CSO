@@ -59,8 +59,8 @@ export async function POST(request: NextRequest) {
       userName: userName || '익명',
       rating,
       comment,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
 
     db.reviews.create(review);

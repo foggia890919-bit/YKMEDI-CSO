@@ -52,8 +52,8 @@ export async function POST(request: NextRequest) {
       name,
       phone: phone || '',
       address: '',
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
 
     db.users.create(user);

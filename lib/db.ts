@@ -1,5 +1,7 @@
-// 메모리 데이터베이스 (실제로는 PostgreSQL/MongoDB 사용)
-// 프로덕션에서는 이를 실제 DB로 교체하세요
+// 파일 기반 데이터베이스 (영구 저장)
+import bcrypt from 'bcryptjs';
+import fs from 'fs';
+import path from 'path';
 
 export interface User {
   id: string;
@@ -8,8 +10,8 @@ export interface User {
   name: string;
   phone: string;
   address: string;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string; // ISO 문자열로 저장
+  updatedAt: string;
 }
 
 export interface Order {
@@ -28,8 +30,8 @@ export interface Order {
   };
   impUid?: string;
   merchantUid?: string;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface OrderItem {
@@ -46,23 +48,100 @@ export interface Review {
   userName: string;
   rating: number; // 1-5
   comment: string;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string;
+  updatedAt: string;
 }
 
-// 메모리 스토어
-import bcrypt from 'bcryptjs';
+// 파일 경로
+const DATA_DIR = path.join(process.cwd(), '.data');
+const USERS_FILE = path.join(DATA_DIR, 'users.json');
+const ORDERS_FILE = path.join(DATA_DIR, 'orders.json');
+const REVIEWS_FILE = path.join(DATA_DIR, 'reviews.json');
 
-let users: User[] = [];
-let orders: Order[] = [];
-let reviews: Review[] = [];
+// 디렉토리 생성
+const ensureDataDir = () => {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+};
+
+// 파일에서 데이터 로드
+const loadUsers = (): User[] => {
+  try {
+    ensureDataDir();
+    if (fs.existsSync(USERS_FILE)) {
+      const data = fs.readFileSync(USERS_FILE, 'utf-8');
+      return JSON.parse(data);
+    }
+  } catch (error) {
+    console.error('Failed to load users:', error);
+  }
+  return [];
+};
+
+const loadOrders = (): Order[] => {
+  try {
+    ensureDataDir();
+    if (fs.existsSync(ORDERS_FILE)) {
+      const data = fs.readFileSync(ORDERS_FILE, 'utf-8');
+      return JSON.parse(data);
+    }
+  } catch (error) {
+    console.error('Failed to load orders:', error);
+  }
+  return [];
+};
+
+const loadReviews = (): Review[] => {
+  try {
+    ensureDataDir();
+    if (fs.existsSync(REVIEWS_FILE)) {
+      const data = fs.readFileSync(REVIEWS_FILE, 'utf-8');
+      return JSON.parse(data);
+    }
+  } catch (error) {
+    console.error('Failed to load reviews:', error);
+  }
+  return [];
+};
+
+// 파일에 데이터 저장
+const saveUsers = (users: User[]) => {
+  try {
+    ensureDataDir();
+    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
+  } catch (error) {
+    console.error('Failed to save users:', error);
+  }
+};
+
+const saveOrders = (orders: Order[]) => {
+  try {
+    ensureDataDir();
+    fs.writeFileSync(ORDERS_FILE, JSON.stringify(orders, null, 2));
+  } catch (error) {
+    console.error('Failed to save orders:', error);
+  }
+};
+
+const saveReviews = (reviews: Review[]) => {
+  try {
+    ensureDataDir();
+    fs.writeFileSync(REVIEWS_FILE, JSON.stringify(reviews, null, 2));
+  } catch (error) {
+    console.error('Failed to save reviews:', error);
+  }
+};
+
+// 초기 데이터 로드
+let users: User[] = loadUsers();
+let orders: Order[] = loadOrders();
+let reviews: Review[] = loadReviews();
 
 // 초기 테스트 계정 생성
 const initializeTestUser = async () => {
-  // 이미 테스트 계정이 있는지 확인
   const existingUser = users.find((u) => u.email === 'test@example.com');
   if (!existingUser) {
-    // bcrypt로 비밀번호 해시
     const hashedPassword = await bcrypt.hash('test123', 10);
     const testUser: User = {
       id: '1',
@@ -71,14 +150,15 @@ const initializeTestUser = async () => {
       name: '관리자',
       phone: '010-0000-0000',
       address: '서울시',
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
     users.push(testUser);
+    saveUsers(users);
   }
 };
 
-// 앱 초기화 시 테스트 계정 생성
+// 앱 초기화
 initializeTestUser().catch(console.error);
 
 // 사용자 데이터베이스 함수
@@ -88,18 +168,21 @@ export const db = {
     findById: (id: string) => users.find((u) => u.id === id),
     create: (user: User) => {
       users.push(user);
+      saveUsers(users);
       return user;
     },
     update: (id: string, data: Partial<User>) => {
       const user = users.find((u) => u.id === id);
       if (user) {
-        Object.assign(user, data, { updatedAt: new Date() });
+        Object.assign(user, data, { updatedAt: new Date().toISOString() });
+        saveUsers(users);
         return user;
       }
       return null;
     },
     delete: (id: string) => {
       users = users.filter((u) => u.id !== id);
+      saveUsers(users);
     },
     list: () => users,
   },
@@ -109,12 +192,14 @@ export const db = {
     findByUserId: (userId: string) => orders.filter((o) => o.userId === userId),
     create: (order: Order) => {
       orders.push(order);
+      saveOrders(orders);
       return order;
     },
     update: (id: string, data: Partial<Order>) => {
       const order = orders.find((o) => o.id === id);
       if (order) {
-        Object.assign(order, data, { updatedAt: new Date() });
+        Object.assign(order, data, { updatedAt: new Date().toISOString() });
+        saveOrders(orders);
         return order;
       }
       return null;
@@ -126,18 +211,21 @@ export const db = {
     findByProductId: (productId: number) => reviews.filter((r) => r.productId === productId),
     create: (review: Review) => {
       reviews.push(review);
+      saveReviews(reviews);
       return review;
     },
     update: (id: string, data: Partial<Review>) => {
       const review = reviews.find((r) => r.id === id);
       if (review) {
-        Object.assign(review, data, { updatedAt: new Date() });
+        Object.assign(review, data, { updatedAt: new Date().toISOString() });
+        saveReviews(reviews);
         return review;
       }
       return null;
     },
     delete: (id: string) => {
       reviews = reviews.filter((r) => r.id !== id);
+      saveReviews(reviews);
     },
     list: () => reviews,
   },

@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
       items: data.items,
       customer: data.customer,
       status: 'pending',
-      createdAt: new Date(),
+      createdAt: new Date().toISOString(),
     };
 
     orders.push(order);
