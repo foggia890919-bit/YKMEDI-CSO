@@ -21,6 +21,7 @@ export default function CheckoutPage() {
   });
   const [isProcessing, setIsProcessing] = useState(false);
   const [tossPayments, setTossPayments] = useState<any>(null);
+  const [paymentMethod, setPaymentMethod] = useState<'toss' | 'naver' | 'kakao'>('toss');
 
   useEffect(() => {
     const initToss = async () => {
@@ -62,17 +63,12 @@ export default function CheckoutPage() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handlePayment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsProcessing(true);
-
+  const handleTossPayment = async (merchantUid: string) => {
     if (!tossPayments) {
       alert('결제 시스템을 초기화하지 못했습니다. 잠시 후 다시 시도해주세요.');
       setIsProcessing(false);
       return;
     }
-
-    const merchantUid = `order_${Date.now()}`;
 
     try {
       await tossPayments.requestPayment('카드', {
@@ -90,8 +86,102 @@ export default function CheckoutPage() {
         setIsProcessing(false);
         return;
       }
-      alert(`결제 요청 중 오류가 발생했습니다: ${error.message}`);
+      alert(`Toss 결제 요청 중 오류가 발생했습니다: ${error.message}`);
       setIsProcessing(false);
+    }
+  };
+
+  const handleNaverPayment = async (merchantUid: string) => {
+    const clientId = process.env.NEXT_PUBLIC_NAVER_CLIENT_ID;
+    if (!clientId) {
+      alert('네이버페이 시스템을 초기화하지 못했습니다.');
+      setIsProcessing(false);
+      return;
+    }
+
+    try {
+      const script = document.createElement('script');
+      script.src = 'https://naver.github.io/pay/sdk/v1/naver-pay-sdk.js';
+      script.onload = () => {
+        const naver = (window as any).Naver;
+        naver.Pay.requestPayment({
+          clientId: clientId,
+          paymentMode: 'PRODUCTION',
+          merchantPayKey: merchantUid,
+          merchantName: '비타앤오리진',
+          productName: `비타앤오리진 올리브오일 ${items.length}개`,
+          totalPayAmount: finalTotal,
+          taxScopeAmount: 0,
+          taxExemptionAmount: finalTotal,
+          returnUrl: `${window.location.origin}/order-complete`,
+        });
+      };
+      document.head.appendChild(script);
+    } catch (error) {
+      alert('네이버페이 결제 요청 중 오류가 발생했습니다');
+      setIsProcessing(false);
+    }
+  };
+
+  const handleKakaoPayment = async (merchantUid: string) => {
+    const appKey = process.env.NEXT_PUBLIC_KAKAO_APP_KEY;
+    if (!appKey) {
+      alert('카카오페이 시스템을 초기화하지 못했습니다.');
+      setIsProcessing(false);
+      return;
+    }
+
+    try {
+      const script = document.createElement('script');
+      script.src = 'https://developers.kakao.com/sdk/js/kakao.min.js';
+      script.onload = () => {
+        const kakao = (window as any).Kakao;
+        if (!kakao.isInitialized()) {
+          kakao.init(appKey);
+        }
+
+        kakao.Payment.requestPayment({
+          tid: merchantUid,
+          next_redirect_pc_url: `${window.location.origin}/order-complete`,
+          next_redirect_mobile_url: `${window.location.origin}/order-complete`,
+          cid: 'TC0ONETIME',
+          partner_order_id: merchantUid,
+          partner_user_id: formData.email || 'USER',
+          item_name: `비타앤오리진 올리브오일 ${items.length}개`,
+          quantity: items.length,
+          total_amount: finalTotal,
+          tax_free_amount: 0,
+          approval_url: `${window.location.origin}/order-complete`,
+          cancel_url: `${window.location.origin}/checkout`,
+          fail_url: `${window.location.origin}/checkout`,
+        });
+      };
+      document.head.appendChild(script);
+    } catch (error) {
+      alert('카카오페이 결제 요청 중 오류가 발생했습니다');
+      setIsProcessing(false);
+    }
+  };
+
+  const handlePayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsProcessing(true);
+
+    const merchantUid = `order_${Date.now()}`;
+
+    switch (paymentMethod) {
+      case 'toss':
+        await handleTossPayment(merchantUid);
+        break;
+      case 'naver':
+        await handleNaverPayment(merchantUid);
+        break;
+      case 'kakao':
+        await handleKakaoPayment(merchantUid);
+        break;
+      default:
+        alert('결제 수단을 선택해주세요.');
+        setIsProcessing(false);
     }
   };
 
@@ -184,7 +274,7 @@ export default function CheckoutPage() {
                   </div>
                 </div>
 
-                <div>
+                  <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     상세 주소
                   </label>
@@ -196,6 +286,36 @@ export default function CheckoutPage() {
                     className="w-full border border-gray-300 rounded px-4 py-2"
                     placeholder="아파트, 건물명 등"
                   />
+                </div>
+              </div>
+
+              <div className="mt-8 pt-8 border-t">
+                <h3 className="text-lg font-bold text-[#2d5016] mb-4">결제 수단 선택</h3>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { id: 'toss', label: '🛒 Toss', desc: '토스' },
+                    { id: 'naver', label: '☘️ Naver Pay', desc: '네이버페이' },
+                    { id: 'kakao', label: '💛 Kakao Pay', desc: '카카오페이' },
+                  ].map((method) => (
+                    <label
+                      key={method.id}
+                      className={`p-4 border-2 rounded-lg cursor-pointer transition ${
+                        paymentMethod === method.id
+                          ? 'border-[#2d5016] bg-[#f5f3f0]'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="payment"
+                        value={method.id}
+                        checked={paymentMethod === method.id}
+                        onChange={(e) => setPaymentMethod(e.target.value as any)}
+                        className="mr-2"
+                      />
+                      <span className="font-semibold text-sm">{method.label}</span>
+                    </label>
+                  ))}
                 </div>
               </div>
 
