@@ -9,6 +9,7 @@ const PRODUCTS = [
     price: 45000,
     description: '그리스 크레타',
     tags: ['상큼함', '생과일향'],
+    image: 'https://d8j0ntlcm91z4.cloudfront.net/user_3DKftYJhPYte6fzx7UlgD1iYDar/hf_20260608_184100_37751ea1-feb0-4142-a80d-ae22e1c27fb7.png',
   },
   {
     id: 2,
@@ -16,6 +17,7 @@ const PRODUCTS = [
     price: 38000,
     description: '스페인 안달루시아',
     tags: ['균형잡힌맛', '부드러움'],
+    image: 'https://d8j0ntlcm91z4.cloudfront.net/user_3DKftYJhPYte6fzx7UlgD1iYDar/hf_20260608_184101_6db206a9-fcd2-42e4-81b4-2169931065d2.png',
   },
   {
     id: 3,
@@ -23,6 +25,7 @@ const PRODUCTS = [
     price: 52000,
     description: '이탈리아 토스카나',
     tags: ['진한맛', '견과류향'],
+    image: 'https://d8j0ntlcm91z4.cloudfront.net/user_3DKftYJhPYte6fzx7UlgD1iYDar/hf_20260608_184102_804eb490-04ce-4fb5-a7ca-ca561e72623c.png',
   },
   {
     id: 4,
@@ -30,6 +33,7 @@ const PRODUCTS = [
     price: 32000,
     description: '튀니지',
     tags: ['가벼움', '상큼함'],
+    image: 'https://d8j0ntlcm91z4.cloudfront.net/user_3DKftYJhPYte6fzx7UlgD1iYDar/hf_20260608_184103_7ae3f5cb-0991-4f1b-ad5a-7b100eb45e65.png',
   },
 ];
 
@@ -55,10 +59,10 @@ export default function Products() {
               className="product-card reveal group block"
               style={{ transitionDelay: `${idx * 80}ms` }}
             >
-              {/* 이미지 슬롯 */}
+              {/* 고급 AI 생성 상품 이미지 */}
               <div className="image-slot aspect-[4/5] overflow-hidden">
                 <img
-                  src={`/images/product-${product.id}.svg`}
+                  src={product.image}
                   alt={product.name}
                   className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                 />

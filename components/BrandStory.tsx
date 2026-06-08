@@ -10,11 +10,11 @@ export default function BrandStory() {
     <section id="story" className="bg-vita-cream py-24">
       <div className="wellness-container">
         <div className="grid grid-cols-1 items-center gap-16 lg:grid-cols-2">
-          {/* 이미지 슬롯 (브랜드 스토리 이미지) */}
+          {/* 고급 AI 생성 브랜드 스토리 이미지 */}
           <div className="reveal order-2 lg:order-1">
             <div className="image-slot aspect-[5/6] rounded-[28px] shadow-xl overflow-hidden">
               <img
-                src="/images/brand-story.svg"
+                src="https://d8j0ntlcm91z4.cloudfront.net/user_3DKftYJhPYte6fzx7UlgD1iYDar/hf_20260608_184111_a220615c-a3d1-45b3-9a9d-e521ff1a9eb5.png"
                 alt="올리브 나무와 지중해 풍경 - 30년의 농장 이야기"
                 className="h-full w-full object-cover"
               />

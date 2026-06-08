@@ -47,11 +47,11 @@ export default function Hero() {
           </div>
         </div>
 
-        {/* 이미지 슬롯 (힉스필드 히어로 이미지) */}
+        {/* 이미지 슬롯 (힉스필드 AI 고급 히어로 이미지) */}
         <div className="reveal">
           <div className="image-slot floaty aspect-[4/5] rounded-[28px] shadow-2xl overflow-hidden">
             <img
-              src="/images/hero-olive.svg"
+              src="https://d8j0ntlcm91z4.cloudfront.net/user_3DKftYJhPYte6fzx7UlgD1iYDar/hf_20260608_184055_73c767ec-b72c-42a4-9f3b-12b302b51a96.jpeg"
               alt="비타앤오리진 프리미엄 올리브오일 - 지중해의 황금빛"
               className="h-full w-full object-cover"
             />
