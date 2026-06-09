@@ -94,6 +94,18 @@ export default function RootLayout({
             `,
           }}
         />
+
+        {/* Iamport SDK */}
+        <script src="https://cdn.iamport.kr/v1/iamport.js" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if (window.IMP) {
+                window.IMP.init('${process.env.NEXT_PUBLIC_IAMPORT_ID}');
+              }
+            `,
+          }}
+        />
       </head>
       <body>
         <Reveal />

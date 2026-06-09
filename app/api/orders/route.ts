@@ -20,15 +20,8 @@ interface Order {
   updatedAt: string;
 }
 
-const ensureDataDir = () => {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
-};
-
 const loadOrders = (): Order[] => {
   try {
-    ensureDataDir();
     if (fs.existsSync(ORDERS_FILE)) {
       return JSON.parse(fs.readFileSync(ORDERS_FILE, 'utf-8'));
     }
@@ -37,51 +30,6 @@ const loadOrders = (): Order[] => {
   }
   return [];
 };
-
-const saveOrders = (orders: Order[]) => {
-  ensureDataDir();
-  fs.writeFileSync(ORDERS_FILE, JSON.stringify(orders, null, 2));
-};
-
-export async function POST(request: NextRequest) {
-  try {
-    const data = await request.json();
-    const orders = loadOrders();
-
-    const order: Order = {
-      id: data.merchantUid || `order_${Date.now()}`,
-      userId: data.userId || '',
-      impUid: data.impUid,
-      paymentKey: data.paymentKey,
-      paymentMethod: data.paymentMethod || 'toss',
-      settlementStatus: data.paymentKey || data.impUid ? 'pending' : 'pending',
-      items: data.items || [],
-      totalAmount: data.amount || 0,
-      status: data.paymentKey ? 'confirmed' : 'pending',
-      customer: data.customer || {},
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    orders.push(order);
-    saveOrders(orders);
-
-    return NextResponse.json(
-      {
-        success: true,
-        orderId: order.id,
-        message: '주문이 저장되었습니다.',
-      },
-      { status: 201 }
-    );
-  } catch (error) {
-    console.error('Order error:', error);
-    return NextResponse.json(
-      { error: '주문 처리 중 오류가 발생했습니다.' },
-      { status: 500 }
-    );
-  }
-}
 
 export async function GET(request: NextRequest) {
   const orders = loadOrders();
