@@ -178,9 +178,12 @@ function compute() {
   const price = storages[S.stor].price;
   const join = joinOf();
 
-  // 지원형태에 따른 기기 지원금 / 통신요금 할인
+  // 기기 지원금 = 공시지원금(선택 요금제에 비례) + ⚡번쩍할인(매장 추가지원)
+  // 선택약정 선택 시: 공시지원금 대신 요금 25% 할인, 번쩍할인은 그대로 적용
   const isSelect = S.supportType !== "subsidy";
-  const deviceSupport = isSelect ? extraSupportOf(phone, S.to, join) : phone.support[S.to][join];
+  const official = isSelect ? 0 : officialAt(phone, S.to, plan.monthly);
+  const flash = flashOf(phone, S.to, join);
+  const deviceSupport = official + flash;
   const selectDisc = isSelect ? Math.round(plan.monthly * 0.25) : 0;
 
   const raw = price - deviceSupport;
@@ -194,7 +197,7 @@ function compute() {
   const welfareD = S.welfare >= 0 ? WELFARE_OPTIONS[S.welfare].calc(plan.monthly) : 0;
   const telecom = Math.max(plan.monthly - selectDisc - cardD - bundleD - welfareD, 0);
 
-  return { plan, price, join, isSelect, deviceSupport, principal, cashback, inst, monthlyInterest, cardD, bundleD, welfareD, selectDisc, telecom, total: inst + telecom };
+  return { plan, price, join, isSelect, official, flash, deviceSupport, principal, cashback, inst, monthlyInterest, cardD, bundleD, welfareD, selectDisc, telecom, total: inst + telecom };
 }
 
 // ===== 옵션 패널 렌더링 =====
@@ -304,7 +307,10 @@ function renderBill(c) {
     <div class="bill__block">
       <div class="bill__block-head"><span>📱 휴대폰 단말기</span><span>${S.months ? "월 " + won(c.inst) : won(c.principal) + " 일시납"}</span></div>
       <div class="bill__line"><span>출고가</span><b>${won(c.price)}</b></div>
-      <div class="bill__line"><span>${c.isSelect ? "추가지원금" : "지원금 (" + joinName() + ")"}</span><span class="minus">-${won(c.deviceSupport)}</span></div>
+      ${c.isSelect
+        ? `<div class="bill__line"><span>공시지원금</span><b style="color:#b3bac9;">미적용 (선택약정)</b></div>`
+        : `<div class="bill__line"><span>공시지원금 (${c.plan.name} 기준)</span><span class="minus">-${won(c.official)}</span></div>`}
+      <div class="bill__line"><span>⚡ 번쩍할인 (${joinName()})</span><span class="minus">-${won(c.flash)}</span></div>
       <div class="bill__line"><span>할부원금</span><b>${won(c.principal)}</b></div>
       ${S.months ? `<div class="bill__line"><span>할부이자 (연 5.9%)</span><b>월 약 ${won(c.monthlyInterest)}</b></div>` : ""}
     </div>
@@ -319,8 +325,8 @@ function renderBill(c) {
     </div>
 
     ${c.cashback ? `<div class="bill__cashback">🎉 기기값 0원 + 차비 ${won(c.cashback)} 지급 조건!</div>` : ""}
-    ${!c.isSelect && c.plan.monthly < requiredPlanAmt ? `<div class="bill__warn">⚠️ 선택한 요금제가 지원금 유지 조건(월 ${won(requiredPlanAmt)})보다 낮아 지원금이 달라질 수 있습니다. 상담 시 확인해 주세요.</div>` : ""}
-    ${c.isSelect ? `<div class="bill__warn" style="background:#eef4ff;color:#1538a8;">ℹ️ 선택약정은 공시지원금 대신 매달 요금 25%를 할인받는 방식입니다. 어느 쪽이 유리한지 상담 시 비교해 드립니다.</div>` : ""}`;
+    ${c.plan.monthly < requiredPlanAmt ? `<div class="bill__warn">⚠️ 선택한 요금제가 ⚡번쩍할인 유지 조건(월 ${won(requiredPlanAmt)})보다 낮습니다. 이 경우 번쩍할인 금액이 조정될 수 있으니 상담 시 확인해 주세요.</div>` : ""}
+    ${c.isSelect ? `<div class="bill__warn" style="background:#eef4ff;color:#1538a8;">ℹ️ 선택약정은 공시지원금 대신 매달 요금 25%를 할인받는 방식이며, ⚡번쩍할인은 동일하게 적용됩니다. 어느 쪽이 유리한지 상담 시 비교해 드립니다.</div>` : ""}`;
 }
 
 // ===== 이벤트 바인딩 =====
@@ -391,12 +397,13 @@ function runReco() {
   else if (usage === "mid") S.planIdx = defaultPlanIdx(S.to);
   else S.planIdx = plans.length - 2;
 
-  // 3) 지원형태: 24개월 총비용 비교 (공시지원금 vs 선택약정)
+  // 3) 지원형태: 24개월 총비용 비교 (공시지원금+번쩍할인 vs 선택약정+번쩍할인)
   const plan = plans[S.planIdx];
   const join = joinOf();
   const price = storages[S.stor].price;
-  const subsidyTotal = Math.max(price - phone.support[S.to][join], 0) + plan.monthly * 24;
-  const selectTotal = Math.max(price - extraSupportOf(phone, S.to, join), 0) + Math.round(plan.monthly * 0.75) * 24;
+  const flash = flashOf(phone, S.to, join);
+  const subsidyTotal = Math.max(price - officialAt(phone, S.to, plan.monthly) - flash, 0) + plan.monthly * 24;
+  const selectTotal = Math.max(price - flash, 0) + Math.round(plan.monthly * 0.75) * 24;
   S.supportType = selectTotal < subsidyTotal ? "select24" : "subsidy";
 
   // 적은 사용량 + 공시 유지조건 미달이면 선택약정이 안전

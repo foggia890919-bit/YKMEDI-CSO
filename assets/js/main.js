@@ -4,6 +4,28 @@
 
 const won = (n) => n.toLocaleString("ko-KR") + "원";
 
+/* ---------- 지원금 계산 (공시지원금 + 번쩍할인 분리) ----------
+   - 공시지원금: 통신사 공식 지원금. 요금제 월액에 비례해 변동 (최고 요금제 기준 official 값에서 스케일링)
+   - 번쩍할인: 매장 추가 지원금. 가입유형(번호이동/기기변경)에 따라 다르며 요금제와 무관
+   - data.js의 support[통신사][유형] = '유지조건 요금제' 기준 (공시 + 번쩍) 합계 */
+function requiredPlanOf(phone) {
+  const m = phone.plan.match(/([\d,]+)원/);
+  return m ? Number(m[1].replace(/,/g, "")) : 0;
+}
+function officialAt(phone, carrier, planMonthly) {
+  const maxOfficial = (phone.official && phone.official[carrier]) || 0;
+  const maxPlan = PLANS[carrier][0].monthly;
+  const scaled = Math.round((maxOfficial * Math.min(planMonthly, maxPlan)) / maxPlan / 1000) * 1000;
+  return Math.min(scaled, maxOfficial);
+}
+function flashOf(phone, carrier, join) {
+  // 시세표 합계(유지조건 요금제 기준)에서 공시를 뺀 나머지가 번쩍할인
+  return Math.max(phone.support[carrier][join] - officialAt(phone, carrier, requiredPlanOf(phone)), 0);
+}
+function totalSupportAt(phone, carrier, join, planMonthly) {
+  return officialAt(phone, carrier, planMonthly) + flashOf(phone, carrier, join);
+}
+
 /* 실구매가 계산: 음수면 차비(페이백) 지급 */
 function finalPrice(phone, carrier, joinType) {
   return phone.price - phone.support[carrier][joinType];
@@ -180,26 +202,30 @@ function renderPriceTable(el, opts = {}) {
       <div class="price-table-wrap">
         <table class="price-table">
           <thead>
-            <tr><th>모델</th><th>출고가</th><th>지원금</th><th>실구매가</th><th>요금제 조건</th><th></th></tr>
+            <tr><th>모델</th><th>출고가</th><th>공시지원금</th><th>⚡ 번쩍할인</th><th>실구매가</th><th>요금제 조건</th><th></th></tr>
           </thead>
           <tbody>
             ${list.map((p) => {
-              const v = finalPrice(p, state.carrier, state.joinType);
+              const official = officialAt(p, state.carrier, requiredPlanOf(p));
+              const flash = flashOf(p, state.carrier, state.joinType);
+              const v = p.price - official - flash;
               return `<tr>
                 <td class="pt-model">${p.name}${p.badge ? `<span class="pt-badge">${p.badge}</span>` : ""}<small>${p.storage}</small></td>
                 <td class="pt-release">${won(p.price)}</td>
-                <td class="pt-support">-${won(p.support[state.carrier][state.joinType])}</td>
+                <td class="pt-support">-${won(official)}</td>
+                <td class="pt-support" style="color:#e8341f;">-${won(flash)}</td>
                 <td>${finalPriceHtml(v)}</td>
                 <td class="pt-plan">${p.plan}</td>
                 <td><a class="pt-btn" href="goods.html?id=${p.id}">상세보기</a></td>
               </tr>`;
-            }).join("") || `<tr><td colspan="6" style="text-align:center;color:#9aa3b5;padding:40px;">검색 결과가 없습니다.</td></tr>`}
+            }).join("") || `<tr><td colspan="7" style="text-align:center;color:#9aa3b5;padding:40px;">검색 결과가 없습니다.</td></tr>`}
           </tbody>
         </table>
       </div>
       <p class="price-note">
         ※ ${today} 기준 시세이며 통신사 정책에 따라 실시간 변동됩니다. ·
-        ※ 실구매가 = 출고가 − 지원금(공시·추가·매장지원 합계) ·
+        ※ 실구매가 = 출고가 − 공시지원금 − ⚡번쩍할인(매장 추가지원) ·
+        ※ 공시지원금은 표기된 유지조건 요금제 기준이며, 요금제에 따라 달라집니다 (상세에서 확인) ·
         ※ 제휴카드 / 부가서비스 / 기기반납 조건 없음
       </p>`;
 
