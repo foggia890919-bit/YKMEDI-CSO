@@ -320,3 +320,75 @@ const PLANS = {
 
 /* 할부 수수료 연이율 (통신사 공통 5.9%) */
 const INSTALLMENT_APR = 0.059;
+
+/* 용량 옵션 — 기종별 용량과 출고가. 없으면 기본 용량 하나만 표시됩니다 */
+const STORAGE_OPTIONS = {
+  "s26-ultra": [
+    { label: "256GB", price: 1698400 },
+    { label: "512GB", price: 1853500 },
+    { label: "1TB", price: 2156000 },
+  ],
+  "s26-plus": [
+    { label: "256GB", price: 1353000 },
+    { label: "512GB", price: 1507000 },
+  ],
+  "s26": [
+    { label: "256GB", price: 1155000 },
+    { label: "512GB", price: 1309000 },
+  ],
+  "zflip7": [
+    { label: "256GB", price: 1485000 },
+    { label: "512GB", price: 1639000 },
+  ],
+  "zfold7": [
+    { label: "256GB", price: 2238500 },
+    { label: "512GB", price: 2398000 },
+    { label: "1TB", price: 2706000 },
+  ],
+  "iphone17-pro-max": [
+    { label: "256GB", price: 1990000 },
+    { label: "512GB", price: 2330000 },
+    { label: "1TB", price: 2670000 },
+  ],
+  "iphone17-pro": [
+    { label: "256GB", price: 1790000 },
+    { label: "512GB", price: 2130000 },
+  ],
+  "iphone17": [
+    { label: "256GB", price: 1290000 },
+    { label: "512GB", price: 1630000 },
+  ],
+  "iphone17-air": [
+    { label: "256GB", price: 1590000 },
+    { label: "512GB", price: 1930000 },
+  ],
+};
+
+/* 선택약정(요금 25% 할인) 선택 시 적용되는 매장 추가지원금
+   기종별로 직접 지정하려면 PHONES에 extraSupport 필드를 추가하세요.
+   미지정 시 해당 통신사 지원금의 30%를 만원 단위로 반올림해 사용합니다. */
+function extraSupportOf(phone, carrier, join) {
+  if (typeof phone.extraSupport === "number") return phone.extraSupport;
+  return Math.round((phone.support[carrier][join] * 0.3) / 10000) * 10000;
+}
+
+/* 복지 요금 감면 계산 옵션 (정부 제도 근사치 — 정확한 금액은 상담 시 확인) */
+const WELFARE_OPTIONS = [
+  { name: "국가유공자 — 기본료 35% 감면", calc: (plan) => Math.round(plan * 0.35) },
+  { name: "장애인 — 기본료 35% 감면", calc: (plan) => Math.round(plan * 0.35) },
+  { name: "기초생활수급자(생계·의료) — 월 최대 33,500원", calc: (plan) => Math.min(33500, 26000 + Math.round(Math.max(plan - 26000, 0) * 0.5)) },
+  { name: "주거·교육급여/차상위 — 월 최대 21,500원", calc: (plan) => Math.min(21500, 11000 + Math.round(Math.max(plan - 11000, 0) * 0.35)) },
+  { name: "기초연금 수급자(만 65세+) — 50% 감면, 월 최대 11,000원", calc: (plan) => Math.min(11000, Math.round(plan * 0.5)) },
+];
+
+/* 유의사항 아코디언 */
+const NOTICES = [
+  { title: "기종 안내사항",
+    body: "단말기 색상과 용량은 재고 상황에 따라 달라질 수 있으며, 상담 시 실시간 재고를 확인해 드립니다. 전시/중고 제품이 아닌 통신사 정품 새 제품만 취급합니다." },
+  { title: "개통 혜택 유의사항",
+    body: "시세표의 지원금은 안내된 요금제 유지 기간을 채우는 조건이며, 유지 기간 내 요금제를 임의 변경할 경우 차액이 청구될 수 있습니다. 선택약정(25% 요금할인)은 약정 기간(12/24개월) 내 해지 시 할인반환금이 발생할 수 있습니다." },
+  { title: "제조사 혜택 유의사항",
+    body: "제조사 사전예약 사은품 및 보상 프로그램(트레이드인 등)은 제조사 정책에 따라 변경·조기 종료될 수 있으며, 신청 기한을 지난 경우 적용이 불가할 수 있습니다." },
+  { title: "카드·결합 할인 유의사항",
+    body: "제휴카드 할인은 카드사 전월 실적 조건 충족 시 적용되며, 인터넷 결합 할인은 결합 상품 가입 및 유지 조건이 있습니다. 자세한 내용은 상담 시 안내드립니다." },
+];
