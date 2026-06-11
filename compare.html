@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>최저가비교 | 폰드림 — 기종별 통신 3사 한눈에 비교</title>
+<meta name="description" content="최대 3개 기종을 나란히 놓고 통신사별 실구매가와 월 납부액을 한눈에 비교하세요.">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.css">
+<link rel="stylesheet" href="assets/css/style.css">
+<style>
+  .cmp-pickers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 22px; }
+  .cmp-pickers select { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; font-size: 14.5px; font-family: inherit; background: #fff; outline: none; }
+  .cmp-pickers select:focus { border-color: var(--blue); }
+  .cmp-table { width: 100%; border-collapse: collapse; background: #fff; font-size: 14px; min-width: 760px; }
+  .cmp-table th, .cmp-table td { padding: 13px 16px; border-bottom: 1px solid var(--line); text-align: center; }
+  .cmp-table th:first-child, .cmp-table td:first-child { text-align: left; background: #f6f8fd; font-weight: 800; font-size: 13px; white-space: nowrap; width: 130px; }
+  .cmp-table thead th { background: var(--navy); color: #fff; font-size: 14.5px; }
+  .cmp-best { background: #e8f8ef !important; font-weight: 900; color: #0a8f47; position: relative; }
+  .cmp-best::after { content: "👑 최저"; display: block; font-size: 10.5px; font-weight: 800; margin-top: 2px; }
+  .cmp-price { font-weight: 800; }
+  .cmp-emoji { font-size: 44px; }
+  @media (max-width: 760px) { .cmp-pickers { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div id="layout-header"></div>
+
+<section class="page-hero">
+  <div class="container">
+    <h1>⚖️ 최저가비교</h1>
+    <p>고민되는 기종들을 나란히 놓고 비교하세요. 통신사·기종별 최저가에 왕관이 붙습니다.</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="price-controls" style="justify-content:center;">
+      <div class="tabs" id="cmp-join">
+        <button class="tab is-active" data-join="mnp">번호이동</button>
+        <button class="tab" data-join="chg">기기변경</button>
+      </div>
+    </div>
+    <div class="cmp-pickers" id="cmp-pickers"></div>
+    <div class="price-table-wrap">
+      <table class="cmp-table" id="cmp-table"></table>
+    </div>
+    <p class="price-note">※ 실구매가 = 출고가 − 지원금(오늘 시세 기준). 월 예상 납부액은 24개월 할부(연 5.9%) + 유지조건 요금제 기준입니다. 0원보다 낮으면 차비(현금)를 돌려드립니다.</p>
+  </div>
+</section>
+
+<section class="section section--alt">
+  <div class="container" style="text-align:center;">
+    <h2 class="section__title">고민은 끝, 결정만 남았어요</h2>
+    <p class="section__desc" style="margin-bottom:24px;">선택한 기종으로 바로 견적을 확인하거나, 문의를 남기면 더 정확한 최저가를 안내드립니다.</p>
+    <a href="index.html#inquiry" class="btn btn--blue">1분 만에 문의 남기기</a>
+  </div>
+</section>
+
+<div id="layout-footer"></div>
+
+<script src="assets/js/config.js"></script>
+<script src="assets/js/data.js"></script>
+<script src="assets/js/main.js"></script>
+<script>
+renderLayout("compare.html");
+
+const state = { ids: [PHONES[0].id, PHONES[5].id, PHONES[3].id], join: "mnp" };
+
+function pmt24(principal) {
+  if (principal <= 0) return 0;
+  const r = INSTALLMENT_APR / 12, n = 24;
+  return Math.round(principal * r * Math.pow(1 + r, n) / (Math.pow(1 + r, n) - 1));
+}
+function planAmt(p) {
+  const m = p.plan.match(/([\d,]+)원/);
+  return m ? Number(m[1].replace(/,/g, "")) : 0;
+}
+
+function renderPickers() {
+  document.getElementById("cmp-pickers").innerHTML = state.ids.map((id, i) => `
+    <select data-slot="${i}">
+      ${PHONES.map(p => `<option value="${p.id}" ${p.id === id ? "selected" : ""}>${p.name} (${p.storage})</option>`).join("")}
+    </select>`).join("");
+  document.querySelectorAll("[data-slot]").forEach(s =>
+    s.addEventListener("change", () => { state.ids[+s.dataset.slot] = s.value; renderTable(); }));
+}
+
+function renderTable() {
+  const models = state.ids.map(id => PHONES.find(p => p.id === id));
+  const finals = models.map(p => Object.fromEntries(CARRIERS.map(c => [c.id, p.price - p.support[c.id][state.join]])));
+  const bestOfModel = models.map((p, i) => Math.min(...Object.values(finals[i])));
+  const bestOverall = Math.min(...bestOfModel);
+
+  const row = (label, cells) => `<tr><td>${label}</td>${cells.join("")}</tr>`;
+  const fmt = v => v <= 0 ? `0원 <small style="color:#0a8f47;">+차비 ${won(-v)}</small>` : won(v);
+
+  document.getElementById("cmp-table").innerHTML = `
+    <thead><tr><th>비교 항목</th>${models.map(p => `<th>${p.name}<br><small style="font-weight:600;opacity:.75;">${p.storage}</small></th>`).join("")}</tr></thead>
+    <tbody>
+      ${row("", models.map(p => `<td><span class="cmp-emoji">${p.brand === "apple" ? "📱" : "📲"}</span></td>`))}
+      ${row("출고가", models.map(p => `<td>${won(p.price)}</td>`))}
+      ${CARRIERS.map(c => row(c.name + " 실구매가", models.map((p, i) => {
+        const v = finals[i][c.id];
+        const best = v === bestOfModel[i];
+        return `<td class="cmp-price ${best ? "cmp-best" : ""}">${fmt(v)}</td>`;
+      }))).join("")}
+      ${row("3사 최저가", models.map((p, i) =>
+        `<td class="cmp-price ${bestOfModel[i] === bestOverall ? "cmp-best" : ""}" style="font-size:16px;color:var(--red);">${fmt(bestOfModel[i])}</td>`))}
+      ${row("월 예상 납부액", models.map((p, i) => {
+        const inst = pmt24(Math.max(bestOfModel[i], 0));
+        return `<td>월 ${won(inst + planAmt(p))}<br><small style="color:var(--gray);">할부 ${won(inst)} + 요금제 ${won(planAmt(p))}</small></td>`;
+      }))}
+      ${row("요금제 조건", models.map(p => `<td style="font-size:12.5px;color:var(--gray);">${p.plan}</td>`))}
+      ${row("색상", models.map(p => `<td style="font-size:12.5px;color:var(--gray);">${p.colors.join("<br>")}</td>`))}
+      ${row("", models.map(p => `<td><a class="pt-btn" href="goods.html?id=${p.id}">상세 견적 보기</a></td>`))}
+    </tbody>`;
+}
+
+document.querySelectorAll("#cmp-join .tab").forEach(b => b.addEventListener("click", () => {
+  state.join = b.dataset.join;
+  document.querySelectorAll("#cmp-join .tab").forEach(x => x.classList.toggle("is-active", x === b));
+  renderTable();
+}));
+
+renderPickers();
+renderTable();
+</script>
+</body>
+</html>
