@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>실시간 시세표 | 폰드림 — SKT/KT/LG U+ 최저가 비교</title>
+<meta name="description" content="갤럭시·아이폰 전 기종 실시간 시세표. 통신사별 번호이동·기기변경 실구매가를 한눈에 비교하세요.">
+<meta name="robots" content="index, follow">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.css">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<div id="layout-header"></div>
+
+<section class="page-hero">
+  <div class="container">
+    <h1>📋 실시간 시세표</h1>
+    <p>통신사 정책 반영, 매일 업데이트되는 오늘의 실구매가입니다.</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div id="price-table"></div>
+  </div>
+</section>
+
+<section class="section section--alt">
+  <div class="container" style="text-align:center;">
+    <h2 class="section__title">원하는 기종이 없거나, 더 정확한 견적이 필요하세요?</h2>
+    <p class="section__desc" style="margin-bottom:24px;">문의를 남기시면 재고와 함께 오늘의 정확한 최저가를 안내해 드립니다.</p>
+    <a href="index.html#inquiry" class="btn btn--blue">1분 만에 문의 남기기</a>
+  </div>
+</section>
+
+<div id="layout-footer"></div>
+
+<script src="assets/js/config.js"></script>
+<script src="assets/js/data.js"></script>
+<script src="assets/js/main.js"></script>
+<script>
+renderLayout("price.html");
+renderPriceTable(document.getElementById("price-table"), { search: true });
+</script>
+</body>
+</html>

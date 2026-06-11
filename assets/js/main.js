@@ -1,0 +1,222 @@
+/* =========================================================
+   공통 스크립트 — 헤더/푸터/플로팅 렌더링, 시세표, 후기, FAQ
+   ========================================================= */
+
+const won = (n) => n.toLocaleString("ko-KR") + "원";
+
+/* 실구매가 계산: 음수면 차비(페이백) 지급 */
+function finalPrice(phone, carrier, joinType) {
+  return phone.price - phone.support[carrier][joinType];
+}
+function finalPriceHtml(v) {
+  if (v <= 0) return `<span class="pt-final pt-final--free">0원 + 차비 ${won(-v)}</span>`;
+  return `<span class="pt-final">${won(v)}</span>`;
+}
+
+/* ---------- 레이아웃 렌더링 ---------- */
+function renderLayout(active) {
+  const c = SITE_CONFIG;
+  const nav = [
+    ["index.html", "홈"],
+    ["price.html", "실시간 시세표"],
+    ["guide.html", "구매 가이드"],
+    ["reviews.html", "구매후기"],
+  ];
+  const links = nav
+    .map(([href, label]) => `<a href="${href}" class="${active === href ? "is-active" : ""}">${label}</a>`)
+    .join("");
+
+  document.getElementById("layout-header").innerHTML = `
+    <div class="topbar">
+      <div class="container topbar__inner">
+        <span>📱 ${c.slogan}</span>
+        <div class="topbar__right">
+          <span class="hide-m">상담시간 ${c.openHours}</span>
+          <a href="tel:${c.phone.replace(/-/g, "")}">☎ ${c.phone}</a>
+        </div>
+      </div>
+    </div>
+    <header class="header">
+      <div class="container header__inner">
+        <a class="brand" href="index.html">
+          <span class="brand__mark">P</span>
+          <span>${c.brandName}<small>${c.brandNameEn}</small></span>
+        </a>
+        <nav class="gnb">
+          ${links}
+          <a href="index.html#inquiry" class="gnb__cta">문의 남기기</a>
+        </nav>
+        <button class="header__toggle" aria-label="메뉴 열기" onclick="document.querySelector('.mobile-menu').classList.toggle('is-open')">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </header>
+    <nav class="mobile-menu">
+      ${links}
+      <a href="index.html#inquiry" class="gnb__cta">문의 남기기</a>
+    </nav>`;
+
+  document.getElementById("layout-footer").innerHTML = `
+    <footer class="footer">
+      <div class="container">
+        <div class="footer__grid">
+          <div>
+            <div class="footer__brand">${c.brandName} <small style="font-size:11px;letter-spacing:.15em;">${c.brandNameEn}</small></div>
+            <div class="footer__links">
+              <a href="price.html">실시간 시세표</a>
+              <a href="guide.html">구매 가이드</a>
+              <a href="reviews.html">구매후기</a>
+              <a href="index.html#inquiry">문의하기</a>
+            </div>
+            <div>
+              상호 ${c.companyName} · 대표 ${c.ceo} · 사업자등록번호 ${c.bizNumber}<br>
+              통신판매업신고 ${c.salesRegNumber}${c.preOpenNumber ? " · 사전승낙서 " + c.preOpenNumber : ""}<br>
+              주소 ${c.address} · 이메일 ${c.email} · 대표전화 ${c.phone}
+            </div>
+          </div>
+          <div>
+            <div style="font-weight:800;color:#fff;margin-bottom:10px;">고객센터</div>
+            <div style="font-size:22px;font-weight:900;color:#fff;">${c.phone}</div>
+            <div>${c.openHours}</div>
+            <a href="${c.kakaoChannelUrl}" target="_blank" rel="noopener" class="btn btn--kakao" style="height:44px;margin-top:12px;font-size:14px;">💬 카카오톡 상담</a>
+          </div>
+        </div>
+        <div class="footer__legal">
+          ⓒ ${new Date().getFullYear()} ${c.brandName}. All rights reserved.
+          시세표의 금액은 통신사 정책에 따라 매일 변동되며, 실제 구매 금액은 상담 시 안내됩니다.
+        </div>
+      </div>
+    </footer>
+    <div class="floating">
+      <a class="floating__kakao" href="${c.kakaoChannelUrl}" target="_blank" rel="noopener" aria-label="카카오톡 상담">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3C6.48 3 2 6.54 2 10.9c0 2.8 1.86 5.26 4.66 6.65l-.95 3.52c-.08.31.27.56.54.38l4.18-2.78c.51.06 1.03.1 1.57.1 5.52 0 10-3.54 10-7.87S17.52 3 12 3z"/></svg>
+      </a>
+      <a class="floating__call" href="tel:${c.phone.replace(/-/g, "")}" aria-label="전화 상담">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6.62 10.79a15.05 15.05 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.02-.24c1.12.37 2.33.57 3.57.57a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1C10.85 21 3 13.15 3 3a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.24.2 2.45.57 3.57a1 1 0 0 1-.25 1.02l-2.2 2.2z"/></svg>
+      </a>
+    </div>`;
+
+  injectTracking();
+}
+
+/* ---------- 광고 추적 (메타 픽셀 / GA4) ---------- */
+function injectTracking() {
+  const c = SITE_CONFIG;
+  if (c.metaPixelId && !window.fbq) {
+    !(function (f, b, e, v, n, t, s) {
+      if (f.fbq) return; n = f.fbq = function () { n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments); };
+      if (!f._fbq) f._fbq = n; n.push = n; n.loaded = !0; n.version = "2.0"; n.queue = [];
+      t = b.createElement(e); t.async = !0; t.src = v; s = b.getElementsByTagName(e)[0]; s.parentNode.insertBefore(t, s);
+    })(window, document, "script", "https://connect.facebook.net/en_US/fbevents.js");
+    fbq("init", c.metaPixelId);
+    fbq("track", "PageView");
+  }
+  if (c.ga4Id && !window.gtag) {
+    const s = document.createElement("script");
+    s.async = true;
+    s.src = "https://www.googletagmanager.com/gtag/js?id=" + c.ga4Id;
+    document.head.appendChild(s);
+    window.dataLayer = window.dataLayer || [];
+    window.gtag = function () { dataLayer.push(arguments); };
+    gtag("js", new Date());
+    gtag("config", c.ga4Id);
+  }
+}
+
+/* 전환 이벤트 (문의 완료 시 호출 → 메타/구글 광고 최적화에 사용) */
+function trackLead() {
+  if (window.fbq) fbq("track", "Lead");
+  if (window.gtag) gtag("event", "generate_lead", { currency: "KRW", value: 0 });
+}
+
+/* ---------- 시세표 렌더링 ---------- */
+function renderPriceTable(el, opts = {}) {
+  const state = { carrier: "SKT", joinType: "mnp", keyword: "", limit: opts.limit || 0 };
+
+  function rows() {
+    let list = PHONES;
+    if (state.keyword) {
+      const k = state.keyword.replace(/\s/g, "").toLowerCase();
+      list = list.filter((p) => (p.name + p.storage).replace(/\s/g, "").toLowerCase().includes(k));
+    }
+    if (state.limit) list = list.filter((p) => p.hot).slice(0, state.limit);
+    return list;
+  }
+
+  function render() {
+    const today = new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" });
+    const list = rows();
+    el.innerHTML = `
+      <div class="price-controls">
+        <div class="tabs" role="tablist">
+          ${CARRIERS.map((c) => `<button class="tab ${state.carrier === c.id ? "is-active" : ""}" data-carrier="${c.id}">${c.name}</button>`).join("")}
+        </div>
+        <div class="tabs">
+          ${JOIN_TYPES.map((j) => `<button class="tab ${state.joinType === j.id ? "is-active" : ""}" data-join="${j.id}">${j.name}</button>`).join("")}
+        </div>
+        ${opts.search ? `
+        <div class="price-search">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9aa3b5" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input type="text" placeholder="기종 검색 (예: S26, 아이폰17)" value="${state.keyword}">
+        </div>` : ""}
+      </div>
+      <div class="price-table-wrap">
+        <table class="price-table">
+          <thead>
+            <tr><th>모델</th><th>출고가</th><th>지원금</th><th>실구매가</th><th>요금제 조건</th><th></th></tr>
+          </thead>
+          <tbody>
+            ${list.map((p) => {
+              const v = finalPrice(p, state.carrier, state.joinType);
+              return `<tr>
+                <td class="pt-model">${p.name}${p.badge ? `<span class="pt-badge">${p.badge}</span>` : ""}<small>${p.storage}</small></td>
+                <td class="pt-release">${won(p.price)}</td>
+                <td class="pt-support">-${won(p.support[state.carrier][state.joinType])}</td>
+                <td>${finalPriceHtml(v)}</td>
+                <td class="pt-plan">${p.plan}</td>
+                <td><a class="pt-btn" href="goods.html?id=${p.id}">상세보기</a></td>
+              </tr>`;
+            }).join("") || `<tr><td colspan="6" style="text-align:center;color:#9aa3b5;padding:40px;">검색 결과가 없습니다.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+      <p class="price-note">
+        ※ ${today} 기준 시세이며 통신사 정책에 따라 실시간 변동됩니다. ·
+        ※ 실구매가 = 출고가 − 지원금(공시·추가·매장지원 합계) ·
+        ※ 제휴카드 / 부가서비스 / 기기반납 조건 없음
+      </p>`;
+
+    el.querySelectorAll("[data-carrier]").forEach((b) =>
+      b.addEventListener("click", () => { state.carrier = b.dataset.carrier; render(); }));
+    el.querySelectorAll("[data-join]").forEach((b) =>
+      b.addEventListener("click", () => { state.joinType = b.dataset.join; render(); }));
+    const input = el.querySelector(".price-search input");
+    if (input) {
+      input.addEventListener("input", () => { state.keyword = input.value; render(); el.querySelector(".price-search input").focus(); });
+      const v = input.value; input.value = ""; input.value = v;
+    }
+  }
+  render();
+}
+
+/* ---------- 후기 렌더링 ---------- */
+function renderReviews(el, limit = 0) {
+  const list = limit ? REVIEWS.slice(0, limit) : REVIEWS;
+  el.innerHTML = list.map((r) => `
+    <article class="review">
+      <div class="review__stars">${"★".repeat(r.rating)}${"☆".repeat(5 - r.rating)}</div>
+      <p class="review__text">${r.text}</p>
+      <div class="review__meta"><span><strong>${r.name}</strong> · ${r.model}</span><span>${r.date}</span></div>
+    </article>`).join("");
+}
+
+/* ---------- FAQ 렌더링 ---------- */
+function renderFaq(el) {
+  el.innerHTML = FAQS.map((f) => `
+    <div class="faq__item">
+      <button class="faq__q">${f.q}</button>
+      <div class="faq__a">${f.a}</div>
+    </div>`).join("");
+  el.querySelectorAll(".faq__q").forEach((b) =>
+    b.addEventListener("click", () => b.parentElement.classList.toggle("is-open")));
+}

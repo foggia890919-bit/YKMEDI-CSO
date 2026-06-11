@@ -1,4 +1,5 @@
 User-agent: *
 Allow: /
+Disallow: /admin.html
 
-Sitemap: https://ykmedi.com/sitemap.xml
+Sitemap: https://example.com/sitemap.xml
