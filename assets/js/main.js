@@ -17,8 +17,9 @@ function finalPriceHtml(v) {
 function renderLayout(active) {
   const c = SITE_CONFIG;
   const nav = [
-    ["index.html", "홈"],
     ["price.html", "실시간 시세표"],
+    ["compare.html", "최저가비교"],
+    ["chart.html", "AI차트"],
     ["internet.html", "인터넷 결합"],
     ["notice.html", "공지·이벤트"],
     ["qna.html", "상품문의"],

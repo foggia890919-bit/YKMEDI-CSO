@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI 시세차트 | 폰드림 — 기종별 시세 흐름 한눈에</title>
+<meta name="description" content="기종별 실구매가 변동 흐름을 차트로 확인하고, 지금이 살 때인지 AI 분석을 받아보세요.">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.css">
+<link rel="stylesheet" href="assets/css/style.css">
+<style>
+  .chart-controls { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+  .chart-controls select { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; font-size: 14.5px; font-family: inherit; background: #fff; outline: none; }
+  .chart-controls select:focus { border-color: var(--blue); }
+  .chart-wrap { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 24px; }
+  .chart-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 20px 0 8px; }
+  .chart-stat { background: #f6f8fd; border-radius: 12px; padding: 14px 16px; text-align: center; }
+  .chart-stat small { display: block; font-size: 12px; color: var(--gray); font-weight: 700; margin-bottom: 4px; }
+  .chart-stat b { font-size: 17px; font-weight: 900; }
+  .ai-insight { margin-top: 16px; border-radius: 14px; padding: 18px 20px; font-size: 14.5px; line-height: 1.7; background: linear-gradient(135deg, #f4f0ff, #ecf3ff); border: 1px solid #ddd6ff; }
+  .ai-insight b { color: #7b2ff7; }
+  .ai-insight .tag { display: inline-block; font-size: 12px; font-weight: 900; border-radius: 999px; padding: 5px 12px; margin-bottom: 8px; color: #fff; }
+  @media (max-width: 860px) { .chart-controls { grid-template-columns: 1fr 1fr; } .chart-stats { grid-template-columns: repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+<div id="layout-header"></div>
+
+<section class="page-hero">
+  <div class="container">
+    <h1>📈 AI 시세차트</h1>
+    <p>기종별 실구매가 흐름을 보고, 지금이 살 때인지 판단하세요.</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="chart-controls">
+      <select id="c-model"></select>
+      <select id="c-carrier"></select>
+      <select id="c-join">
+        <option value="mnp">번호이동</option>
+        <option value="chg">기기변경</option>
+      </select>
+      <select id="c-days">
+        <option value="14">최근 14일</option>
+        <option value="30" selected>최근 30일</option>
+        <option value="60">최근 60일</option>
+      </select>
+    </div>
+
+    <div class="chart-wrap">
+      <canvas id="price-chart" height="110"></canvas>
+      <div class="chart-stats" id="chart-stats"></div>
+      <div class="ai-insight" id="ai-insight"></div>
+    </div>
+
+    <p class="price-note">※ 차트는 시세 흐름 데모 데이터입니다. 운영 시 매일 시세를 기록하면 실제 데이터로 자동 전환됩니다(README 참고). 오늘 금액은 실시간 시세표와 동일합니다.</p>
+
+    <div style="text-align:center;margin-top:26px;">
+      <a class="btn btn--blue" id="goto-goods" href="#">이 기종 상세 견적 보기</a>
+      <a class="btn btn--primary" href="index.html#inquiry" style="margin-left:8px;">문의 남기기</a>
+    </div>
+  </div>
+</section>
+
+<div id="layout-footer"></div>
+
+<script src="assets/js/config.js"></script>
+<script src="assets/js/data.js"></script>
+<script src="assets/js/main.js"></script>
+<script>
+renderLayout("chart.html");
+
+// ===== 컨트롤 =====
+const elModel = document.getElementById("c-model");
+const elCarrier = document.getElementById("c-carrier");
+const elJoin = document.getElementById("c-join");
+const elDays = document.getElementById("c-days");
+elModel.innerHTML = PHONES.map(p => `<option value="${p.id}">${p.name} (${p.storage})</option>`).join("");
+elCarrier.innerHTML = CARRIERS.map(c => `<option value="${c.id}">${c.name}</option>`).join("");
+const initId = new URLSearchParams(location.search).get("id");
+if (initId && PHONES.some(p => p.id === initId)) elModel.value = initId;
+
+// ===== 시세 이력 =====
+// 실제 이력(PRICE_HISTORY)이 data.js에 있으면 그것을 사용하고,
+// 없으면 오늘 시세를 끝점으로 하는 결정적(고정) 데모 시계열을 생성합니다.
+function seededRand(seed) {
+  let s = seed % 2147483647; if (s <= 0) s += 2147483646;
+  return () => (s = (s * 16807) % 2147483647) / 2147483647;
+}
+function seriesFor(phone, carrier, join, days) {
+  if (typeof PRICE_HISTORY !== "undefined" && PRICE_HISTORY[phone.id]?.[carrier]?.[join]) {
+    return PRICE_HISTORY[phone.id][carrier][join].slice(-days);
+  }
+  const today = phone.price - phone.support[carrier][join];
+  const seed = [...(phone.id + carrier + join)].reduce((a, ch) => a + ch.charCodeAt(0), 0);
+  const rnd = seededRand(seed);
+  const pts = [today];
+  let v = today;
+  for (let i = 1; i < days; i++) {
+    const step = Math.round((rnd() - 0.45) * 30000 / 1000) * 1000; // 과거로 갈수록 ±3만원 내 변동
+    v = v + step;
+    pts.unshift(v);
+  }
+  const start = new Date(); start.setDate(start.getDate() - (days - 1));
+  return pts.map((val, i) => {
+    const d = new Date(start); d.setDate(start.getDate() + i);
+    return [`${d.getMonth() + 1}/${d.getDate()}`, val];
+  });
+}
+
+// ===== 차트 (의존성 없는 캔버스 직접 렌더링) =====
+function drawChart(canvas, labels, values, color) {
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.parentElement.clientWidth - 48;
+  const H = Math.max(260, Math.round(W * 0.32));
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  canvas.style.width = W + "px"; canvas.style.height = H + "px";
+  const g = canvas.getContext("2d");
+  g.scale(dpr, dpr);
+
+  const padL = 56, padR = 16, padT = 18, padB = 30;
+  const min = Math.min(...values), max = Math.max(...values);
+  const span = Math.max(max - min, 10000);
+  const lo = min - span * 0.12, hi = max + span * 0.12;
+  const x = i => padL + (W - padL - padR) * (i / (values.length - 1));
+  const y = v => padT + (H - padT - padB) * (1 - (v - lo) / (hi - lo));
+
+  // y축 그리드 + 라벨
+  g.font = "11px Pretendard, sans-serif";
+  g.textAlign = "right"; g.textBaseline = "middle";
+  for (let t = 0; t <= 4; t++) {
+    const v = lo + ((hi - lo) * t) / 4, yy = y(v);
+    g.strokeStyle = "#eef1f8"; g.beginPath(); g.moveTo(padL, yy); g.lineTo(W - padR, yy); g.stroke();
+    g.fillStyle = "#9aa3b5"; g.fillText(Math.round(v / 10000) + "만", padL - 8, yy);
+  }
+  // x축 라벨 (최대 8개)
+  g.textAlign = "center"; g.textBaseline = "top";
+  const step = Math.ceil(labels.length / 8);
+  labels.forEach((lb, i) => { if (i % step === 0 || i === labels.length - 1) g.fillText(lb, x(i), H - padB + 8); });
+
+  // 영역 채우기
+  const grad = g.createLinearGradient(0, padT, 0, H - padB);
+  grad.addColorStop(0, color + "33"); grad.addColorStop(1, color + "05");
+  g.beginPath(); g.moveTo(x(0), y(values[0]));
+  values.forEach((v, i) => g.lineTo(x(i), y(v)));
+  g.lineTo(x(values.length - 1), H - padB); g.lineTo(x(0), H - padB); g.closePath();
+  g.fillStyle = grad; g.fill();
+
+  // 선
+  g.beginPath(); g.moveTo(x(0), y(values[0]));
+  values.forEach((v, i) => g.lineTo(x(i), y(v)));
+  g.strokeStyle = color; g.lineWidth = 2.5; g.lineJoin = "round"; g.stroke();
+
+  // 최저점 + 오늘 포인트
+  const minIdx = values.indexOf(min);
+  g.fillStyle = "#0a8f47"; g.beginPath(); g.arc(x(minIdx), y(min), 4.5, 0, 7); g.fill();
+  g.fillStyle = "#fff"; g.strokeStyle = color; g.lineWidth = 3;
+  g.beginPath(); g.arc(x(values.length - 1), y(values[values.length - 1]), 5.5, 0, 7); g.fill(); g.stroke();
+
+  // 오늘 가격 라벨
+  const tv = values[values.length - 1];
+  g.font = "bold 12px Pretendard, sans-serif"; g.textAlign = "right"; g.textBaseline = "bottom";
+  g.fillStyle = color;
+  g.fillText("오늘 " + won(tv), W - padR, y(tv) - 10);
+}
+
+function render() {
+  const phone = PHONES.find(p => p.id === elModel.value);
+  const carrier = elCarrier.value, join = elJoin.value, days = +elDays.value;
+  const data = seriesFor(phone, carrier, join, days);
+  const labels = data.map(d => d[0]);
+  const values = data.map(d => d[1]);
+  const today = values[values.length - 1];
+  const min = Math.min(...values), max = Math.max(...values);
+  const cInfo = CARRIERS.find(c => c.id === carrier);
+
+  drawChart(document.getElementById("price-chart"), labels, values, cInfo.color);
+
+  document.getElementById("chart-stats").innerHTML = `
+    <div class="chart-stat"><small>오늘 실구매가</small><b style="color:var(--red);">${today <= 0 ? "0원+차비" : won(today)}</b></div>
+    <div class="chart-stat"><small>기간 최저</small><b style="color:#0a8f47;">${min <= 0 ? "0원+차비" : won(min)}</b></div>
+    <div class="chart-stat"><small>기간 최고</small><b>${won(max)}</b></div>
+    <div class="chart-stat"><small>최고가 대비</small><b style="color:var(--blue);">-${won(max - today)}</b></div>`;
+
+  // ===== AI 분석 =====
+  const half = Math.floor(values.length / 2);
+  const recent = values.slice(-7), prev = values.slice(-14, -7);
+  const avg = a => a.reduce((x, y) => x + y, 0) / a.length;
+  const delta = Math.round(avg(recent) - avg(prev.length ? prev : values.slice(0, half)));
+  const nearLow = today - min <= 20000;
+
+  let tag, color, msg;
+  if (nearLow && delta <= 0) {
+    tag = "🟢 구매 적기"; color = "#0a8f47";
+    msg = `최근 일주일 평균이 그 전주보다 <b>${won(Math.abs(delta))} 하락</b>했고, 현재가가 기간 최저가 부근입니다. <b>지금 구매하기 좋은 타이밍</b>이에요.`;
+  } else if (delta > 10000) {
+    tag = "🔴 상승세"; color = "#e8341f";
+    msg = `최근 일주일 평균이 <b>${won(delta)} 상승</b> 중입니다. 통신사 정책이 축소되는 흐름이라면 <b>서두르시는 게 유리</b>할 수 있어요.`;
+  } else {
+    tag = "🟡 보합세"; color = "#b45309";
+    msg = `최근 시세가 <b>큰 변동 없이 유지</b>되고 있습니다. 원하는 색상/용량 재고가 있을 때 진행하시는 걸 추천드려요.`;
+  }
+  document.getElementById("ai-insight").innerHTML = `
+    <span class="tag" style="background:${color};">${tag}</span><br>
+    <b>${phone.name}</b> · ${cInfo.name} ${join === "mnp" ? "번호이동" : "기기변경"} 기준 — ${msg}<br>
+    <span style="color:#6b7487;font-size:13px;">분석은 표시된 기간의 시세 흐름을 기반으로 하며, 통신사 정책에 따라 언제든 변동될 수 있습니다.</span>`;
+
+  document.getElementById("goto-goods").href = `goods.html?id=${phone.id}&to=${carrier}&join=${join}`;
+}
+
+[elModel, elCarrier, elJoin, elDays].forEach(el => el.addEventListener("change", render));
+window.addEventListener("resize", () => render());
+render();
+</script>
+</body>
+</html>
