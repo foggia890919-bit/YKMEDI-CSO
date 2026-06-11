@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>문의 관리 | 폰드림 관리자</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.css">
+<link rel="stylesheet" href="assets/css/style.css">
+<style>
+  .admin-bar { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px; }
+  .admin-bar input { flex:1; min-width:240px; border:1px solid var(--line); border-radius:10px; padding:11px 14px; font-size:14px; font-family:inherit; }
+  .admin-empty { text-align:center; color:var(--gray); padding:60px 20px; background:#fff; border:1px dashed var(--line); border-radius:14px; }
+</style>
+</head>
+<body style="background:var(--bg);">
+<div id="layout-header"></div>
+
+<section class="page-hero">
+  <div class="container">
+    <h1>🔐 문의 관리</h1>
+    <p>접수된 상담 문의를 확인합니다. (이 페이지 주소는 외부에 공유하지 마세요)</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="admin-bar">
+      <input type="text" id="endpoint" placeholder="Apps Script 웹앱 URL (https://script.google.com/macros/s/.../exec)">
+      <input type="password" id="token" placeholder="ADMIN_TOKEN">
+      <button class="btn btn--blue" style="height:44px;" id="load-btn">불러오기</button>
+    </div>
+    <div id="admin-content"></div>
+  </div>
+</section>
+
+<div id="layout-footer"></div>
+
+<script src="assets/js/config.js"></script>
+<script src="assets/js/data.js"></script>
+<script src="assets/js/main.js"></script>
+<script>
+renderLayout("");
+
+const $ = (s) => document.querySelector(s);
+$("#endpoint").value = localStorage.getItem("adminEndpoint") || SITE_CONFIG.inquiryEndpoint || "";
+$("#token").value = localStorage.getItem("adminToken") || "";
+
+async function load() {
+  const endpoint = $("#endpoint").value.trim();
+  const token = $("#token").value.trim();
+  const box = $("#admin-content");
+
+  // 백엔드 미연동 시 localStorage 데모 데이터 표시
+  if (!endpoint) {
+    const local = JSON.parse(localStorage.getItem("inquiries") || "[]");
+    box.innerHTML = local.length
+      ? renderTable(local.map(d => ({
+          "접수일시": d.submittedAt, "이름": d.name, "연락처": d.phone, "희망기종": d.model,
+          "현재통신사": d.currentCarrier, "가입유형": d.joinType, "상담방법": d.contactMethod, "문의내용": d.message,
+        })))
+      : `<div class="admin-empty">아직 연동된 백엔드가 없습니다.<br>위에 Apps Script URL을 입력하거나, <b>backend/README.md</b>의 설정 가이드를 따라주세요.<br><br>(현재는 이 브라우저에서 제출된 데모 문의만 표시됩니다)</div>`;
+    return;
+  }
+
+  localStorage.setItem("adminEndpoint", endpoint);
+  localStorage.setItem("adminToken", token);
+  box.innerHTML = `<div class="admin-empty">불러오는 중...</div>`;
+  try {
+    const res = await fetch(`${endpoint}?token=${encodeURIComponent(token)}&limit=200`);
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error);
+    box.innerHTML = json.list.length ? renderTable(json.list) : `<div class="admin-empty">접수된 문의가 없습니다.</div>`;
+  } catch (e) {
+    box.innerHTML = `<div class="admin-empty">불러오기 실패: ${e.message}<br>URL과 토큰을 확인해 주세요.</div>`;
+  }
+}
+
+function renderTable(list) {
+  const cols = ["접수일시", "이름", "연락처", "희망기종", "현재통신사", "가입유형", "상담방법", "문의내용"];
+  return `<div class="price-table-wrap"><table class="admin-table">
+    <thead><tr>${cols.map(c => `<th>${c}</th>`).join("")}</tr></thead>
+    <tbody>${list.map(r => `<tr>${cols.map(c => {
+      let v = r[c] ?? "";
+      if (c === "접수일시" && v) v = new Date(v).toLocaleString("ko-KR");
+      if (c === "연락처" && v) v = `<a href="tel:${String(v).replace(/-/g, "")}" style="color:var(--blue);font-weight:700;">${v}</a>`;
+      return `<td>${v}</td>`;
+    }).join("")}</tr>`).join("")}</tbody>
+  </table></div>
+  <p class="price-note">총 ${list.length}건 · 처리상태 변경은 구글 시트에서 직접 관리하세요.</p>`;
+}
+
+$("#load-btn").addEventListener("click", load);
+load();
+</script>
+</body>
+</html>
