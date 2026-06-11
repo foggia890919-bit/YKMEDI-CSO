@@ -4,6 +4,24 @@
 
 const won = (n) => n.toLocaleString("ko-KR") + "원";
 
+/* ---------- 자동 갱신 데이터 병합 ----------
+   GitHub Actions가 매일 갱신하는 auto-data.js(AUTO_DATA)를 PHONES에 덮어씁니다.
+   → 시세표/상세/비교/차트 등 모든 페이지가 자동으로 최신 값을 사용 */
+(function applyAutoData() {
+  if (typeof AUTO_DATA === "undefined" || !AUTO_DATA.generatedAt) return;
+  PHONES.forEach((p) => {
+    const o = AUTO_DATA.official[p.id];
+    if (o) Object.keys(o).forEach((c) => { if (typeof o[c] === "number") (p.official = p.official || {})[c] = o[c]; });
+    const s = AUTO_DATA.support[p.id];
+    if (s) Object.keys(s).forEach((c) => {
+      if (p.support[c]) {
+        if (typeof s[c].mnp === "number") p.support[c].mnp = s[c].mnp;
+        if (typeof s[c].chg === "number") p.support[c].chg = s[c].chg;
+      }
+    });
+  });
+})();
+
 /* ---------- 지원금 계산 (공시지원금 + 번쩍할인 분리) ----------
    - 공시지원금: 통신사 공식 지원금. 요금제 월액에 비례해 변동 (최고 요금제 기준 official 값에서 스케일링)
    - 번쩍할인: 매장 추가 지원금. 가입유형(번호이동/기기변경)에 따라 다르며 요금제와 무관
@@ -13,6 +31,14 @@ function requiredPlanOf(phone) {
   return m ? Number(m[1].replace(/,/g, "")) : 0;
 }
 function officialAt(phone, carrier, planMonthly) {
+  // 1순위: 자동 수집된 요금제 구간별 공시지원금 (정확값)
+  if (typeof AUTO_DATA !== "undefined" && AUTO_DATA.officialByPlan[phone.id]?.[carrier]?.length) {
+    const tiers = AUTO_DATA.officialByPlan[phone.id][carrier]; // [[요금제월액, 지원금], ...] 오름차순
+    let amt = tiers[0][1];
+    for (const [pm, v] of tiers) if (planMonthly >= pm) amt = v;
+    return amt;
+  }
+  // 2순위: 최고 요금제 기준 공시에서 요금제 월액 비례 추정
   const maxOfficial = (phone.official && phone.official[carrier]) || 0;
   const maxPlan = PLANS[carrier][0].monthly;
   const scaled = Math.round((maxOfficial * Math.min(planMonthly, maxPlan)) / maxPlan / 1000) * 1000;

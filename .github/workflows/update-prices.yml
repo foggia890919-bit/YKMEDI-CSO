@@ -1,0 +1,38 @@
+name: Update price data daily
+
+on:
+  schedule:
+    - cron: "0 21 * * *"   # 매일 06:00 KST
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Fetch latest subsidy data
+        env:
+          SHEET_OFFICIAL_CSV: ${{ secrets.SHEET_OFFICIAL_CSV }}
+          SHEET_SUPPORT_CSV: ${{ secrets.SHEET_SUPPORT_CSV }}
+          DATA_GO_KR_KEY: ${{ secrets.DATA_GO_KR_KEY }}
+          DATA_GO_KR_ENDPOINT: ${{ secrets.DATA_GO_KR_ENDPOINT }}
+        run: node scripts/update-prices.mjs
+      - name: Commit & push if changed
+        run: |
+          if git diff --quiet assets/js/auto-data.js; then
+            echo "변동 없음"
+          else
+            git config user.name "price-bot"
+            git config user.email "actions@github.com"
+            git add assets/js/auto-data.js
+            git commit -m "시세 자동 갱신 ($(date +%Y-%m-%d))"
+            git push
+          fi
