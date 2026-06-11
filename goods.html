@@ -17,16 +17,16 @@
   </div>
 </section>
 
-<!-- 월 예상 납부액 -->
-<section class="section section--alt">
+<!-- 월 납부금 계산기 -->
+<section class="section section--alt" id="calc-section">
   <div class="container">
     <div class="section__head">
-      <span class="section__tag">MONTHLY</span>
-      <h2 class="section__title">월 예상 납부액</h2>
-      <p class="section__desc">통신사·가입유형별로 한 달에 얼마씩 내는지 미리 계산해 봤어요.</p>
+      <span class="section__tag">CALCULATOR</span>
+      <h2 class="section__title">월 납부금 계산기</h2>
+      <p class="section__desc">통신사, 요금제, 할부 기간을 직접 선택하면 한 달에 내는 금액이 바로 계산됩니다.</p>
     </div>
-    <div class="features" id="monthly-calc"></div>
-    <p class="price-note">※ 24개월 할부(연 5.9% 할부수수료) 기준 단순 계산이며, 현금완납 시 할부금 없이 요금제 금액만 납부합니다. 정확한 금액은 상담 시 안내드립니다.</p>
+    <div class="calc" id="calc"></div>
+    <p class="price-note">※ 할부 수수료 연 5.9% 기준이며, 현금완납 시 수수료가 없습니다. 카드·결합 할인은 별도 가입 시 적용되는 선택 사항입니다. 정확한 금액은 상담 시 최종 안내드립니다.</p>
   </div>
 </section>
 
@@ -122,28 +122,148 @@ document.getElementById("goods").innerHTML = `
     <a href="#inquiry" class="btn btn--blue" style="width:100%;margin-top:6px;">이 기종으로 상담 신청하기 ↓</a>
   </div>`;
 
-// 월 예상 납부액 — 24개월 할부(연 5.9%) + 요금제
-const planMonthly = (() => {
+// ===== 월 납부금 계산기 =====
+// 시세표 지원금의 요금제 유지 조건 금액 (data.js의 plan 문구에서 추출)
+const requiredPlanAmt = (() => {
   const m = phone.plan.match(/([\d,]+)원/);
   return m ? Number(m[1].replace(/,/g, "")) : 0;
 })();
-function installment(principal) {
-  if (principal <= 0) return 0;
-  const r = 0.059 / 12, n = 24;
-  return Math.round(principal * r * Math.pow(1 + r, n) / (Math.pow(1 + r, n) - 1));
+
+function pmt(principal, months) {
+  if (principal <= 0 || months === 0) return 0;
+  const r = INSTALLMENT_APR / 12;
+  return Math.round(principal * r * Math.pow(1 + r, months) / (Math.pow(1 + r, months) - 1));
 }
-document.getElementById("monthly-calc").innerHTML = CARRIERS.map(c => {
-  return `<div class="monthly-calc">
-    <h3 style="color:${c.color};">${c.name}</h3>
-    ${JOIN_TYPES.map(j => {
-      const v = phone.price - phone.support[c.id][j.id];
-      const inst = installment(v);
-      return `<div class="gp-line"><span>${j.name} · 기기 할부금</span><b>${inst ? "월 " + won(inst) : "0원"}</b></div>
-        <div class="gp-line"><span>${j.name} · 요금제</span><b>월 ${won(planMonthly)}</b></div>
-        <div class="gp-line gp-total" style="margin-bottom:10px;"><span>${j.name} 월 납부액</span><b>${won(inst + planMonthly)}</b></div>`;
-    }).join("")}
-  </div>`;
-}).join("");
+
+const calcState = {
+  carrier: "SKT",
+  join: "mnp",
+  planIdx: -1,       // -1이면 유지조건 요금제로 자동 선택
+  months: 24,
+  card: -1,          // -1 = 선택 안 함
+  bundle: -1,
+};
+
+function defaultPlanIdx(carrier) {
+  // 유지 조건 금액에 가장 가까운(이상인) 요금제를 기본 선택
+  const plans = PLANS[carrier];
+  let best = 0;
+  for (let i = plans.length - 1; i >= 0; i--) {
+    if (plans[i].monthly >= requiredPlanAmt) best = i;
+  }
+  return best;
+}
+
+function renderCalc() {
+  const s = calcState;
+  const plans = PLANS[s.carrier];
+  if (s.planIdx < 0 || s.planIdx >= plans.length) s.planIdx = defaultPlanIdx(s.carrier);
+  const plan = plans[s.planIdx];
+  const cards = CARD_DISCOUNTS[s.carrier];
+  const bundles = INTERNET_BUNDLES[s.carrier];
+
+  const support = phone.support[s.carrier][s.join];
+  const rawPrice = phone.price - support;          // 음수면 차비
+  const devicePrice = Math.max(rawPrice, 0);
+  const cashback = rawPrice < 0 ? -rawPrice : 0;
+  const inst = pmt(devicePrice, s.months);
+  const cardD = s.card >= 0 ? cards[s.card].monthly : 0;
+  const bundleD = s.bundle >= 0 ? bundles[s.bundle].monthly : 0;
+  const telecom = Math.max(plan.monthly - cardD - bundleD, 0);
+  const total = inst + telecom;
+  const joinName = JOIN_TYPES.find(j => j.id === s.join).name;
+  const monthsLabel = s.months === 0 ? "현금완납" : s.months + "개월 할부";
+
+  document.getElementById("calc").innerHTML = `
+    <div class="calc__panel">
+      <div class="calc__group">
+        <label class="calc__label">통신사</label>
+        <div class="tabs">
+          ${CARRIERS.map(c => `<button class="tab ${s.carrier === c.id ? "is-active" : ""}" data-c-carrier="${c.id}">${c.name}</button>`).join("")}
+        </div>
+      </div>
+      <div class="calc__group">
+        <label class="calc__label">가입 유형</label>
+        <div class="tabs">
+          ${JOIN_TYPES.map(j => `<button class="tab ${s.join === j.id ? "is-active" : ""}" data-c-join="${j.id}">${j.name}</button>`).join("")}
+        </div>
+      </div>
+      <div class="calc__group">
+        <label class="calc__label">요금제 <small>· 지원금 조건: 월 ${won(requiredPlanAmt)} 이상 요금제 유지</small></label>
+        <select data-c-plan>
+          ${plans.map((p, i) => `<option value="${i}" ${i === s.planIdx ? "selected" : ""}>${p.name} — 월 ${won(p.monthly)}</option>`).join("")}
+        </select>
+      </div>
+      <div class="calc__group">
+        <label class="calc__label">기기값 결제 방법</label>
+        <div class="tabs">
+          ${[[0, "현금완납"], [12, "12개월"], [24, "24개월"], [36, "36개월"]].map(([m, label]) =>
+            `<button class="tab ${s.months === m ? "is-active" : ""}" data-c-months="${m}">${label}</button>`).join("")}
+        </div>
+      </div>
+      <div class="calc__group">
+        <label class="calc__label">제휴카드 할인 <small>· 선택 사항</small></label>
+        <select data-c-card>
+          <option value="-1">선택 안 함</option>
+          ${cards.map((c, i) => `<option value="${i}" ${i === s.card ? "selected" : ""}>${c.name} — 월 최대 ${won(c.monthly)} (${c.condition})</option>`).join("")}
+        </select>
+      </div>
+      <div class="calc__group">
+        <label class="calc__label">인터넷·가족 결합 할인 <small>· 선택 사항</small></label>
+        <select data-c-bundle>
+          <option value="-1">선택 안 함</option>
+          ${bundles.map((b, i) => `<option value="${i}" ${i === s.bundle ? "selected" : ""}>${b.name} — 월 최대 ${won(b.monthly)}</option>`).join("")}
+        </select>
+      </div>
+    </div>
+    <div class="calc__panel calc__result">
+      <h3>📊 월 예상 납부액</h3>
+      <div class="calc__sub">${phone.name} ${phone.storage} · ${CARRIERS.find(c => c.id === s.carrier).name} ${joinName} · ${monthsLabel}</div>
+      <div class="calc__lines">
+        <div class="gp-line"><span>출고가</span><b>${won(phone.price)}</b></div>
+        <div class="gp-line"><span>지원금 (${joinName})</span><b style="color:var(--blue);">-${won(support)}</b></div>
+        <div class="gp-line"><span>기기 실구매가</span><b>${won(devicePrice)}</b></div>
+        <div class="gp-line"><span>기기 할부금 ${s.months ? `(${s.months}개월·연 5.9%)` : "(현금완납)"}</span><b>${inst ? "월 " + won(inst) : "월 0원"}</b></div>
+        <div class="gp-line"><span>요금제 (${plan.name})</span><b>월 ${won(plan.monthly)}</b></div>
+        ${cardD ? `<div class="gp-line"><span>제휴카드 할인</span><b style="color:#0a8f47;">-월 ${won(cardD)}</b></div>` : ""}
+        ${bundleD ? `<div class="gp-line"><span>결합 할인</span><b style="color:#0a8f47;">-월 ${won(bundleD)}</b></div>` : ""}
+      </div>
+      <div class="calc__total"><span>월 납부액 합계</span><b>${won(total)}</b></div>
+      <div class="calc__cashback ${cashback ? "is-on" : ""}">🎉 기기값 0원 + 차비 ${won(cashback)} 지급 조건입니다!</div>
+      <div class="calc__warn ${plan.monthly < requiredPlanAmt ? "is-on" : ""}">
+        ⚠️ 선택하신 요금제가 지원금 유지 조건(월 ${won(requiredPlanAmt)})보다 낮습니다.
+        이 경우 지원금이 달라질 수 있으니, 정확한 금액은 상담 시 확인해 주세요.
+      </div>
+      <button class="btn btn--blue" style="width:100%;margin-top:16px;" id="calc-apply">이 조건으로 상담 신청하기 ↓</button>
+    </div>`;
+
+  const root = document.getElementById("calc");
+  root.querySelectorAll("[data-c-carrier]").forEach(b => b.addEventListener("click", () => {
+    calcState.carrier = b.dataset.cCarrier;
+    calcState.planIdx = -1; calcState.card = -1; calcState.bundle = -1;
+    renderCalc();
+  }));
+  root.querySelectorAll("[data-c-join]").forEach(b => b.addEventListener("click", () => { calcState.join = b.dataset.cJoin; renderCalc(); }));
+  root.querySelectorAll("[data-c-months]").forEach(b => b.addEventListener("click", () => { calcState.months = Number(b.dataset.cMonths); renderCalc(); }));
+  root.querySelector("[data-c-plan]").addEventListener("change", e => { calcState.planIdx = Number(e.target.value); renderCalc(); });
+  root.querySelector("[data-c-card]").addEventListener("change", e => { calcState.card = Number(e.target.value); renderCalc(); });
+  root.querySelector("[data-c-bundle]").addEventListener("change", e => { calcState.bundle = Number(e.target.value); renderCalc(); });
+
+  // 선택 조건을 문의 폼에 자동으로 채워서 이동
+  document.getElementById("calc-apply").addEventListener("click", () => {
+    const form = document.getElementById("inquiry-form");
+    if (form) {
+      const msg = form.querySelector('[name="message"]');
+      msg.value = `[계산기 견적] ${phone.name} ${phone.storage} / ${CARRIERS.find(c => c.id === s.carrier).name} ${joinName} / ${plan.name} / ${monthsLabel}`
+        + (cardD ? ` / 카드할인 희망` : "") + (bundleD ? ` / 결합할인 희망` : "")
+        + ` / 월 예상 ${won(total)}` + (cashback ? ` + 차비 ${won(cashback)}` : "");
+      const joinRadio = form.querySelector(`[name="joinType"][value="${joinName}"]`);
+      if (joinRadio) joinRadio.checked = true;
+    }
+    document.getElementById("inquiry").scrollIntoView({ behavior: "smooth" });
+  });
+}
+renderCalc();
 
 // 구매 혜택
 document.getElementById("benefits").innerHTML = SHOP_BENEFITS.map(b => `

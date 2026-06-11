@@ -319,6 +319,35 @@ button { font-family: inherit; cursor: pointer; }
 .monthly-calc h3 { margin: 0 0 14px; font-size: 17px; }
 .monthly-calc .gp-line { padding: 4px 0; }
 
+/* ---------- 월 납부금 계산기 ---------- */
+.calc { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 22px; align-items: start; }
+.calc__panel { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow); }
+.calc__group { margin-bottom: 18px; }
+.calc__group:last-child { margin-bottom: 0; }
+.calc__label { display: block; font-size: 13.5px; font-weight: 800; margin-bottom: 8px; }
+.calc__label small { font-weight: 600; color: var(--gray); }
+.calc select {
+  width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
+  font-size: 15px; font-family: inherit; outline: none; background: #fafbfe;
+}
+.calc select:focus { border-color: var(--blue); background: #fff; }
+.calc .tabs { width: 100%; }
+.calc .tab { flex: 1; padding: 10px 0; }
+.calc__result { position: sticky; top: calc(var(--header-h) + 16px); }
+.calc__result h3 { margin: 0 0 4px; font-size: 18px; }
+.calc__result .calc__sub { font-size: 12.5px; color: var(--gray); margin-bottom: 16px; }
+.calc__lines { display: grid; gap: 9px; }
+.calc__total {
+  margin-top: 14px; padding-top: 14px; border-top: 2px solid var(--ink);
+  display: flex; justify-content: space-between; align-items: baseline; font-weight: 900;
+}
+.calc__total span { font-size: 15px; }
+.calc__total b { font-size: 26px; color: var(--red); }
+.calc__warn { margin-top: 12px; font-size: 12.5px; font-weight: 700; color: #b45309; background: #fef6e7; border-radius: 9px; padding: 10px 12px; line-height: 1.6; display: none; }
+.calc__warn.is-on { display: block; }
+.calc__cashback { margin-top: 12px; font-size: 13px; font-weight: 800; color: #0a8f47; background: #e8f8ef; border-radius: 9px; padding: 10px 12px; display: none; }
+.calc__cashback.is-on { display: block; }
+
 /* ---------- 관리자 ---------- */
 .admin-table { width: 100%; border-collapse: collapse; background: #fff; font-size: 14px; }
 .admin-table th { background: var(--navy); color: #fff; padding: 12px 14px; text-align: left; white-space: nowrap; }

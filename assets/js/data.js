@@ -285,3 +285,38 @@ const WELFARE_DISCOUNTS = [
   { target: "주거·교육급여 수급자 / 차상위계층", benefit: "기본 감면 11,000원 + 통화료 35% (월 최대 21,500원)", note: "" },
   { target: "기초연금 수급자 (만 65세 이상)", benefit: "요금 50% 감면 (월 최대 11,000원)", note: "" },
 ];
+
+/* 통신사 요금제 목록 — 계산기에서 선택. 실제 판매 요금제로 교체하세요 */
+const PLANS = {
+  SKT: [
+    { name: "5GX 프리미엄", monthly: 125000 },
+    { name: "5GX 프라임플러스", monthly: 109000 },
+    { name: "5GX 프라임", monthly: 99000 },
+    { name: "5GX 레귤러플러스", monthly: 89000 },
+    { name: "5GX 레귤러", monthly: 79000 },
+    { name: "베이직플러스", monthly: 69000 },
+    { name: "컴팩트플러스", monthly: 59000 },
+    { name: "컴팩트", monthly: 49000 },
+  ],
+  KT: [
+    { name: "초이스 프리미엄", monthly: 130000 },
+    { name: "초이스 스페셜", monthly: 110000 },
+    { name: "초이스 베이직", monthly: 90000 },
+    { name: "베이직", monthly: 80000 },
+    { name: "심플 70GB", monthly: 69000 },
+    { name: "슬림플러스", monthly: 61000 },
+    { name: "슬림", monthly: 55000 },
+  ],
+  LGU: [
+    { name: "5G 시그니처", monthly: 130000 },
+    { name: "5G 프리미어 슈퍼", monthly: 115000 },
+    { name: "5G 프리미어 플러스", monthly: 105000 },
+    { name: "5G 프리미어 에센셜", monthly: 85000 },
+    { name: "5G 스탠다드", monthly: 75000 },
+    { name: "5G 데이터 플러스", monthly: 66000 },
+    { name: "5G 라이트+", monthly: 55000 },
+  ],
+};
+
+/* 할부 수수료 연이율 (통신사 공통 5.9%) */
+const INSTALLMENT_APR = 0.059;
