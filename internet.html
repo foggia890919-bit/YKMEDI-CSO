@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>인터넷 결합 | 폰드림 — 휴대폰 + 인터넷 한 번에 할인</title>
+<meta name="description" content="휴대폰과 인터넷을 결합하면 매달 통신비가 줄어듭니다. 통신 3사 결합 혜택을 비교하고 무료로 설계받으세요.">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.css">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<div id="layout-header"></div>
+
+<section class="page-hero">
+  <div class="container">
+    <h1>🌐 휴대폰 + 인터넷 결합하면?</h1>
+    <p>기기값 할인과 별개로, 매달 나가는 통신비를 한 번 더 줄일 수 있습니다.</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section__head">
+      <span class="section__tag">COMPARE</span>
+      <h2 class="section__title">통신 3사 결합 혜택 비교</h2>
+      <p class="section__desc">신규 설치 지원금과 월 요금은 프로모션에 따라 변동됩니다. 정확한 금액은 상담 시 안내드려요.</p>
+    </div>
+    <div class="net-cards" id="net-cards"></div>
+    <p class="price-note">※ 표기 금액은 예시이며 통신사 프로모션에 따라 달라질 수 있습니다. 가족 회선 수, 인터넷 속도 상품에 따라 최적 조합이 다르니 무료 설계를 받아보세요.</p>
+  </div>
+</section>
+
+<section class="section section--alt">
+  <div class="container">
+    <div class="section__head">
+      <span class="section__tag">WHY</span>
+      <h2 class="section__title">결합, 이래서 이득이에요</h2>
+    </div>
+    <div class="features">
+      <div class="feature"><h3>📉 매달 나가는 돈이 줄어요</h3><p>휴대폰 요금에서 월 최대 1~2만원, 가족 회선까지 묶으면 그 이상 할인됩니다. 약정 기간 동안 누적하면 수십만 원 차이예요.</p></div>
+      <div class="feature"><h3>🎁 신규 설치 지원금</h3><p>인터넷을 새로 설치하거나 옮기면 통신사 지원금을 받을 수 있습니다. 휴대폰 개통과 함께 진행하면 한 번에 처리돼요.</p></div>
+      <div class="feature"><h3>🧮 무료 결합 설계</h3><p>가족 통신사가 제각각이어도 괜찮아요. 전 회선을 분석해서 어디로 모으는 게 가장 싼지 계산해 드립니다.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 결합 상담 -->
+<section class="section inquiry" id="inquiry">
+  <div class="container">
+    <div class="section__head">
+      <span class="section__tag" style="background:rgba(255,212,59,.15);color:#ffd43b;">CONSULT</span>
+      <h2 class="section__title">결합 무료 설계 신청</h2>
+      <p class="section__desc">현재 쓰는 인터넷/휴대폰 통신사만 알려주시면, 가장 싸지는 조합을 계산해서 알려드립니다.</p>
+    </div>
+    <div class="inquiry__grid">
+      <div class="inquiry__info">
+        <h3>이렇게 진행돼요</h3>
+        <p>
+          1. 가족 휴대폰 회선과 인터넷 현황을 알려주세요<br>
+          2. 통신사별 결합 시 월 납부액을 비교해 드립니다<br>
+          3. 원하시면 인터넷 설치/이전까지 한 번에 처리<br>
+          4. 휴대폰 개통과 함께 진행 시 추가 혜택
+        </p>
+      </div>
+      <div id="inquiry-form-slot"></div>
+    </div>
+  </div>
+</section>
+
+<div id="layout-footer"></div>
+
+<script src="assets/js/config.js"></script>
+<script src="assets/js/data.js"></script>
+<script src="assets/js/main.js"></script>
+<script src="assets/js/inquiry.js"></script>
+<script>
+renderLayout("internet.html");
+
+document.getElementById("net-cards").innerHTML = INTERNET_PROMO.map(n => {
+  const c = CARRIERS.find(x => x.id === n.carrier);
+  return `<div class="net-card">
+    <div class="net-card__carrier" style="color:${c.color};">${c.name}</div>
+    <div class="net-card__speed">${n.speed}</div>
+    <div class="net-card__support">${n.support}</div>
+    <div class="net-card__monthly">월 ${won(n.monthly)}~ (휴대폰 결합 기준)</div>
+    <ul>${n.points.map(p => `<li>${p}</li>`).join("")}</ul>
+    <a href="#inquiry" class="btn btn--blue" style="width:100%;height:46px;font-size:14px;">이 통신사로 결합 상담</a>
+  </div>`;
+}).join("");
+
+document.getElementById("inquiry-form-slot").innerHTML = inquiryFormHtml();
+initInquiryForm(document.getElementById("inquiry-form"));
+// 결합 상담임을 메시지에 미리 표시
+document.querySelector('#inquiry-form [name="message"]').value = "[인터넷 결합 설계 요청] ";
+</script>
+</body>
+</html>

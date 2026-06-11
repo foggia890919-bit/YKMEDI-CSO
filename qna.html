@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>상품문의 | 폰드림</title>
+<meta name="description" content="궁금한 점을 남겨주시면 빠르게 답변드립니다.">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.css">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<div id="layout-header"></div>
+
+<section class="page-hero">
+  <div class="container">
+    <h1>💬 상품문의</h1>
+    <p>궁금한 점을 공손한 정성으로 답변드립니다. 개인정보가 담긴 문의는 비밀글로 접수돼요.</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+      <p class="section__desc" style="margin:0;">총 <b id="qna-count"></b>건의 문의</p>
+      <a href="#inquiry" class="btn btn--blue" style="height:46px;font-size:14.5px;">✏️ 문의 작성하기</a>
+    </div>
+    <div class="price-table-wrap">
+      <table class="board-table" id="qna-table">
+        <thead><tr><th style="width:90px;">상태</th><th style="width:160px;">상품</th><th>제목</th><th style="width:80px;">작성자</th><th style="width:110px;">등록일</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="price-note">※ 문의 작성은 아래 폼으로 접수되며, 담당자에게 즉시 알림이 전송됩니다. 답변은 영업시간 내 문자/카카오톡으로 드리고, 게시판에는 공개 가능한 문의만 게시됩니다.</p>
+  </div>
+</section>
+
+<!-- 문의 작성 -->
+<section class="section inquiry" id="inquiry">
+  <div class="container">
+    <div class="section__head">
+      <span class="section__tag" style="background:rgba(255,212,59,.15);color:#ffd43b;">ASK</span>
+      <h2 class="section__title">문의 작성하기</h2>
+      <p class="section__desc">남겨주신 연락처로 영업시간 내 빠르게 답변드립니다.</p>
+    </div>
+    <div class="inquiry__grid">
+      <div class="inquiry__info">
+        <h3>이런 것들을 물어보세요</h3>
+        <p>
+          · 원하는 기종의 오늘 최저가와 재고<br>
+          · 위약금/남은 할부금이 있을 때 갈아타는 방법<br>
+          · 요금제·결합·카드 할인 중 뭐가 제일 유리한지<br>
+          · 택배 개통 절차와 준비물
+        </p>
+      </div>
+      <div id="inquiry-form-slot"></div>
+    </div>
+  </div>
+</section>
+
+<div id="layout-footer"></div>
+
+<script src="assets/js/config.js"></script>
+<script src="assets/js/data.js"></script>
+<script src="assets/js/main.js"></script>
+<script src="assets/js/inquiry.js"></script>
+<script>
+renderLayout("qna.html");
+
+document.getElementById("qna-count").textContent = QNA_POSTS.length;
+document.querySelector("#qna-table tbody").innerHTML = QNA_POSTS.map((p, i) => {
+  const open = !p.secret && p.q;
+  return `
+  <tr class="board-row" data-i="${i}" ${open ? "" : 'data-locked="1"'}>
+    <td><span class="badge-status ${p.status === "답변완료" ? "badge-status--done" : "badge-status--wait"}">${p.status}</span></td>
+    <td style="font-size:13px;color:var(--gray);">${p.product}</td>
+    <td style="font-weight:700;">${p.secret ? "🔒 " : ""}${p.title}</td>
+    <td style="color:var(--gray);font-size:13px;">${p.author}</td>
+    <td style="color:var(--gray);font-size:13px;">${p.date}</td>
+  </tr>
+  ${open ? `<tr class="board-detail" style="display:none;"><td colspan="5">
+    <b>Q.</b> ${p.q}
+    ${p.a ? `<div class="answer"><b style="color:var(--blue);">A.</b> ${p.a}</div>` : ""}
+  </td></tr>` : ""}`;
+}).join("");
+
+document.querySelectorAll(".board-row").forEach(r => r.addEventListener("click", () => {
+  if (r.dataset.locked) { alert("비밀글입니다. 작성자 본인만 확인할 수 있어요."); return; }
+  const d = r.nextElementSibling;
+  if (d && d.classList.contains("board-detail")) d.style.display = d.style.display === "none" ? "" : "none";
+}));
+
+document.getElementById("inquiry-form-slot").innerHTML = inquiryFormHtml();
+initInquiryForm(document.getElementById("inquiry-form"));
+</script>
+</body>
+</html>

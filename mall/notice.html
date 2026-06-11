@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>공지·이벤트 | 폰마트</title>
+<meta name="description" content="폰마트의 공지사항과 진행 중인 이벤트를 확인하세요.">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.css">
+<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="stylesheet" href="theme.css">
+</head>
+<body>
+<div id="layout-header"></div>
+
+<section class="page-hero">
+  <div class="container">
+    <h1>📢 공지·이벤트</h1>
+    <p>시세 변동, 사은품, 진행 중인 이벤트 소식을 확인하세요.</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="tabs" id="notice-tabs" style="margin-bottom:20px;">
+      <button class="tab is-active" data-cat="all">전체</button>
+      <button class="tab" data-cat="공지">공지</button>
+      <button class="tab" data-cat="이벤트">이벤트</button>
+    </div>
+    <div class="price-table-wrap">
+      <table class="board-table" id="notice-table">
+        <thead><tr><th style="width:90px;">분류</th><th>제목</th><th style="width:110px;">등록일</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="section section--alt">
+  <div class="container" style="text-align:center;">
+    <h2 class="section__title">이벤트 참여 방법이 궁금하세요?</h2>
+    <p class="section__desc" style="margin-bottom:24px;">문의를 남기시면 진행 중인 이벤트와 사은품을 함께 안내해 드립니다.</p>
+    <a href="index.html#inquiry" class="btn btn--blue">문의 남기기</a>
+  </div>
+</section>
+
+<div id="layout-footer"></div>
+
+<script src="../assets/js/config.js"></script>
+<script src="site-config.js"></script>
+<script src="../assets/js/data.js"></script>
+<script src="../assets/js/main.js"></script>
+<script>
+renderLayout("notice.html");
+
+let cat = "all";
+function renderNotices() {
+  const list = NOTICE_POSTS.filter(n => cat === "all" || n.category === cat);
+  document.querySelector("#notice-table tbody").innerHTML = list.map((n, i) => `
+    <tr class="board-row" data-i="${i}">
+      <td><span class="badge-cat ${n.category === "이벤트" ? "badge-cat--event" : ""}">${n.category}</span></td>
+      <td style="font-weight:700;">${n.title}</td>
+      <td style="color:var(--gray);font-size:13px;">${n.date}</td>
+    </tr>
+    <tr class="board-detail" style="display:none;"><td colspan="3">${n.body}</td></tr>
+  `).join("") || `<tr><td colspan="3" style="text-align:center;color:#9aa3b5;padding:40px;">게시글이 없습니다.</td></tr>`;
+
+  document.querySelectorAll(".board-row").forEach(r => r.addEventListener("click", () => {
+    const d = r.nextElementSibling;
+    d.style.display = d.style.display === "none" ? "" : "none";
+  }));
+}
+document.querySelectorAll("#notice-tabs .tab").forEach(b => b.addEventListener("click", () => {
+  cat = b.dataset.cat;
+  document.querySelectorAll("#notice-tabs .tab").forEach(x => x.classList.toggle("is-active", x === b));
+  renderNotices();
+}));
+renderNotices();
+</script>
+</body>
+</html>
