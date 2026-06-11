@@ -17,6 +17,43 @@
   </div>
 </section>
 
+<!-- 월 예상 납부액 -->
+<section class="section section--alt">
+  <div class="container">
+    <div class="section__head">
+      <span class="section__tag">MONTHLY</span>
+      <h2 class="section__title">월 예상 납부액</h2>
+      <p class="section__desc">통신사·가입유형별로 한 달에 얼마씩 내는지 미리 계산해 봤어요.</p>
+    </div>
+    <div class="features" id="monthly-calc"></div>
+    <p class="price-note">※ 24개월 할부(연 5.9% 할부수수료) 기준 단순 계산이며, 현금완납 시 할부금 없이 요금제 금액만 납부합니다. 정확한 금액은 상담 시 안내드립니다.</p>
+  </div>
+</section>
+
+<!-- 구매 혜택 -->
+<section class="section">
+  <div class="container">
+    <div class="section__head">
+      <span class="section__tag">BENEFIT</span>
+      <h2 class="section__title">🎁 구매 혜택</h2>
+      <p class="section__desc">시세표 가격에 더해, 구매하시는 모든 분께 기본으로 드리는 혜택입니다.</p>
+    </div>
+    <div class="benefits" id="benefits"></div>
+  </div>
+</section>
+
+<!-- 추가 할인 (카드/결합/복지) -->
+<section class="section section--alt">
+  <div class="container">
+    <div class="section__head">
+      <span class="section__tag">MORE DISCOUNT</span>
+      <h2 class="section__title">통신요금 추가 할인 받는 법</h2>
+      <p class="section__desc">기기값 할인과 별개로, 매달 나가는 통신요금도 줄일 수 있어요. (선택사항 — 가입 조건 아님)</p>
+    </div>
+    <div id="extra-discounts"></div>
+  </div>
+</section>
+
 <!-- 구매 신청 -->
 <section class="section inquiry" id="inquiry">
   <div class="container">
@@ -84,6 +121,66 @@ document.getElementById("goods").innerHTML = `
       </div>`).join("")}
     <a href="#inquiry" class="btn btn--blue" style="width:100%;margin-top:6px;">이 기종으로 상담 신청하기 ↓</a>
   </div>`;
+
+// 월 예상 납부액 — 24개월 할부(연 5.9%) + 요금제
+const planMonthly = (() => {
+  const m = phone.plan.match(/([\d,]+)원/);
+  return m ? Number(m[1].replace(/,/g, "")) : 0;
+})();
+function installment(principal) {
+  if (principal <= 0) return 0;
+  const r = 0.059 / 12, n = 24;
+  return Math.round(principal * r * Math.pow(1 + r, n) / (Math.pow(1 + r, n) - 1));
+}
+document.getElementById("monthly-calc").innerHTML = CARRIERS.map(c => {
+  return `<div class="monthly-calc">
+    <h3 style="color:${c.color};">${c.name}</h3>
+    ${JOIN_TYPES.map(j => {
+      const v = phone.price - phone.support[c.id][j.id];
+      const inst = installment(v);
+      return `<div class="gp-line"><span>${j.name} · 기기 할부금</span><b>${inst ? "월 " + won(inst) : "0원"}</b></div>
+        <div class="gp-line"><span>${j.name} · 요금제</span><b>월 ${won(planMonthly)}</b></div>
+        <div class="gp-line gp-total" style="margin-bottom:10px;"><span>${j.name} 월 납부액</span><b>${won(inst + planMonthly)}</b></div>`;
+    }).join("")}
+  </div>`;
+}).join("");
+
+// 구매 혜택
+document.getElementById("benefits").innerHTML = SHOP_BENEFITS.map(b => `
+  <div class="benefit"><div class="benefit__icon">${b.icon}</div><h3>${b.title}</h3><p>${b.desc}</p></div>`).join("");
+
+// 추가 할인: 제휴카드 / 인터넷 결합 / 복지 감면
+document.getElementById("extra-discounts").innerHTML = `
+  <div class="disc-card">
+    <div class="disc-card__head">💳 제휴카드 통신요금 할인 <span class="sub">원하시는 분만 — 가입 조건 아닙니다</span></div>
+    <table class="disc-table">
+      <thead><tr><th>통신사</th><th>카드</th><th>월 할인</th><th>조건</th></tr></thead>
+      <tbody>${CARRIERS.flatMap(c => CARD_DISCOUNTS[c.id].map((card, i) => `
+        <tr>${i === 0 ? `<td rowspan="${CARD_DISCOUNTS[c.id].length}" style="font-weight:800;color:${c.color};">${c.name}</td>` : ""}
+        <td>${card.name}</td><td class="amt">최대 ${won(card.monthly)}</td><td style="color:var(--gray);">${card.condition}</td></tr>`)).join("")}
+      </tbody>
+    </table>
+  </div>
+  <div class="disc-card">
+    <div class="disc-card__head">🌐 인터넷·가족 결합 할인 <span class="sub">결합 상품은 상담 시 가장 유리한 조합으로 설계해 드려요</span></div>
+    <table class="disc-table">
+      <thead><tr><th>통신사</th><th>결합 상품</th><th>월 할인</th><th>내용</th></tr></thead>
+      <tbody>${CARRIERS.flatMap(c => INTERNET_BUNDLES[c.id].map((b, i) => `
+        <tr>${i === 0 ? `<td rowspan="${INTERNET_BUNDLES[c.id].length}" style="font-weight:800;color:${c.color};">${c.name}</td>` : ""}
+        <td>${b.name}</td><td class="amt">최대 ${won(b.monthly)}</td><td style="color:var(--gray);">${b.desc}</td></tr>`)).join("")}
+      </tbody>
+    </table>
+  </div>
+  <div class="disc-card">
+    <div class="disc-card__head">🎖 국가유공자·복지 요금 감면 <span class="sub">정부 지원 제도 — 통신 3사 공통 적용</span></div>
+    <table class="disc-table">
+      <thead><tr><th>대상</th><th>감면 혜택</th><th>비고</th></tr></thead>
+      <tbody>${WELFARE_DISCOUNTS.map(w => `
+        <tr><td style="font-weight:700;">${w.target}</td><td class="amt">${w.benefit}</td><td style="color:var(--gray);">${w.note || "-"}</td></tr>`).join("")}
+      </tbody>
+    </table>
+  </div>
+  <p class="price-note">※ 카드·결합 할인 금액은 카드사/통신사 정책에 따라 달라질 수 있는 예시이며, 복지 감면은 자격 확인 후 통신사에 신청하면 적용됩니다. 상담 시 대상 여부를 무료로 확인해 드립니다.</p>`;
 
 // 폼에 기종 자동 선택
 history.replaceState(null, "", `goods.html?id=${phone.id}&model=${encodeURIComponent(phone.name + " " + phone.storage)}`);
