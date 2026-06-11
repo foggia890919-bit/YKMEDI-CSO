@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>폰마트 | 온라인 휴대폰 쇼핑몰 — 갤럭시·아이폰 최저가</title>
+<meta name="description" content="갤럭시·아이폰 전 기종 최저가 쇼핑몰. 통신 3사 비교, 조건 없는 투명한 가격, 전국 택배개통. 지금 시세를 확인하세요.">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="website">
+<meta property="og:title" content="폰마트 | 온라인 휴대폰 쇼핑몰">
+<meta property="og:description" content="조건 없는 최저가 · 전국 택배개통 · 오늘 시세 반영">
+<meta property="og:locale" content="ko_KR">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.css">
+<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="stylesheet" href="theme.css">
+</head>
+<body>
+
+<div id="layout-header"></div>
+
+<!-- ===================== 히어로 배너 ===================== -->
+<section class="hero" style="padding:64px 0 72px;">
+  <div class="container" style="text-align:center;">
+    <span class="hero__badge">🛒 오늘 시세 업데이트 완료</span>
+    <h1 class="hero__title" style="font-size:40px;">최신폰, 쇼핑하듯 <em>최저가</em>로 담아가세요</h1>
+    <p class="hero__desc" style="max-width:620px;margin:0 auto 28px;">
+      제휴카드 ✕ 부가서비스 ✕ 반납조건 없이, 보이는 가격 그대로.<br>
+      마음에 드는 기종을 누르면 월 납부금까지 바로 계산됩니다.
+    </p>
+    <div class="hero__btns" style="justify-content:center;">
+      <a href="#shop" class="btn btn--primary">📱 전체 상품 보기</a>
+      <a href="#inquiry" class="btn btn--ghost">1분 문의하기</a>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 상품 그리드 ===================== -->
+<section class="section" id="shop">
+  <div class="container">
+    <div class="section__head">
+      <span class="section__tag">SHOP</span>
+      <h2 class="section__title">전체 상품</h2>
+      <p class="section__desc">번호이동 기준 통신 3사 중 최저가입니다. 카드를 누르면 상세 견적을 확인할 수 있어요.</p>
+    </div>
+    <div class="shop-toolbar">
+      <div class="tabs" id="brand-tabs">
+        <button class="tab is-active" data-brand="all">전체</button>
+        <button class="tab" data-brand="samsung">갤럭시</button>
+        <button class="tab" data-brand="apple">아이폰</button>
+      </div>
+      <div class="tabs" id="join-tabs">
+        <button class="tab is-active" data-join="mnp">번호이동</button>
+        <button class="tab" data-join="chg">기기변경</button>
+      </div>
+    </div>
+    <div class="shop-grid" id="shop-grid"></div>
+  </div>
+</section>
+
+<!-- ===================== 이용방법 ===================== -->
+<section class="section section--alt">
+  <div class="container">
+    <div class="section__head">
+      <span class="section__tag">HOW TO</span>
+      <h2 class="section__title">구매는 4단계면 끝</h2>
+    </div>
+    <div class="steps">
+      <div class="step"><div class="step__num">1</div><h3>상품 선택</h3><p>마음에 드는 기종 카드를 눌러 옵션과 월 납부금을 확인하세요.</p></div>
+      <div class="step"><div class="step__num">2</div><h3>문의 남기기</h3><p>견적 그대로 문의가 접수되고 담당자가 바로 연락드립니다.</p></div>
+      <div class="step"><div class="step__num">3</div><h3>개통 진행</h3><p>방문 또는 비대면(신분증 진위확인)으로 개통합니다.</p></div>
+      <div class="step"><div class="step__num">4</div><h3>수령 & 사용</h3><p>오후 4시 이전 결제 시 당일 발송, 다음날 수령!</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 후기 ===================== -->
+<section class="section">
+  <div class="container">
+    <div class="section__head">
+      <span class="section__tag">REVIEW</span>
+      <h2 class="section__title">구매 후기</h2>
+    </div>
+    <div class="reviews" id="reviews-grid"></div>
+    <div style="text-align:center;margin-top:24px;">
+      <a href="reviews.html" class="btn btn--blue">후기 더 보기</a>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 문의 ===================== -->
+<section class="section inquiry" id="inquiry">
+  <div class="container">
+    <div class="section__head">
+      <span class="section__tag" style="background:rgba(255,212,59,.15);color:#ffd43b;">CONTACT</span>
+      <h2 class="section__title">1분 만에 문의 남기기</h2>
+      <p class="section__desc">문의를 남기시면 담당자에게 즉시 알림이 가고, 영업시간 내 바로 연락드립니다.</p>
+    </div>
+    <div class="inquiry__grid">
+      <div class="inquiry__info">
+        <h3>이런 분들께 추천해요</h3>
+        <p>
+          · 최신폰을 최대한 저렴하게 사고 싶은 분<br>
+          · 위약금/할부금이 남아있어 고민인 분<br>
+          · 매장 방문 없이 택배로 개통하고 싶은 분
+        </p>
+        <div class="inquiry__contacts">
+          <a class="inquiry__contact" href="#" data-tel>
+            <svg viewBox="0 0 24 24" fill="currentColor" width="20"><path d="M6.62 10.79a15.05 15.05 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.02-.24c1.12.37 2.33.57 3.57.57a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1C10.85 21 3 13.15 3 3a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.24.2 2.45.57 3.57a1 1 0 0 1-.25 1.02l-2.2 2.2z"/></svg>
+            <span id="contact-phone-label">전화 상담</span>
+          </a>
+          <a class="inquiry__contact" href="#" data-kakao target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="20"><path d="M12 3C6.48 3 2 6.54 2 10.9c0 2.8 1.86 5.26 4.66 6.65l-.95 3.52c-.08.31.27.56.54.38l4.18-2.78c.51.06 1.03.1 1.57.1 5.52 0 10-3.54 10-7.87S17.52 3 12 3z"/></svg>
+            카카오톡 채널로 바로 상담하기
+          </a>
+        </div>
+      </div>
+      <div id="inquiry-form-slot"></div>
+    </div>
+  </div>
+</section>
+
+<div id="layout-footer"></div>
+
+<script src="../assets/js/config.js"></script>
+<script src="site-config.js"></script>
+<script src="../assets/js/data.js"></script>
+<script src="../assets/js/main.js"></script>
+<script src="../assets/js/inquiry.js"></script>
+<script>
+renderLayout("index.html");
+renderReviews(document.getElementById("reviews-grid"), 3);
+
+// ===== 상품 그리드 =====
+const shopState = { brand: "all", join: "mnp" };
+
+function bestPrice(p, join) {
+  // 통신 3사 중 최저 실구매가
+  return Math.min(...CARRIERS.map(c => p.price - p.support[c.id][join]));
+}
+
+function renderShop() {
+  const list = PHONES.filter(p => shopState.brand === "all" || p.brand === shopState.brand);
+  document.getElementById("shop-grid").innerHTML = list.map(p => {
+    const v = bestPrice(p, shopState.join);
+    return `<a class="shop-card" href="goods.html?id=${p.id}">
+      ${p.badge ? `<span class="shop-card__badge">${p.badge}</span>` : ""}
+      <div class="shop-card__emoji">${p.brand === "apple" ? "📱" : "📲"}</div>
+      <div class="shop-card__name">${p.name}</div>
+      <div class="shop-card__stor">${p.storage}${STORAGE_OPTIONS[p.id] && STORAGE_OPTIONS[p.id].length > 1 ? " 외 " + (STORAGE_OPTIONS[p.id].length - 1) + "종" : ""}</div>
+      <div class="shop-card__release"><del>출고가 ${won(p.price)}</del></div>
+      <div class="shop-card__price">${v <= 0 ? "0원 + 차비" : won(v)}
+        <small>${shopState.join === "mnp" ? "번호이동" : "기기변경"} · 3사 최저가 기준</small></div>
+      <span class="shop-card__btn">최저가 견적 보기</span>
+    </a>`;
+  }).join("");
+}
+
+document.querySelectorAll("#brand-tabs .tab").forEach(b => b.addEventListener("click", () => {
+  shopState.brand = b.dataset.brand;
+  document.querySelectorAll("#brand-tabs .tab").forEach(x => x.classList.toggle("is-active", x === b));
+  renderShop();
+}));
+document.querySelectorAll("#join-tabs .tab").forEach(b => b.addEventListener("click", () => {
+  shopState.join = b.dataset.join;
+  document.querySelectorAll("#join-tabs .tab").forEach(x => x.classList.toggle("is-active", x === b));
+  renderShop();
+}));
+renderShop();
+
+// 연락처/폼
+document.querySelector("[data-tel]").href = "tel:" + SITE_CONFIG.phone.replace(/-/g, "");
+document.getElementById("contact-phone-label").textContent = "전화 상담 " + SITE_CONFIG.phone;
+document.querySelector("[data-kakao]").href = SITE_CONFIG.kakaoChannelUrl;
+document.getElementById("inquiry-form-slot").innerHTML = inquiryFormHtml();
+initInquiryForm(document.getElementById("inquiry-form"));
+</script>
+</body>
+</html>
