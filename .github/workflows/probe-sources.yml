@@ -10,27 +10,34 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Extract params and test endpoints
+      - name: Full param block of getTelProductList
         run: |
           UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36"
-          curl -sL --max-time 25 -A "$UA" -c /tmp/cookies "https://www.smartchoice.or.kr/smc/mobile/dantongList.do" -o /dev/null
+          curl -sL --max-time 25 -A "$UA" -c /tmp/cookies "https://www.smartchoice.or.kr/smc/mobile/dantongTelList.do" -o /dev/null
           curl -sL --max-time 25 -A "$UA" "https://www.smartchoice.or.kr/smc/resources/pis/js/smartlife/dantongScript_2017.js?v=211124" -o dantong.js
-          echo "=== getTelProductList 호출 컨텍스트 ==="
-          grep -n -B6 -A25 "getTelProductList" dantong.js | head -50
-          echo "=== getProductList 호출 컨텍스트 ==="
-          grep -n -B6 -A25 "getProductList.do" dantong.js | head -50
-          echo "=== getTelPlanList 호출 컨텍스트 ==="
-          grep -n -B6 -A20 "getTelPlanList" dantong.js | head -40
-      - name: Trial calls
+          sed -n '628,680p' dantong.js
+      - name: Chain call test
         run: |
           UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36"
           H1="X-Requested-With: XMLHttpRequest"
-          REF="Referer: https://www.smartchoice.or.kr/smc/mobile/dantongList.do"
-          echo "── getTelPlanList (telecom=SKT, service=5G)"
+          REF="Referer: https://www.smartchoice.or.kr/smc/mobile/dantongTelList.do"
+          echo "── getTelPlanList (SKT/5G, 올바른 파라미터)"
           curl -s --max-time 20 -A "$UA" -b /tmp/cookies -H "$H1" -H "$REF" -X POST \
             "https://www.smartchoice.or.kr/smc/mobile/getTelPlanList.do" \
-            --data "tel_Gubun=SKT&dan_Service=5G" | head -c 600; echo ""
-          echo "── getProductList (5G/삼성전자)"
+            --data-urlencode "dan_Company=SKT" \
+            --data-urlencode "planSKTService=5G" \
+            --data-urlencode "planKTService=" \
+            --data-urlencode "planLGUService=" \
+            --data-urlencode "searchType=" | head -c 900; echo ""
+          echo "── getTelProductList (SKT/5G/전체 요금제)"
           curl -s --max-time 20 -A "$UA" -b /tmp/cookies -H "$H1" -H "$REF" -X POST \
-            "https://www.smartchoice.or.kr/smc/mobile/getProductList.do" \
-            --data "dan_Service=5G&dan_Mau=삼성전자" | head -c 1200; echo ""
+            "https://www.smartchoice.or.kr/smc/mobile/getTelProductList.do" \
+            --data-urlencode "dan_Company=SKT" \
+            --data-urlencode "planSKTService=5G" \
+            --data-urlencode "planKTService=" \
+            --data-urlencode "planLGUService=" \
+            --data-urlencode "p_Group=" \
+            --data-urlencode "dan_Plan_Code=all" \
+            --data-urlencode "orderRect=" \
+            --data-urlencode "orderNm=" \
+            --data-urlencode "searchType=" | head -c 2000; echo ""
