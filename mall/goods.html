@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>상품 상세 | 폰마트</title>
+<meta name="description" content="색상·용량·통신사·요금제·할부를 선택하면 월 청구 금액이 실시간으로 계산됩니다.">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.css">
+<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="stylesheet" href="theme.css">
+</head>
+<body>
+<div id="layout-header"></div>
+
+<!-- ===================== 상품 옵션 선택 + 실시간 월 청구 금액 ===================== -->
+<section class="section" style="padding-top:44px;">
+  <div class="container">
+    <div class="cfg">
+      <div class="cfg__left">
+        <div class="cfg__visual" id="cfg-visual">📱</div>
+        <div class="bill" id="bill"></div>
+      </div>
+      <div id="cfg-options"></div>
+    </div>
+  </div>
+</section>
+
+<!-- 구매 혜택 -->
+<section class="section section--alt">
+  <div class="container">
+    <div class="section__head">
+      <span class="section__tag">BENEFIT</span>
+      <h2 class="section__title">🎁 구매 혜택</h2>
+      <p class="section__desc">구매하시는 모든 분께 기본으로 드리는 혜택입니다.</p>
+    </div>
+    <div class="benefits" id="benefits"></div>
+  </div>
+</section>
+
+<!-- 관련 상품 -->
+<section class="section">
+  <div class="container">
+    <div class="section__head">
+      <span class="section__tag">RELATED</span>
+      <h2 class="section__title">관련 상품</h2>
+      <p class="section__desc">이런 기종은 어떠세요? 함께 많이 비교하는 모델입니다.</p>
+    </div>
+    <div class="related" id="related"></div>
+  </div>
+</section>
+
+<!-- 추가 할인 (카드/결합/복지) -->
+<section class="section section--alt">
+  <div class="container">
+    <div class="section__head">
+      <span class="section__tag">MORE DISCOUNT</span>
+      <h2 class="section__title">통신요금 추가 할인 한눈에 보기</h2>
+      <p class="section__desc">위 옵션에서 선택하면 월 청구 금액에 바로 반영됩니다. (선택사항 — 가입 조건 아님)</p>
+    </div>
+    <div id="extra-discounts"></div>
+  </div>
+</section>
+
+<!-- 상품 후기 -->
+<section class="section">
+  <div class="container">
+    <div class="section__head">
+      <span class="section__tag">REVIEW</span>
+      <h2 class="section__title">상품 후기</h2>
+    </div>
+    <div class="reviews" id="reviews-grid"></div>
+    <div style="text-align:center;margin-top:24px;">
+      <a href="reviews.html" class="btn btn--blue">후기 전체 보기</a>
+    </div>
+  </div>
+</section>
+
+<!-- 유의사항 -->
+<section class="section section--alt">
+  <div class="container">
+    <div class="section__head">
+      <span class="section__tag">NOTICE</span>
+      <h2 class="section__title">유의사항 <span style="font-size:15px;color:var(--gray);font-weight:600;">구매 전 꼭 확인해 주세요</span></h2>
+    </div>
+    <div class="faq" id="notices"></div>
+  </div>
+</section>
+
+<!-- 구매 신청 -->
+<section class="section inquiry" id="inquiry">
+  <div class="container">
+    <div class="section__head">
+      <span class="section__tag" style="background:rgba(255,212,59,.15);color:#ffd43b;">ORDER</span>
+      <h2 class="section__title">구매 상담 신청하기</h2>
+      <p class="section__desc">접수 즉시 담당자에게 알림이 전송되며, 영업시간 내 바로 연락드립니다.</p>
+    </div>
+    <div class="inquiry__grid">
+      <div class="inquiry__info">
+        <h3>구매 전 확인해 주세요</h3>
+        <p>
+          · 시세는 통신사 정책에 따라 매일 변동됩니다.<br>
+          · 정확한 실구매가는 상담 시 다시 안내드립니다.<br>
+          · 비대면(택배) 개통 시 신분증 진위확인이 필요합니다.<br>
+          · 요금제 유지 기간 이후 자유롭게 변경 가능합니다.
+        </p>
+      </div>
+      <div id="inquiry-form-slot"></div>
+    </div>
+  </div>
+</section>
+
+<div id="layout-footer"></div>
+
+<script src="../assets/js/config.js"></script>
+<script src="site-config.js"></script>
+<script src="../assets/js/data.js"></script>
+<script src="../assets/js/main.js"></script>
+<script src="../assets/js/inquiry.js"></script>
+<script>
+renderLayout("price.html");
+
+const id = new URLSearchParams(location.search).get("id");
+const phone = PHONES.find(p => p.id === id) || PHONES[0];
+document.title = phone.name + " 최저가 | 폰마트";
+document.getElementById("cfg-visual").textContent = phone.brand === "apple" ? "📱" : "📲";
+
+const storages = STORAGE_OPTIONS[phone.id] || [{ label: phone.storage, price: phone.price }];
+const requiredPlanAmt = (() => {
+  const m = phone.plan.match(/([\d,]+)원/);
+  return m ? Number(m[1].replace(/,/g, "")) : 0;
+})();
+
+function pmt(principal, months) {
+  if (principal <= 0 || months === 0) return 0;
+  const r = INSTALLMENT_APR / 12;
+  return Math.round(principal * r * Math.pow(1 + r, months) / (Math.pow(1 + r, months) - 1));
+}
+
+// ===== 상태 =====
+const S = {
+  color: 0,
+  stor: 0,
+  from: "KT",          // 현재 통신사
+  to: "SKT",           // 가입 예정 통신사
+  planIdx: -1,
+  months: 24,          // 0 = 일시납
+  supportType: "subsidy", // subsidy=공시지원금 | select24 | select12 (선택약정 25%)
+  card: -1,
+  bundle: -1,
+  welfare: -1,
+};
+
+function joinOf() { return S.from === S.to ? "chg" : "mnp"; }
+function joinName() { return S.from === S.to ? "기기변경" : "번호이동"; }
+
+function defaultPlanIdx(carrier) {
+  const plans = PLANS[carrier];
+  let best = 0;
+  for (let i = plans.length - 1; i >= 0; i--) if (plans[i].monthly >= requiredPlanAmt) best = i;
+  return best;
+}
+
+function compute() {
+  const plans = PLANS[S.to];
+  if (S.planIdx < 0 || S.planIdx >= plans.length) S.planIdx = defaultPlanIdx(S.to);
+  const plan = plans[S.planIdx];
+  const price = storages[S.stor].price;
+  const join = joinOf();
+
+  // 지원형태에 따른 기기 지원금 / 통신요금 할인
+  const isSelect = S.supportType !== "subsidy";
+  const deviceSupport = isSelect ? extraSupportOf(phone, S.to, join) : phone.support[S.to][join];
+  const selectDisc = isSelect ? Math.round(plan.monthly * 0.25) : 0;
+
+  const raw = price - deviceSupport;
+  const principal = Math.max(raw, 0);
+  const cashback = raw < 0 ? -raw : 0;
+  const inst = pmt(principal, S.months);
+  const monthlyInterest = S.months ? inst - Math.round(principal / S.months) : 0;
+
+  const cardD = S.card >= 0 ? CARD_DISCOUNTS[S.to][S.card].monthly : 0;
+  const bundleD = S.bundle >= 0 ? INTERNET_BUNDLES[S.to][S.bundle].monthly : 0;
+  const welfareD = S.welfare >= 0 ? WELFARE_OPTIONS[S.welfare].calc(plan.monthly) : 0;
+  const telecom = Math.max(plan.monthly - selectDisc - cardD - bundleD - welfareD, 0);
+
+  return { plan, price, join, isSelect, deviceSupport, principal, cashback, inst, monthlyInterest, cardD, bundleD, welfareD, selectDisc, telecom, total: inst + telecom };
+}
+
+// ===== 옵션 패널 렌더링 =====
+function renderOptions() {
+  const c = compute();
+  const plans = PLANS[S.to];
+  const carrierOpts = (sel, extra = []) =>
+    [...CARRIERS.map(x => ({ id: x.id, name: x.name })), ...extra]
+      .map(x => `<option value="${x.id}" ${sel === x.id ? "selected" : ""}>${x.name}</option>`).join("");
+
+  document.getElementById("cfg-options").innerHTML = `
+    <h1 class="cfg__title">${phone.name}</h1>
+    <p class="cfg__sub">${phone.badge ? "🔥 " + phone.badge + " · " : ""}오늘 시세 반영 · 출고가 ${won(c.price)}</p>
+
+    <div class="cfg__group">
+      <label class="cfg__label">색상</label>
+      <div class="cfg__chips">
+        ${phone.colors.map((col, i) => `<button class="cfg__chip ${S.color === i ? "is-active" : ""}" data-color="${i}">${col}</button>`).join("")}
+      </div>
+    </div>
+
+    <div class="cfg__group">
+      <label class="cfg__label">용량</label>
+      <div class="cfg__chips">
+        ${storages.map((st, i) => `<button class="cfg__chip ${S.stor === i ? "is-active" : ""}" data-stor="${i}">${st.label}<small>출고가 ${won(st.price)}</small></button>`).join("")}
+      </div>
+    </div>
+
+    <div class="cfg__group">
+      <label class="cfg__label">통신사 <small>· 현재 → 가입 예정</small></label>
+      <div class="cfg__carriers">
+        <select data-from>${carrierOpts(S.from, [{ id: "MVNO", name: "알뜰폰" }])}</select>
+        <span class="arrow">→</span>
+        <select data-to>${carrierOpts(S.to)}</select>
+      </div>
+      <span class="cfg__join-badge">자동 판정: ${joinName()}${S.from === S.to ? " (통신사 유지)" : " (통신사 변경)"}</span>
+    </div>
+
+    <div class="cfg__group">
+      <label class="cfg__label">요금제 <small>· 지원금 조건: 월 ${won(requiredPlanAmt)} 이상 유지</small></label>
+      <select data-plan>
+        ${plans.map((p, i) => `<option value="${i}" ${i === S.planIdx ? "selected" : ""}>${p.name} — 월 ${won(p.monthly)}</option>`).join("")}
+      </select>
+    </div>
+
+    <div class="cfg__group">
+      <label class="cfg__label">지원 형태 <small>· 지원금 한 번에 받기 vs 매달 요금 25% 할인</small></label>
+      <div class="cfg__chips">
+        <button class="cfg__chip ${S.supportType === "subsidy" ? "is-active" : ""}" data-support="subsidy">공시지원금<small>기기값 할인</small></button>
+        <button class="cfg__chip ${S.supportType === "select24" ? "is-active" : ""}" data-support="select24">선택약정 24개월<small>요금 25% 할인</small></button>
+        <button class="cfg__chip ${S.supportType === "select12" ? "is-active" : ""}" data-support="select12">선택약정 12개월<small>요금 25% 할인</small></button>
+      </div>
+    </div>
+
+    <div class="cfg__group">
+      <label class="cfg__label">할부 기간</label>
+      <div class="cfg__chips">
+        ${[[0, "일시납"], [12, "12개월"], [24, "24개월"], [30, "30개월"], [36, "36개월"]].map(([m, label]) =>
+          `<button class="cfg__chip ${S.months === m ? "is-active" : ""}" data-months="${m}">${label}</button>`).join("")}
+      </div>
+    </div>
+
+    <div class="cfg__group">
+      <label class="cfg__label">통신사 추가 혜택 <small>· 선택 사항 (가입 조건 아님)</small></label>
+      <div class="cfg__row2">
+        <select data-card>
+          <option value="-1">제휴카드 할인 미선택</option>
+          ${CARD_DISCOUNTS[S.to].map((x, i) => `<option value="${i}" ${S.card === i ? "selected" : ""}>${x.name} — 월 최대 ${won(x.monthly)}</option>`).join("")}
+        </select>
+        <select data-bundle>
+          <option value="-1">인터넷·가족 결합 미적용</option>
+          ${INTERNET_BUNDLES[S.to].map((x, i) => `<option value="${i}" ${S.bundle === i ? "selected" : ""}>${x.name} — 월 최대 ${won(x.monthly)}</option>`).join("")}
+        </select>
+        <select data-welfare style="grid-column:1/-1;">
+          <option value="-1">복지 할인 미적용</option>
+          ${WELFARE_OPTIONS.map((x, i) => `<option value="${i}" ${S.welfare === i ? "selected" : ""}>${x.name}</option>`).join("")}
+        </select>
+      </div>
+    </div>
+
+    <div class="cfg__ctas">
+      <a href="#inquiry" class="btn btn--blue" id="cfg-apply">📝 이 조건으로 기기 신청하기</a>
+      <a href="#" class="btn btn--ghost" data-tel style="color:var(--ink);border-color:var(--line);">📞 전화상담 신청</a>
+      <a href="#" class="btn btn--kakao" data-kakao target="_blank" rel="noopener">💬 카카오톡 상담</a>
+    </div>
+
+    <div class="cfg__checklist">
+      <div><span>제휴카드 의무 가입</span><span class="ok">없음 ✓</span></div>
+      <div><span>부가서비스 의무 가입</span><span class="ok">없음 ✓</span></div>
+      <div><span>기기 반납 조건</span><span class="ok">없음 ✓</span></div>
+      <div><span>당일 발송 (오후 4시 이전)</span><span class="ok">가능 ✓</span></div>
+      <div><span>비대면 택배 개통</span><span class="ok">가능 ✓</span></div>
+    </div>`;
+
+  bindOptions();
+  renderBill(c);
+}
+
+// ===== 월 청구 금액 카드 =====
+function renderBill(c) {
+  const supportLabel = { subsidy: "공시지원금", select24: "선택약정 24개월", select12: "선택약정 12개월" }[S.supportType];
+  document.getElementById("bill").innerHTML = `
+    <div class="bill__head"><h3>월 청구 금액</h3><b>${won(c.total)}</b></div>
+    <div class="bill__sub">${phone.name} ${storages[S.stor].label} · ${CARRIERS.find(x => x.id === S.to).name} ${joinName()} · ${supportLabel} · ${S.months ? S.months + "개월 할부" : "일시납"}</div>
+
+    <div class="bill__block">
+      <div class="bill__block-head"><span>📱 휴대폰 단말기</span><span>${S.months ? "월 " + won(c.inst) : won(c.principal) + " 일시납"}</span></div>
+      <div class="bill__line"><span>출고가</span><b>${won(c.price)}</b></div>
+      <div class="bill__line"><span>${c.isSelect ? "추가지원금" : "지원금 (" + joinName() + ")"}</span><span class="minus">-${won(c.deviceSupport)}</span></div>
+      <div class="bill__line"><span>할부원금</span><b>${won(c.principal)}</b></div>
+      ${S.months ? `<div class="bill__line"><span>할부이자 (연 5.9%)</span><b>월 약 ${won(c.monthlyInterest)}</b></div>` : ""}
+    </div>
+
+    <div class="bill__block">
+      <div class="bill__block-head"><span>📡 통신 요금</span><span>월 ${won(c.telecom)}</span></div>
+      <div class="bill__line"><span>기본료 (${c.plan.name})</span><b>${won(c.plan.monthly)}</b></div>
+      ${c.selectDisc ? `<div class="bill__line"><span>선택약정 할인 (25%)</span><span class="minus">-${won(c.selectDisc)}</span></div>` : ""}
+      ${c.cardD ? `<div class="bill__line"><span>제휴카드 할인</span><span class="minus">-${won(c.cardD)}</span></div>` : ""}
+      ${c.bundleD ? `<div class="bill__line"><span>결합 할인</span><span class="minus">-${won(c.bundleD)}</span></div>` : ""}
+      ${c.welfareD ? `<div class="bill__line"><span>복지 감면</span><span class="minus">-${won(c.welfareD)}</span></div>` : ""}
+    </div>
+
+    ${c.cashback ? `<div class="bill__cashback">🎉 기기값 0원 + 차비 ${won(c.cashback)} 지급 조건!</div>` : ""}
+    ${!c.isSelect && c.plan.monthly < requiredPlanAmt ? `<div class="bill__warn">⚠️ 선택한 요금제가 지원금 유지 조건(월 ${won(requiredPlanAmt)})보다 낮아 지원금이 달라질 수 있습니다. 상담 시 확인해 주세요.</div>` : ""}
+    ${c.isSelect ? `<div class="bill__warn" style="background:#eef4ff;color:#1538a8;">ℹ️ 선택약정은 공시지원금 대신 매달 요금 25%를 할인받는 방식입니다. 어느 쪽이 유리한지 상담 시 비교해 드립니다.</div>` : ""}`;
+}
+
+// ===== 이벤트 바인딩 =====
+function bindOptions() {
+  const root = document.getElementById("cfg-options");
+  root.querySelectorAll("[data-color]").forEach(b => b.addEventListener("click", () => { S.color = +b.dataset.color; renderOptions(); }));
+  root.querySelectorAll("[data-stor]").forEach(b => b.addEventListener("click", () => { S.stor = +b.dataset.stor; renderOptions(); }));
+  root.querySelectorAll("[data-months]").forEach(b => b.addEventListener("click", () => { S.months = +b.dataset.months; renderOptions(); }));
+  root.querySelectorAll("[data-support]").forEach(b => b.addEventListener("click", () => { S.supportType = b.dataset.support; renderOptions(); }));
+  root.querySelector("[data-from]").addEventListener("change", e => { S.from = e.target.value; renderOptions(); });
+  root.querySelector("[data-to]").addEventListener("change", e => {
+    S.to = e.target.value; S.planIdx = -1; S.card = -1; S.bundle = -1; renderOptions();
+  });
+  root.querySelector("[data-plan]").addEventListener("change", e => { S.planIdx = +e.target.value; renderOptions(); });
+  root.querySelector("[data-card]").addEventListener("change", e => { S.card = +e.target.value; renderOptions(); });
+  root.querySelector("[data-bundle]").addEventListener("change", e => { S.bundle = +e.target.value; renderOptions(); });
+  root.querySelector("[data-welfare]").addEventListener("change", e => { S.welfare = +e.target.value; renderOptions(); });
+
+  root.querySelector("[data-tel]").href = "tel:" + SITE_CONFIG.phone.replace(/-/g, "");
+  root.querySelector("[data-kakao]").href = SITE_CONFIG.kakaoChannelUrl;
+
+  // 선택 조건을 문의 폼에 자동 입력
+  root.querySelector("#cfg-apply").addEventListener("click", () => {
+    const c = compute();
+    const form = document.getElementById("inquiry-form");
+    if (form) {
+      const supportLabel = { subsidy: "공시지원금", select24: "선택약정24", select12: "선택약정12" }[S.supportType];
+      form.querySelector('[name="message"]').value =
+        `[견적] ${phone.name} ${storages[S.stor].label} ${phone.colors[S.color]} / ${S.from}→${S.to} ${joinName()} / ${c.plan.name} / ${supportLabel} / ${S.months ? S.months + "개월" : "일시납"}`
+        + (c.cardD ? " / 카드할인" : "") + (c.bundleD ? " / 결합할인" : "") + (c.welfareD ? " / 복지감면" : "")
+        + ` / 월 ${won(c.total)}` + (c.cashback ? ` + 차비 ${won(c.cashback)}` : "");
+      const joinRadio = form.querySelector(`[name="joinType"][value="${joinName()}"]`);
+      if (joinRadio) joinRadio.checked = true;
+      const curSel = form.querySelector('[name="currentCarrier"]');
+      if (curSel) curSel.value = S.from === "MVNO" ? "알뜰폰" : (S.from === "LGU" ? "LG U+" : S.from);
+    }
+  });
+}
+
+renderOptions();
+
+// ===== 하단 섹션들 =====
+document.getElementById("benefits").innerHTML = SHOP_BENEFITS.map(b => `
+  <div class="benefit"><div class="benefit__icon">${b.icon}</div><h3>${b.title}</h3><p>${b.desc}</p></div>`).join("");
+
+document.getElementById("related").innerHTML = PHONES.filter(p => p.id !== phone.id && p.hot).slice(0, 4).map(p => {
+  const v = Math.max(p.price - p.support.SKT.mnp, 0);
+  return `<a class="related__card" href="goods.html?id=${p.id}">
+    <div class="related__emoji">${p.brand === "apple" ? "📱" : "📲"}</div>
+    <div class="related__name">${p.name}</div>
+    <div class="related__price">${v === 0 ? "0원 + 차비" : won(v)}<small>번호이동 기준</small></div>
+  </a>`;
+}).join("");
+
+document.getElementById("extra-discounts").innerHTML = `
+  <div class="disc-card">
+    <div class="disc-card__head">💳 제휴카드 통신요금 할인 <span class="sub">원하시는 분만 — 가입 조건 아닙니다</span></div>
+    <table class="disc-table">
+      <thead><tr><th>통신사</th><th>카드</th><th>월 할인</th><th>조건</th></tr></thead>
+      <tbody>${CARRIERS.flatMap(c => CARD_DISCOUNTS[c.id].map((card, i) => `
+        <tr>${i === 0 ? `<td rowspan="${CARD_DISCOUNTS[c.id].length}" style="font-weight:800;color:${c.color};">${c.name}</td>` : ""}
+        <td>${card.name}</td><td class="amt">최대 ${won(card.monthly)}</td><td style="color:var(--gray);">${card.condition}</td></tr>`)).join("")}
+      </tbody>
+    </table>
+  </div>
+  <div class="disc-card">
+    <div class="disc-card__head">🌐 인터넷·가족 결합 할인 <span class="sub">상담 시 가장 유리한 조합으로 설계해 드려요</span></div>
+    <table class="disc-table">
+      <thead><tr><th>통신사</th><th>결합 상품</th><th>월 할인</th><th>내용</th></tr></thead>
+      <tbody>${CARRIERS.flatMap(c => INTERNET_BUNDLES[c.id].map((b, i) => `
+        <tr>${i === 0 ? `<td rowspan="${INTERNET_BUNDLES[c.id].length}" style="font-weight:800;color:${c.color};">${c.name}</td>` : ""}
+        <td>${b.name}</td><td class="amt">최대 ${won(b.monthly)}</td><td style="color:var(--gray);">${b.desc}</td></tr>`)).join("")}
+      </tbody>
+    </table>
+  </div>
+  <div class="disc-card">
+    <div class="disc-card__head">🎖 국가유공자·복지 요금 감면 <span class="sub">정부 지원 제도 — 통신 3사 공통</span></div>
+    <table class="disc-table">
+      <thead><tr><th>대상</th><th>감면 혜택</th><th>비고</th></tr></thead>
+      <tbody>${WELFARE_DISCOUNTS.map(w => `
+        <tr><td style="font-weight:700;">${w.target}</td><td class="amt">${w.benefit}</td><td style="color:var(--gray);">${w.note || "-"}</td></tr>`).join("")}
+      </tbody>
+    </table>
+  </div>
+  <p class="price-note">※ 카드·결합 할인 금액은 카드사/통신사 정책에 따라 달라질 수 있는 예시이며, 복지 감면은 자격 확인 후 통신사에 신청하면 적용됩니다.</p>`;
+
+renderReviews(document.getElementById("reviews-grid"), 3);
+
+document.getElementById("notices").innerHTML = NOTICES.map(n => `
+  <div class="faq__item">
+    <button class="faq__q">${n.title}</button>
+    <div class="faq__a">${n.body}</div>
+  </div>`).join("");
+document.querySelectorAll("#notices .faq__q").forEach(b =>
+  b.addEventListener("click", () => b.parentElement.classList.toggle("is-open")));
+
+// 문의 폼 (기종 자동 선택)
+history.replaceState(null, "", `goods.html?id=${phone.id}&model=${encodeURIComponent(phone.name + " " + phone.storage)}`);
+document.getElementById("inquiry-form-slot").innerHTML = inquiryFormHtml();
+initInquiryForm(document.getElementById("inquiry-form"));
+</script>
+</body>
+</html>
