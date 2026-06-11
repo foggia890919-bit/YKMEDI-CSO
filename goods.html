@@ -148,6 +148,19 @@ const S = {
   welfare: -1,
 };
 
+// 광고 딥링크: goods.html?id=...&to=KT&from=SKT&support=select24&months=12&stor=1
+{
+  const q = new URLSearchParams(location.search);
+  if (["SKT", "KT", "LGU"].includes(q.get("to"))) S.to = q.get("to");
+  if (["SKT", "KT", "LGU", "MVNO"].includes(q.get("from"))) S.from = q.get("from");
+  if (q.get("join") === "chg") S.from = S.to;                  // 기기변경 강제
+  if (q.get("join") === "mnp" && S.from === S.to) S.from = S.to === "SKT" ? "KT" : "SKT";
+  if (["subsidy", "select24", "select12"].includes(q.get("support"))) S.supportType = q.get("support");
+  if (["0", "12", "24", "30", "36"].includes(q.get("months"))) S.months = Number(q.get("months"));
+  const st = Number(q.get("stor"));
+  if (!isNaN(st) && st >= 0 && st < storages.length) S.stor = st;
+}
+
 function joinOf() { return S.from === S.to ? "chg" : "mnp"; }
 function joinName() { return S.from === S.to ? "기기변경" : "번호이동"; }
 
@@ -263,6 +276,7 @@ function renderOptions() {
     </div>
 
     <div class="cfg__ctas">
+      <button class="btn reco-btn" onclick="openReco()">✨ 설정이 어렵다면 맞춤 추천 받기</button>
       <a href="#inquiry" class="btn btn--blue" id="cfg-apply">📝 이 조건으로 기기 신청하기</a>
       <a href="#" class="btn btn--ghost" data-tel style="color:var(--ink);border-color:var(--line);">📞 전화상담 신청</a>
       <a href="#" class="btn btn--kakao" data-kakao target="_blank" rel="noopener">💬 카카오톡 상담</a>
@@ -347,6 +361,98 @@ function bindOptions() {
 }
 
 renderOptions();
+
+// ===== 맞춤 추천 =====
+function openReco() {
+  document.getElementById("reco-modal").classList.add("is-open");
+}
+function closeReco(e) {
+  if (!e || e.target === document.getElementById("reco-modal") || e.type === "click")
+    document.getElementById("reco-modal").classList.remove("is-open");
+}
+function runReco() {
+  const usage = document.getElementById("reco-usage").value;     // high | mid | low
+  const move = document.getElementById("reco-move").value;       // yes | no
+  const pay = document.getElementById("reco-pay").value;         // once | split
+
+  // 1) 통신사/가입유형: 이동 가능하면 3사 중 지원금 최대 통신사로 번호이동
+  if (move === "yes") {
+    let best = "SKT", bestV = -Infinity;
+    CARRIERS.forEach(c => { if (phone.support[c.id].mnp > bestV) { bestV = phone.support[c.id].mnp; best = c.id; } });
+    S.to = best;
+    S.from = best === "SKT" ? "KT" : "SKT";
+  } else {
+    S.to = S.from === "MVNO" ? "SKT" : S.from; S.from = S.to; // 기기변경
+  }
+
+  // 2) 요금제: 사용량별 — 많음=유지조건 충족 최상위권, 보통=유지조건 최소, 적음=하위 요금제
+  const plans = PLANS[S.to];
+  if (usage === "high") S.planIdx = 0;
+  else if (usage === "mid") S.planIdx = defaultPlanIdx(S.to);
+  else S.planIdx = plans.length - 2;
+
+  // 3) 지원형태: 24개월 총비용 비교 (공시지원금 vs 선택약정)
+  const plan = plans[S.planIdx];
+  const join = joinOf();
+  const price = storages[S.stor].price;
+  const subsidyTotal = Math.max(price - phone.support[S.to][join], 0) + plan.monthly * 24;
+  const selectTotal = Math.max(price - extraSupportOf(phone, S.to, join), 0) + Math.round(plan.monthly * 0.75) * 24;
+  S.supportType = selectTotal < subsidyTotal ? "select24" : "subsidy";
+
+  // 적은 사용량 + 공시 유지조건 미달이면 선택약정이 안전
+  if (usage === "low" && plan.monthly < requiredPlanAmt) S.supportType = "select24";
+
+  // 4) 결제: 한 번에 → 일시납, 나눠서 → 24개월
+  S.months = pay === "once" ? 0 : 24;
+  S.card = -1; S.bundle = -1; S.welfare = -1;
+
+  renderOptions();
+  const c = compute();
+  const box = document.getElementById("reco-result");
+  box.className = "reco-result is-on";
+  box.innerHTML = `추천 조합이 적용됐어요!<br>
+    <b>${CARRIERS.find(x => x.id === S.to).name} ${joinName()}</b> · <b>${c.plan.name}</b> ·
+    <b>${{ subsidy: "공시지원금", select24: "선택약정 24개월", select12: "선택약정 12개월" }[S.supportType]}</b> · <b>${S.months ? S.months + "개월 할부" : "일시납"}</b><br>
+    → 월 예상 <b>${won(c.total)}</b>${c.cashback ? ` + 차비 ${won(c.cashback)}` : ""}<br>
+    <span style="color:#6b7487;">왼쪽 월 청구 금액 카드에서 상세 내역을 확인하세요. 24개월 총비용 기준으로 더 유리한 지원형태를 골랐습니다.</span>`;
+}
+
+document.body.insertAdjacentHTML("beforeend", `
+  <div class="modal" id="reco-modal" onclick="closeReco(event)">
+    <div class="modal__box" onclick="event.stopPropagation()">
+      <button class="modal__close" onclick="closeReco()">✕</button>
+      <h3>✨ 맞춤 추천</h3>
+      <div class="sub">세 가지만 알려주시면 가장 유리한 조합을 골라드려요.</div>
+      <div class="cfg__group">
+        <label class="cfg__label">한 달 데이터 사용량</label>
+        <select id="reco-usage">
+          <option value="high">많아요 — 영상·게임 자주 (무제한 필요)</option>
+          <option value="mid" selected>보통이에요 — 평균적인 사용</option>
+          <option value="low">적어요 — 와이파이 위주</option>
+        </select>
+      </div>
+      <div class="cfg__group">
+        <label class="cfg__label">통신사를 옮길 수 있나요?</label>
+        <select id="reco-move">
+          <option value="yes" selected>네, 더 싸면 옮길래요</option>
+          <option value="no">아니요, 지금 통신사 유지할래요</option>
+        </select>
+      </div>
+      <div class="cfg__group">
+        <label class="cfg__label">기기값은 어떻게 내고 싶으세요?</label>
+        <select id="reco-pay">
+          <option value="split" selected>매달 나눠서 (할부)</option>
+          <option value="once">한 번에 (일시납)</option>
+        </select>
+      </div>
+      <button class="btn reco-btn" onclick="runReco()">추천 받기</button>
+      <div class="reco-result" id="reco-result"></div>
+    </div>
+  </div>`);
+// 추천 모달의 select 스타일은 .cfg 범위 밖이므로 보정
+document.querySelectorAll("#reco-modal select").forEach(s => {
+  s.style.cssText = "width:100%;border:1px solid #e6e9f2;border-radius:10px;padding:12px 14px;font-size:14.5px;font-family:inherit;background:#fafbfe;outline:none;";
+});
 
 // ===== 하단 섹션들 =====
 document.getElementById("benefits").innerHTML = SHOP_BENEFITS.map(b => `

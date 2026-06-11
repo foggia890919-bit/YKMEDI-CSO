@@ -19,6 +19,9 @@ function renderLayout(active) {
   const nav = [
     ["index.html", "홈"],
     ["price.html", "실시간 시세표"],
+    ["internet.html", "인터넷 결합"],
+    ["notice.html", "공지·이벤트"],
+    ["qna.html", "상품문의"],
     ["guide.html", "구매 가이드"],
     ["reviews.html", "구매후기"],
   ];
@@ -44,6 +47,9 @@ function renderLayout(active) {
         </a>
         <nav class="gnb">
           ${links}
+          <button class="gnb__search" aria-label="기종 검색" onclick="toggleSearch()">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          </button>
           <a href="index.html#inquiry" class="gnb__cta">문의 남기기</a>
         </nav>
         <button class="header__toggle" aria-label="메뉴 열기" onclick="document.querySelector('.mobile-menu').classList.toggle('is-open')">
@@ -54,7 +60,17 @@ function renderLayout(active) {
     <nav class="mobile-menu">
       ${links}
       <a href="index.html#inquiry" class="gnb__cta">문의 남기기</a>
-    </nav>`;
+    </nav>
+    <div class="search-overlay" id="search-overlay">
+      <div class="search-overlay__box">
+        <div class="search-overlay__bar">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9aa3b5" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input type="text" id="search-input" placeholder="기종 검색 (예: S26, 아이폰17, 플립)" autocomplete="off">
+          <button onclick="toggleSearch()" aria-label="닫기">✕</button>
+        </div>
+        <div class="search-overlay__results" id="search-results"></div>
+      </div>
+    </div>`;
 
   document.getElementById("layout-footer").innerHTML = `
     <footer class="footer">
@@ -219,4 +235,36 @@ function renderFaq(el) {
     </div>`).join("");
   el.querySelectorAll(".faq__q").forEach((b) =>
     b.addEventListener("click", () => b.parentElement.classList.toggle("is-open")));
+}
+
+/* ---------- 헤더 기종 검색 ---------- */
+function toggleSearch() {
+  const ov = document.getElementById("search-overlay");
+  const open = ov.classList.toggle("is-open");
+  if (open) {
+    const input = document.getElementById("search-input");
+    input.value = "";
+    renderSearchResults("");
+    setTimeout(() => input.focus(), 50);
+    if (!input.dataset.bound) {
+      input.dataset.bound = "1";
+      input.addEventListener("input", () => renderSearchResults(input.value));
+      input.addEventListener("keydown", (e) => { if (e.key === "Escape") toggleSearch(); });
+      ov.addEventListener("click", (e) => { if (e.target === ov) toggleSearch(); });
+    }
+  }
+}
+
+function renderSearchResults(keyword) {
+  const box = document.getElementById("search-results");
+  const k = keyword.replace(/\s/g, "").toLowerCase();
+  const list = (k ? PHONES.filter((p) => (p.name + p.storage).replace(/\s/g, "").toLowerCase().includes(k)) : PHONES.filter((p) => p.hot)).slice(0, 8);
+  box.innerHTML = list.length
+    ? list.map((p) => {
+        const v = Math.min(...CARRIERS.map((c) => p.price - p.support[c.id].mnp));
+        return `<a href="goods.html?id=${p.id}">
+          <span>${p.brand === "apple" ? "📱" : "📲"} <b>${p.name}</b> <small>${p.storage}</small></span>
+          <span class="sr-price">${v <= 0 ? "0원 + 차비" : won(v)}~</span></a>`;
+      }).join("")
+    : `<div class="sr-empty">검색 결과가 없습니다. 원하는 기종이 없다면 문의 남겨주세요!</div>`;
 }
