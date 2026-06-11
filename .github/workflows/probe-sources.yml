@@ -10,24 +10,30 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Check accessibility of Korean data sources
+      - name: Analyze smartchoice page structure
         run: |
           UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36"
-          mkdir -p probe
-          for url in \
-            "https://www.smartchoice.or.kr/smc/index.do" \
-            "https://www.smartchoice.or.kr/smc/mobile/dantongList.do" \
-            "https://m.smartchoice.or.kr/smc/mobile/dantongList.do?type=m" \
-            "https://www.smartchoice.or.kr/smc/mobile/dantongTelList.do" \
-            "https://www.data.go.kr/" \
-            "https://apis.data.go.kr/" ; do
-            name=$(echo "$url" | sed 's|https://||; s|[/?=.]|_|g' | cut -c1-60)
-            code=$(curl -sL --max-time 25 -A "$UA" -o "probe/${name}.html" -w "%{http_code}" "$url" || echo "ERR")
-            size=$(wc -c < "probe/${name}.html" 2>/dev/null || echo 0)
-            echo "RESULT | $code | ${size}b | $url"
+          curl -sL --max-time 25 -A "$UA" -c /tmp/cookies "https://www.smartchoice.or.kr/smc/mobile/dantongList.do" -o page.html
+          echo "=== 페이지 크기: $(wc -c < page.html) ==="
+          echo "=== AJAX/URL 호출 패턴 ==="
+          grep -oE '(url|action)\s*[:=]\s*["'"'"'][^"'"'"']{5,90}' page.html | sort -u | head -40
+          echo "=== .do 엔드포인트 목록 ==="
+          grep -oE '[A-Za-z0-9_/]+\.do' page.html | sort | uniq -c | sort -rn | head -25
+          echo "=== form 태그 ==="
+          grep -oE '<form[^>]{0,200}' page.html | head -10
+          echo "=== select 박스 (통신사/요금제 선택) ==="
+          grep -oE '<select[^>]{0,150}' page.html | head -10
+          echo "=== 데이터성 스크립트 변수 ==="
+          grep -oE 'var\s+[A-Za-z_]+\s*=\s*[^;]{0,80}' page.html | head -20
+      - name: Try likely JSON endpoints
+        run: |
+          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36"
+          for ep in \
+            "https://www.smartchoice.or.kr/smc/mobile/dantongListAjax.do" \
+            "https://www.smartchoice.or.kr/smc/mobile/dantongDeviceAjax.do" \
+            "https://www.smartchoice.or.kr/smc/mobile/dantongSearchAjax.do" ; do
+            echo "── POST $ep"
+            curl -s --max-time 20 -A "$UA" -b /tmp/cookies -X POST "$ep" \
+              -H "X-Requested-With: XMLHttpRequest" | head -c 800
+            echo ""
           done
-      - uses: actions/upload-artifact@v4
-        with:
-          name: probe-results
-          path: probe/
-          retention-days: 1
