@@ -10,30 +10,15 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Analyze smartchoice page structure
+      - name: Extract data-loading JS from dantongList page
         run: |
           UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36"
           curl -sL --max-time 25 -A "$UA" -c /tmp/cookies "https://www.smartchoice.or.kr/smc/mobile/dantongList.do" -o page.html
-          echo "=== 페이지 크기: $(wc -c < page.html) ==="
-          echo "=== AJAX/URL 호출 패턴 ==="
-          grep -oE '(url|action)\s*[:=]\s*["'"'"'][^"'"'"']{5,90}' page.html | sort -u | head -40
-          echo "=== .do 엔드포인트 목록 ==="
-          grep -oE '[A-Za-z0-9_/]+\.do' page.html | sort | uniq -c | sort -rn | head -25
-          echo "=== form 태그 ==="
-          grep -oE '<form[^>]{0,200}' page.html | head -10
-          echo "=== select 박스 (통신사/요금제 선택) ==="
-          grep -oE '<select[^>]{0,150}' page.html | head -10
-          echo "=== 데이터성 스크립트 변수 ==="
-          grep -oE 'var\s+[A-Za-z_]+\s*=\s*[^;]{0,80}' page.html | head -20
-      - name: Try likely JSON endpoints
-        run: |
-          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36"
-          for ep in \
-            "https://www.smartchoice.or.kr/smc/mobile/dantongListAjax.do" \
-            "https://www.smartchoice.or.kr/smc/mobile/dantongDeviceAjax.do" \
-            "https://www.smartchoice.or.kr/smc/mobile/dantongSearchAjax.do" ; do
-            echo "── POST $ep"
-            curl -s --max-time 20 -A "$UA" -b /tmp/cookies -X POST "$ep" \
-              -H "X-Requested-With: XMLHttpRequest" | head -c 800
-            echo ""
-          done
+          echo "=== danAllType 함수 본문 ==="
+          grep -n "function danAllType" -A 60 page.html | head -80
+          echo "=== ajax 호출부 (url 포함 전후 6줄) ==="
+          grep -n -B2 -A8 '\$\.ajax' page.html | head -90
+          echo "=== 외부 스크립트 목록 ==="
+          grep -oE '<script[^>]+src="[^"]+"' page.html | head -20
+          echo "=== dan_Service 옵션 값 ==="
+          grep -n -A12 'id="dan_Service"' page.html | head -20
