@@ -10,15 +10,15 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Extract data-loading JS from dantongList page
+      - name: Analyze dantongScript JS for data endpoints
         run: |
           UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36"
-          curl -sL --max-time 25 -A "$UA" -c /tmp/cookies "https://www.smartchoice.or.kr/smc/mobile/dantongList.do" -o page.html
-          echo "=== danAllType 함수 본문 ==="
-          grep -n "function danAllType" -A 60 page.html | head -80
-          echo "=== ajax 호출부 (url 포함 전후 6줄) ==="
-          grep -n -B2 -A8 '\$\.ajax' page.html | head -90
-          echo "=== 외부 스크립트 목록 ==="
-          grep -oE '<script[^>]+src="[^"]+"' page.html | head -20
-          echo "=== dan_Service 옵션 값 ==="
-          grep -n -A12 'id="dan_Service"' page.html | head -20
+          curl -sL --max-time 25 -A "$UA" -c /tmp/cookies "https://www.smartchoice.or.kr/smc/mobile/dantongList.do" -o /dev/null
+          curl -sL --max-time 25 -A "$UA" "https://www.smartchoice.or.kr/smc/resources/pis/js/smartlife/dantongScript_2017.js?v=211124" -o dantong.js
+          echo "=== JS 크기: $(wc -c < dantong.js) ==="
+          echo "=== ajax url 목록 ==="
+          grep -oE "url\s*:\s*['\"][^'\"]+" dantong.js | sort -u
+          echo "=== danAllType 함수 (앞 50줄) ==="
+          grep -n "function danAllType" -A 50 dantong.js | head -60
+          echo "=== ajax data 파라미터 블록 ==="
+          grep -n -B3 -A20 "dantongAjax\|listAjax\|searchAjax" dantong.js | head -80
