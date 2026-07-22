@@ -10,8 +10,8 @@
     "post": "node bot.js --post"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.116.0",
+    "@anthropic-ai/sdk": "^0.112.5",
     "dotenv": "^16.4.5",
-    "playwright": "^1.49.0"
+    "playwright": "^1.61.1"
   }
 }
