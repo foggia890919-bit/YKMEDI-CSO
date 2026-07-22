@@ -107,6 +107,14 @@ async function collectReviews(page) {
   await page.goto(config.urls.reviewSearch, { waitUntil: 'networkidle' });
   await sleep(3000);
 
+  // 로그인 세션이 없으면 로그인 페이지로 리다이렉트됨 → 감지해서 안내
+  if (/nid\.naver\.com|login/i.test(page.url())) {
+    console.log('❌ 로그인 세션이 없습니다 (로그인 페이지로 이동됨).');
+    console.log('   npm run login 을 실행해서 다시 로그인하세요.');
+    console.log('   이번에는 "로그인 상태 유지"를 체크하고, Ctrl+C 대신 [Enter]로 종료해야 합니다.');
+    return [];
+  }
+
   const rows = page.locator(s.reviewRow);
   const count = await rows.count();
   if (count === 0) {
@@ -163,9 +171,22 @@ async function main() {
 
   if (LOGIN_ONLY) {
     await page.goto(config.urls.center);
-    console.log('브라우저에서 스마트스토어센터에 로그인하세요.');
-    console.log('로그인이 끝나면 이 터미널에서 Ctrl+C로 종료하면 됩니다. (세션은 user-data/에 저장)');
-    await new Promise(() => {}); // 사용자가 종료할 때까지 대기
+    console.log('');
+    console.log('┌─────────────────────────────────────────────────────────┐');
+    console.log('│ 브라우저에서 스마트스토어센터에 로그인하세요.           │');
+    console.log('│                                                         │');
+    console.log('│ ⚠️ 네이버 로그인 화면에서 "로그인 상태 유지"를          │');
+    console.log('│    반드시 체크하세요! (안 하면 세션이 저장되지 않음)    │');
+    console.log('│                                                         │');
+    console.log('│ 로그인이 완료되어 대시보드가 보이면,                    │');
+    console.log('│ 이 터미널로 돌아와서 [Enter] 키를 누르세요.             │');
+    console.log('│ (Ctrl+C 금지 — 세션이 저장되지 않습니다)               │');
+    console.log('└─────────────────────────────────────────────────────────┘');
+    await new Promise((resolve) => process.stdin.once('data', resolve));
+    console.log('세션 저장 중...');
+    await context.close(); // 정상 종료해야 로그인 세션이 user-data/에 저장됨
+    console.log('완료! 이제 npm run dry-run 을 실행하세요.');
+    process.exit(0);
   }
 
   console.log(`리뷰 수집 중... (모드: ${POST ? '실제 등록' : '드라이런'})`);
