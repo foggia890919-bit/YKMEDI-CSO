@@ -1,0 +1,17 @@
+{
+  "name": "smartstore-review-bot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "네이버 스마트스토어 리뷰를 읽고 Claude가 생성한 자연스러운 답글을 자동으로 등록하는 봇 (공식 API 없음 → 브라우저 자동화)",
+  "main": "bot.js",
+  "scripts": {
+    "login": "node bot.js --login",
+    "dry-run": "node bot.js",
+    "post": "node bot.js --post"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.116.0",
+    "dotenv": "^16.4.5",
+    "playwright": "^1.49.0"
+  }
+}
