@@ -104,15 +104,23 @@ async function launchBrowser() {
 
 async function collectReviews(page) {
   const s = config.selectors;
-  await page.goto(config.urls.reviewSearch, { waitUntil: 'networkidle' });
+  await page.goto(config.urls.reviewSearch, { waitUntil: 'networkidle' }).catch(() => {});
   await sleep(3000);
 
-  // 로그인 세션이 없으면 로그인 페이지로 리다이렉트됨 → 감지해서 안내
-  if (/nid\.naver\.com|login/i.test(page.url())) {
-    console.log('❌ 로그인 세션이 없습니다 (로그인 페이지로 이동됨).');
-    console.log('   npm run login 을 실행해서 다시 로그인하세요.');
-    console.log('   이번에는 "로그인 상태 유지"를 체크하고, Ctrl+C 대신 [Enter]로 종료해야 합니다.');
-    return [];
+  // 로그인 세션이 만료되어 로그인 페이지로 리다이렉트되면,
+  // 사용자가 열린 브라우저 창에서 직접 로그인할 때까지 기다렸다가 이어서 진행
+  if (/accounts\.commerce\.naver\.com|nid\.naver\.com|login/i.test(page.url())) {
+    console.log('');
+    console.log('🔑 로그인이 필요합니다. 열려 있는 브라우저 창에서 로그인해주세요.');
+    console.log('   (간편 로그인 버튼을 눌러도 됩니다. 로그인이 끝나면 자동으로 계속됩니다 — 최대 10분 대기)');
+    await page.waitForURL(
+      (url) => /sell\.smartstore\.naver\.com/.test(url.href) && !/login/i.test(url.href),
+      { timeout: 600000 },
+    );
+    console.log('✓ 로그인 확인! 리뷰 페이지로 이동합니다.');
+    await sleep(2000);
+    await page.goto(config.urls.reviewSearch, { waitUntil: 'networkidle' }).catch(() => {});
+    await sleep(3000);
   }
 
   const rows = page.locator(s.reviewRow);
