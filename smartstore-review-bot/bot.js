@@ -52,8 +52,9 @@ function saveRepliedLog(log) {
 }
 
 // 리뷰를 식별하는 키 (같은 리뷰에 두 번 달지 않도록)
+// 상세 모달 링크의 ng-click 속성에서 추출한 리뷰 고유번호를 사용
 function reviewKey(review) {
-  return `${review.productName}::${review.content.slice(0, 60)}`;
+  return review.id ? String(review.id) : `${review.productName}::${review.content.slice(0, 60)}`;
 }
 
 async function saveDebug(page, label) {
@@ -123,10 +124,38 @@ async function collectReviews(page) {
     await sleep(3000);
   }
 
+  // 검색 조건 설정: 조회 기간 + 답글미등록 필터 → 검색
+  try {
+    // 기간 버튼 (예: "3개월")
+    await page
+      .locator(s.dateRangeButton)
+      .filter({ hasText: new RegExp(`^${config.searchPeriod}$`) })
+      .first()
+      .click();
+    await sleep(500);
+
+    // 답글여부 = 답글미등록 (selectize 드롭다운: 컨트롤 클릭 → 옵션 클릭)
+    const noReplyOpt = page.locator(s.noReplyOption).filter({ hasText: '답글미등록' }).first();
+    const selectizeInput = noReplyOpt.locator(
+      'xpath=ancestor::div[contains(@class,"selectize-control")][1]//div[contains(@class,"selectize-input")]',
+    );
+    await selectizeInput.click();
+    await sleep(400);
+    await noReplyOpt.click();
+    await sleep(400);
+
+    // 검색
+    await page.locator(s.searchButton).filter({ hasText: '검색' }).first().click();
+    await sleep(4000);
+  } catch (err) {
+    console.log(`검색 조건 설정 중 문제 발생 (계속 진행): ${err.message.split('\n')[0]}`);
+    await saveDebug(page, 'filter-fail');
+  }
+
   const rows = page.locator(s.reviewRow);
   const count = await rows.count();
   if (count === 0) {
-    console.log('리뷰 행을 찾지 못했습니다. 셀렉터(config.js)를 확인하세요.');
+    console.log('리뷰 행을 찾지 못했습니다. (답글미등록 리뷰가 0건이거나 셀렉터 불일치)');
     await saveDebug(page, 'no-reviews');
     return [];
   }
@@ -139,9 +168,16 @@ async function collectReviews(page) {
       const ratingText = (await row.locator(s.rating).first().innerText()).trim();
       const content = (await row.locator(s.content).first().innerText()).trim();
       const rating = parseInt(ratingText.replace(/[^0-9]/g, ''), 10) || 5;
-      if (content) reviews.push({ index: i, productName, rating, content });
+
+      // 상세 모달 링크의 ng-click="vm.func.openReviewDetailModal(리뷰번호, true)" 에서 ID 추출
+      let id = null;
+      const ngClick = await row.locator(s.contentLink).first().getAttribute('ng-click').catch(() => null);
+      const m = ngClick && ngClick.match(/openReviewDetailModal\((\d+)/);
+      if (m) id = m[1];
+
+      if (content) reviews.push({ index: i, id, productName, rating, content });
     } catch {
-      // 헤더 행이나 구조가 다른 행은 건너뜀
+      // 렌더링 중이거나 구조가 다른 행은 건너뜀
     }
   }
   return reviews;
@@ -149,19 +185,45 @@ async function collectReviews(page) {
 
 async function postReply(page, review, replyText) {
   const s = config.selectors;
-  const row = page.locator(s.reviewRow).nth(review.index);
 
-  await row.locator(s.replyButton).first().click();
-  await sleep(1500);
+  // 리뷰 내용 링크 클릭 → 상세 모달 열림 (리뷰 ID로 정확한 링크를 찾음)
+  const link = review.id
+    ? page.locator(`a[ng-click*="openReviewDetailModal(${review.id}"]`).first()
+    : page.locator(s.reviewRow).nth(review.index).locator(s.contentLink).first();
+  await link.click();
+  await sleep(2000);
 
-  const textarea = page.locator(s.replyTextarea).last();
+  // 모달 안의 답글 textarea에 입력
+  const modal = page.locator(s.modal).last();
+  await modal.waitFor({ timeout: 10000 });
+  const textarea = modal.locator(s.replyTextarea).first();
   await textarea.waitFor({ timeout: 10000 });
+  await textarea.click();
   // 사람이 입력하듯 타이핑
   await textarea.pressSequentially(replyText, { delay: 30 });
   await sleep(800);
 
-  await page.locator(s.replySubmit).last().click();
+  // 등록 버튼 클릭
+  await modal.locator(s.replySubmit).first().click();
   await sleep(2000);
+
+  // 완료 확인 팝업이 뜨면 확인 클릭 (없으면 무시)
+  await page
+    .locator('button:has-text("확인")')
+    .last()
+    .click({ timeout: 3000 })
+    .catch(() => {});
+  await sleep(500);
+
+  // 모달 닫기 (닫기 버튼이 없으면 ESC)
+  const closed = await page
+    .locator(s.modalClose)
+    .last()
+    .click({ timeout: 3000 })
+    .then(() => true)
+    .catch(() => false);
+  if (!closed) await page.keyboard.press('Escape').catch(() => {});
+  await sleep(1000);
 }
 
 // ---------------------------------------------------------------
@@ -176,6 +238,8 @@ async function main() {
 
   const context = await launchBrowser();
   const page = context.pages()[0] || (await context.newPage());
+  // alert/confirm 팝업은 자동으로 확인 처리
+  page.on('dialog', (dialog) => dialog.accept().catch(() => {}));
 
   if (LOGIN_ONLY) {
     await page.goto(config.urls.center);

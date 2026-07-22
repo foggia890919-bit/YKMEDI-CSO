@@ -11,19 +11,30 @@ module.exports = {
     reviewSearch: 'https://sell.smartstore.naver.com/#/review/search',
   },
 
+  // 실제 스마트스토어센터 리뷰관리 화면(2026.07 기준) 분석 결과 기반.
+  // 리뷰 목록은 ag-Grid로 렌더링되며, 각 셀은 col-id 속성으로 구분됨.
   selectors: {
-    // 리뷰 목록의 행(row) 하나
-    reviewRow: 'table tbody tr',
-    // 행 안에서 각 정보 — 실제 화면 구조에 맞게 조정
-    productName: '[data-name], .product-name, td:nth-child(3)',
-    rating: '.rating, td:nth-child(4)',
-    content: '.review-content, td:nth-child(5)',
-    // "답글" / "댓글 작성" 버튼
-    replyButton: 'button:has-text("답글"), a:has-text("답글")',
-    // 답글 입력 textarea 및 등록 버튼
+    // 검색 조건 영역
+    dateRangeButton: 'button.btn-primary2',        // 오늘/1주일/1개월/3개월/6개월/1년
+    noReplyOption: 'div.option[data-value="false"]', // 답글여부 드롭다운의 "답글미등록"
+    searchButton: 'button[type="submit"]',           // "검색"
+
+    // 리뷰 목록 (ag-Grid)
+    reviewRow: '.ag-center-cols-container .ag-row',
+    productName: '[col-id="productName"]',
+    rating: '[col-id="reviewScore"]',
+    content: '[col-id="reviewContent"]',
+    contentLink: '[col-id="reviewContent"] a',       // 클릭하면 리뷰 상세 모달 열림
+
+    // 리뷰 상세 모달 안의 답글 입력
+    modal: '.modal-dialog, .modal-content, [role="dialog"]',
     replyTextarea: 'textarea',
     replySubmit: 'button:has-text("등록"), button:has-text("저장")',
+    modalClose: 'button:has-text("닫기"), .modal-header button.close, [aria-label="Close"]',
   },
+
+  // 검색 시 조회 기간 (오늘 | 1주일 | 1개월 | 3개월 | 6개월 | 1년)
+  searchPeriod: '3개월',
 
   // 답글 사이 대기 시간(ms) — 서버에 부담 주지 않도록 간격을 둡니다
   delayBetweenReplies: { min: 15000, max: 40000 },
