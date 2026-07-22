@@ -16,7 +16,7 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const { chromium } = require('playwright');
-const Anthropic = require('@anthropic-ai/sdk');
+const { GoogleGenAI } = require('@google/genai');
 const config = require('./config');
 
 const LOGIN_ONLY = process.argv.includes('--login');
@@ -28,7 +28,7 @@ const USER_DATA_DIR = path.join(__dirname, 'user-data');
 const DEBUG_DIR = path.join(__dirname, 'debug');
 const REPLIED_LOG = path.join(__dirname, 'replied-log.json');
 
-const anthropic = new Anthropic();
+const genai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
@@ -65,36 +65,27 @@ async function saveDebug(page, label) {
 }
 
 // ---------------------------------------------------------------
-// Claude로 답글 생성
+// Gemini로 답글 생성
 // ---------------------------------------------------------------
 async function generateReply(review) {
-  const response = await anthropic.messages.create({
-    model: 'claude-opus-4-8',
-    max_tokens: 1024,
-    system: `당신은 네이버 스마트스토어 "${STORE_NAME}"의 사장님입니다.
+  const response = await genai.models.generateContent({
+    model: 'gemini-2.5-flash',
+    config: {
+      systemInstruction: `당신은 네이버 스마트스토어 "${STORE_NAME}"의 사장님입니다.
 고객 리뷰에 다는 답글을 작성합니다. 답글 텍스트만 출력하세요 (따옴표, 설명, 머리말 없이).
 
 작성 규칙:
 ${config.toneGuide}`,
-    messages: [
-      {
-        role: 'user',
-        content: `다음 리뷰에 답글을 작성해주세요.
+    },
+    contents: `다음 리뷰에 답글을 작성해주세요.
 
 상품명: ${review.productName}
 별점: ${review.rating}점
 리뷰 내용:
 ${review.content}`,
-      },
-    ],
   });
 
-  const text = response.content
-    .filter((b) => b.type === 'text')
-    .map((b) => b.text)
-    .join('')
-    .trim();
-
+  const text = (response.text || '').trim();
   if (!text) throw new Error('답글 생성 결과가 비어 있습니다');
   return text;
 }
@@ -161,8 +152,9 @@ async function postReply(page, review, replyText) {
 // 메인
 // ---------------------------------------------------------------
 async function main() {
-  if (!process.env.ANTHROPIC_API_KEY && !LOGIN_ONLY) {
-    console.error('ANTHROPIC_API_KEY가 설정되지 않았습니다. .env 파일을 확인하세요.');
+  if (!process.env.GEMINI_API_KEY && !LOGIN_ONLY) {
+    console.error('GEMINI_API_KEY가 설정되지 않았습니다. .env 파일을 확인하세요.');
+    console.error('키 발급: https://aistudio.google.com/apikey (무료, 카드 등록 불필요)');
     process.exit(1);
   }
 

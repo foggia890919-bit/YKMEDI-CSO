@@ -1,13 +1,13 @@
 # 스마트스토어 리뷰 자동 답글 봇
 
-네이버 스마트스토어 리뷰를 읽고, **Claude가 리뷰 내용을 이해해서 사람이 쓴 것 같은 답글**을 생성해 자동으로 등록하는 봇입니다.
+네이버 스마트스토어 리뷰를 읽고, **Gemini가 리뷰 내용을 이해해서 사람이 쓴 것 같은 답글**을 생성해 자동으로 등록하는 봇입니다.
 
 ## 왜 브라우저 자동화인가?
 
 네이버 커머스API에는 리뷰 조회/답글 API가 **없습니다** ([네이버 공식 답변, 2024.8](https://github.com/commerce-api-naver/commerce-api/discussions/1909) — "가까운 시일 내 제공 계획 없음"). 그래서 유일한 방법은 스마트스토어센터 화면을 브라우저 자동화(Playwright)로 조작하는 것입니다.
 
 ```
-[스마트스토어센터] --Playwright--> [리뷰 수집] --Claude API--> [답글 생성] --Playwright--> [답글 등록]
+[스마트스토어센터] --Playwright--> [리뷰 수집] --Gemini API--> [답글 생성] --Playwright--> [답글 등록]
 ```
 
 ## ⚠️ 사용 전 반드시 알아야 할 것
@@ -26,10 +26,10 @@ npm install
 npx playwright install chromium
 
 cp .env.example .env
-# .env 열어서 ANTHROPIC_API_KEY와 STORE_NAME 입력
+# .env 열어서 GEMINI_API_KEY와 STORE_NAME 입력
 ```
 
-Anthropic API 키는 https://platform.claude.com 에서 발급합니다 (사용량만큼 과금, 답글 1건당 몇 원 수준).
+Gemini API 키는 https://aistudio.google.com/apikey 에서 **무료로 발급**합니다 (구글 계정만 있으면 되고, 카드 등록 불필요. 무료 한도로 하루 수백 건 답글 생성 가능).
 
 ## 사용법
 
