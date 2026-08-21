@@ -481,8 +481,10 @@ tr.ab-short td{background:#fff7f7}
     <div class="pad" style="padding-top:4px">
       <div class="reg-head" style="margin-bottom:8px">
         <div><h2 style="font-size:15px">병원 ↔ 문전약국/도매 매핑</h2>
-          <p>사입자료의 <b>약국(공급처)</b>을 어느 <b>병원</b> 소속으로 볼지 연결합니다. 기본은 문전약국이며, 흡수율이 미달하면 [📊 현황] 미달 행의 [🔍 약국찾기]에서 같은 품목을 사입한 <b>미매핑 근처 약국</b>을 골라 바로 추가할 수 있습니다. 한 약국을 여러 병원에 매핑하면 그 약국 사입분이 각 병원에 모두 잡히니(중복) 주의하세요.</p></div>
+          <p>사입자료의 <b>약국(공급처)</b>을 어느 <b>병원</b> 소속으로 볼지 연결합니다. 병원·약국 <b>주소</b>를 입력하고 [📏 거리계산]을 누르면 지도 API로 직선거리를 계산하며, <b style="color:var(--red)">500m를 초과하면 문전약국으로는 매핑할 수 없습니다</b>(근처로만 저장). 흡수율 미달 시 [📊 현황]의 [🔍 약국찾기]에서 근처 약국을 바로 추가할 수 있습니다. 한 약국을 여러 병원에 매핑하면 사입분이 중복 집계되니 주의하세요.</p></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn" id="abKakaoBtn" title="카카오 지도 JavaScript 키 설정(주소→좌표 변환용)">⚙ 지도API</button>
+          <button class="btn" id="abGeoAllBtn" title="주소가 입력된 모든 행의 병원↔약국 거리를 계산하고 500m 초과 문전을 해제">📏 전체 거리계산</button>
           <button class="btn" id="abMapTplBtn">⬇ 양식</button>
           <button class="btn" id="abMapUpBtn">📂 엑셀 대량등록</button>
           <input type="file" id="abMapFile" class="hide" accept=".xlsx,.xls,.csv">
@@ -490,7 +492,7 @@ tr.ab-short td{background:#fff7f7}
         </div>
       </div>
       <div class="card" style="overflow:auto">
-        <table id="abMapTbl" style="min-width:680px"><thead><tr><th class="l">병원명</th><th class="l">약국/공급처명</th><th class="l">구분</th><th class="l">비고</th><th></th></tr></thead><tbody id="abMapBody"></tbody></table>
+        <table id="abMapTbl" style="min-width:1150px"><thead><tr><th class="l">병원명</th><th class="l">병원주소</th><th class="l">약국/공급처명</th><th class="l">약국 사업자번호</th><th class="l">약국주소</th><th>거리</th><th class="l">구분</th><th class="l">비고</th><th></th></tr></thead><tbody id="abMapBody"></tbody></table>
         <div class="empty" id="abMapEmpty"><div class="big">🔗</div><div style="font-weight:800;font-size:15px;color:#374151">매핑이 없습니다</div><div style="margin-top:6px">병원과 문전약국을 연결하면 그 약국 사입분이 병원 흡수율에 반영됩니다.</div></div>
       </div>
       <div class="note" id="abMapFoot" style="padding-left:0"></div>
@@ -1029,10 +1031,11 @@ function exTemplate(){ const aoa=[['보험코드','제약사','품목명','예�
 
 /* ================= ⑤ 흡수율 (병원 처방실적 ↔ 문전약국·도매 사입 매칭) ================= */
 const AB={ loaded:false, month:'', th:80, useSettle:true, view:'detail', sub:'dash',
-  search:'', shortOnly:false, rx:[], supm:[], maps:[], files:[], _agg:null };
+  search:'', shortOnly:false, rx:[], supm:[], maps:[], places:{}, files:[], _agg:null };
+const AB_NEAR_M=500; // 문전약국 허용 반경(m) — 초과 시 문전 매핑 차단
 function abLS(k,d){ try{ const v=JSON.parse(localStorage.getItem(k)||'null'); return v==null?d:v; }catch(e){ return d; } }
 function abSaveCfg(){ try{ localStorage.setItem('absorb_cfg', JSON.stringify({th:AB.th,useSettle:AB.useSettle,month:AB.month,view:AB.view})); }catch(e){} }
-function abSave(){ try{ localStorage.setItem('absorb_rx',JSON.stringify(AB.rx)); localStorage.setItem('absorb_supm',JSON.stringify(AB.supm)); localStorage.setItem('absorb_map',JSON.stringify(AB.maps)); }catch(e){ alert('흡수율 데이터 저장 실패(브라우저 용량 초과 가능). 대량 사입자료는 파일 업로드로 등록하세요.'); } }
+function abSave(){ try{ localStorage.setItem('absorb_rx',JSON.stringify(AB.rx)); localStorage.setItem('absorb_supm',JSON.stringify(AB.supm)); localStorage.setItem('absorb_map',JSON.stringify(AB.maps)); localStorage.setItem('absorb_places',JSON.stringify(AB.places)); }catch(e){ alert('흡수율 데이터 저장 실패(브라우저 용량 초과 가능). 대량 사입자료는 파일 업로드로 등록하세요.'); } }
 function normMonth(v){ if(v==null||v==='')return '';
   if(v instanceof Date)return (v.getMonth()+1)+'월';
   const s=String(v).trim(); let m=s.match(/(\d{1,2})\s*월/); if(m){const n=+m[1]; return (n>=1&&n<=12)?n+'월':'';}
@@ -1084,8 +1087,9 @@ function abParseInto(S,data,name){ try{
 function abRebuild(e,rec){ const bytes=new Uint8Array(rec.bytes); const wb=XLSX.read(bytes,{type:'array',cellDates:false}); e.wb=wb; e.bytes=bytes; e.sheets=wb.SheetNames.slice(); e.fname=rec.fname||''; e.uploadDate=rec.uploadDate?new Date(rec.uploadDate):null; e.sheet=(rec.sheet&&wb.SheetNames.includes(rec.sheet))?rec.sheet:wb.SheetNames[0]; const r=trimTail(XLSX.utils.sheet_to_json(wb.Sheets[e.sheet],{header:1,defval:'',raw:true})); e.allRows=r; e.headerRow=rec.headerRow||0; e.header=(r[e.headerRow]||[]).map(x=>String(x==null?'':x).trim()); e.dataRows=r.slice(e.headerRow+1); e.map=rec.map||{}; e.defPharm=rec.defPharm||''; e.defMonth=rec.defMonth||''; }
 function abLoad(){ if(AB.loaded)return; AB.loaded=true;
   const c=abLS('absorb_cfg',{}); if(c.th!=null&&numOr(c.th)>0)AB.th=numOr(c.th); if(c.useSettle!=null)AB.useSettle=!!c.useSettle; if(c.month)AB.month=c.month; if(c.view)AB.view=c.view;
-  AB.rx=abLS('absorb_rx',[]); AB.supm=abLS('absorb_supm',[]); AB.maps=abLS('absorb_map',[]);
+  AB.rx=abLS('absorb_rx',[]); AB.supm=abLS('absorb_supm',[]); AB.maps=abLS('absorb_map',[]); AB.places=abLS('absorb_places',{});
   if(!Array.isArray(AB.rx))AB.rx=[]; if(!Array.isArray(AB.supm))AB.supm=[]; if(!Array.isArray(AB.maps))AB.maps=[];
+  if(!AB.places||typeof AB.places!=='object'||Array.isArray(AB.places))AB.places={};
   abDbAll().then(list=>{ list.sort((a,b)=>(a.uploadDate||0)-(b.uploadDate||0)); let mx=0;
     for(const rec of list){ const e=abBlank(); e.id=rec.id; const n=parseInt(String(rec.id).replace(/\D/g,''),10); if(!isNaN(n)&&n>mx)mx=n; try{ abRebuild(e,rec); AB.files.push(e); }catch(_){} }
     _abSeq=mx+1; if(ST.page==='absorb')abRenderAll(); });
@@ -1145,6 +1149,63 @@ function abDetailRows(A){
 function abRateBadge(rate,rx,sup){ if(!(rx>0))return (sup>0)?'<span class="ab-b ab-only">사입만</span>':'<span style="color:var(--muted)">-</span>';
   const cls=rate>=AB.th?'ab-ok':(rate>=AB.th*0.5?'ab-mid':'ab-bad');
   return '<span class="ab-b '+cls+'">'+fmt(rate,1)+'%</span>'; }
+
+/* ---- 지도(카카오) 지오코딩 · 병원↔약국 거리 검증 (문전 = 500m 이내) ---- */
+function abKakaoKey(){ try{ return localStorage.getItem('absorb_kakao_key')||''; }catch(e){ return ''; } }
+function abKakaoSettings(){ const cur=abKakaoKey();
+  const k=prompt('카카오 지도 JavaScript 키를 입력하세요.\n(developers.kakao.com → 내 애플리케이션 → 앱 키 → JavaScript 키.\n[플랫폼 > Web]에 이 사이트 도메인을 등록해야 동작합니다.)\n주소→좌표 변환(거리계산)에만 사용되며 이 브라우저에 저장됩니다.', cur||'');
+  if(k==null)return; try{ localStorage.setItem('absorb_kakao_key',k.trim()); }catch(e){} _kakaoReady=null;
+  toast(k.trim()?'지도 API 키 저장됨 — 이제 [📏 거리계산]을 사용할 수 있습니다':'지도 API 키 삭제됨');
+  if(ST.page==='absorb'&&AB.sub==='map')abRenderMap(); }
+let _kakaoReady=null;
+function abLoadKakao(){ if(_kakaoReady)return _kakaoReady;
+  const key=abKakaoKey(); if(!key)return Promise.reject(new Error('API키 미설정'));
+  _kakaoReady=new Promise((res,rej)=>{
+    if(window.kakao&&window.kakao.maps&&window.kakao.maps.services)return res();
+    const s=document.createElement('script');
+    s.src='https://dapi.kakao.com/v2/maps/sdk.js?appkey='+encodeURIComponent(key)+'&autoload=false&libraries=services';
+    s.onload=()=>{ try{ kakao.maps.load(()=>res()); }catch(e){ _kakaoReady=null; rej(new Error('카카오 SDK 초기화 실패')); } };
+    s.onerror=()=>{ _kakaoReady=null; rej(new Error('카카오 지도 SDK 로드 실패(키/도메인 등록 확인)')); };
+    document.head.appendChild(s);
+  });
+  return _kakaoReady; }
+function abGeocode(addr){ return abLoadKakao().then(()=>new Promise((res,rej)=>{
+  const g=new kakao.maps.services.Geocoder();
+  g.addressSearch(addr,(r,st)=>{
+    if(st===kakao.maps.services.Status.OK&&r[0])return res({lat:+r[0].y,lng:+r[0].x});
+    const p=new kakao.maps.services.Places(); // 주소검색 실패 → 상호(키워드) 검색 폴백
+    p.keywordSearch(addr,(r2,st2)=>{ if(st2===kakao.maps.services.Status.OK&&r2[0])res({lat:+r2[0].y,lng:+r2[0].x}); else rej(new Error('좌표를 찾지 못했습니다: '+addr)); });
+  }); })); }
+function abGeoFail(err){ const msg=String((err&&err.message)||err);
+  if(msg.indexOf('API키')>=0){ if(confirm('카카오 지도 API 키가 설정되지 않았습니다. 지금 설정할까요?\n(무료 · developers.kakao.com에서 JavaScript 키 발급 + 도메인 등록)'))abKakaoSettings(); }
+  else alert('거리 계산 실패: '+msg); }
+function abDist(a,b){ const R=6371000, rad=x=>x*Math.PI/180;
+  const dLat=rad(b.lat-a.lat), dLng=rad(b.lng-a.lng);
+  const s=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dLng/2)*Math.sin(dLng/2);
+  return 2*R*Math.asin(Math.sqrt(s)); }
+function abPlace(name){ const k=normHosp(name); if(!k)return null; return AB.places[k]||(AB.places[k]={}); }
+function abPlaceOf(name){ const k=normHosp(name); return k?AB.places[k]:null; }
+function abRowDist(m){ const h=abPlaceOf(m.hosp), p=abPlaceOf(m.pharm);
+  if(!h||!p||h.lat==null||p.lat==null||h.lng==null||p.lng==null)return null; return abDist(h,p); }
+function abDistBadge(m){ const d=abRowDist(m); if(d==null)return '<span style="color:var(--muted)" title="병원·약국 주소를 입력하고 📏 거리계산">-</span>';
+  const r=fmt(Math.round(d),0)+'m';
+  return d<=AB_NEAR_M?('<span class="ab-b ab-ok">'+r+'</span>'):('<span class="ab-b ab-bad" title="'+AB_NEAR_M+'m 초과 — 문전 매핑 불가">'+r+'</span>'); }
+async function abGeoRow(m,quiet){
+  const h=abPlace(m.hosp), p=abPlace(m.pharm), jobs=[];
+  if(h&&h.addr&&(h.lat==null||h.lng==null))jobs.push(abGeocode(h.addr).then(c=>{h.lat=c.lat;h.lng=c.lng;}));
+  if(p&&p.addr&&(p.lat==null||p.lng==null))jobs.push(abGeocode(p.addr).then(c=>{p.lat=c.lat;p.lng=c.lng;}));
+  if(jobs.length){ await Promise.all(jobs); abSave(); }
+  const d=abRowDist(m);
+  if(d==null){ if(!quiet)alert('병원 주소와 약국 주소를 모두 입력해야 거리를 계산할 수 있습니다.'); return null; }
+  if(m.kind==='문전'&&d>AB_NEAR_M){ m.kind='근처'; abSave();
+    toast('⚠ '+(m.pharm||'약국')+' ↔ '+(m.hosp||'병원')+' '+fmt(Math.round(d),0)+'m > '+AB_NEAR_M+'m — 문전 해제(근처로 변경)'); }
+  return d; }
+async function abGeoAll(){ if(!AB.maps.length){ alert('매핑이 없습니다'); return; }
+  let ok=0,noAddr=0,over=0;
+  for(const m of AB.maps){ try{ const d=await abGeoRow(m,true); if(d==null)noAddr++; else { ok++; if(d>AB_NEAR_M)over++; } }
+    catch(err){ abGeoFail(err); abRenderMap(); return; } }
+  abRenderMap();
+  toast('거리계산 완료 '+ok+'건'+(over?(' · '+AB_NEAR_M+'m 초과 '+over+'건(문전 불가)'):'')+(noAddr?(' · 주소미입력 '+noAddr+'건'):'')); }
 
 /* ---- 현황 렌더 ---- */
 function abRenderDash(){
@@ -1261,11 +1322,22 @@ function abRenderSup(){
   abCnt();
 }
 function abRenderMap(){
-  const kindSel=v=>'<select class="ab-in" data-k="kind" style="width:84px">'+['문전','근처','도매'].map(k=>'<option'+(k===(v||'문전')?' selected':'')+'>'+k+'</option>').join('')+'</select>';
-  $('abMapBody').innerHTML=AB.maps.map((x,i)=>'<tr data-i="'+i+'"><td class="l">'+abInp(x,'hosp','병원명',180)+'</td><td class="l">'+abInp(x,'pharm','약국/공급처명',180)+'</td><td class="l">'+kindSel(x.kind)+'</td><td class="l">'+abInp(x,'note','비고',180)+'</td><td><button class="btn reg-mini abx-del" type="button">🗑</button></td></tr>').join('');
+  const kindSel=v=>'<select class="ab-in" data-k="kind" style="width:76px">'+['문전','근처','도매'].map(k=>'<option'+(k===(v||'문전')?' selected':'')+'>'+k+'</option>').join('')+'</select>';
+  const pin=(name,k,ph,w)=>{ const pl=abPlaceOf(name)||{}; const v=k==='pbiz'?(pl.biz||''):(pl.addr||''); return '<input class="ab-in" data-k="'+k+'" value="'+esc(v)+'" placeholder="'+ph+'" style="width:'+w+'px"'+(normHosp(name)?'':' disabled title="먼저 이름을 입력하세요"')+'>'; };
+  $('abMapBody').innerHTML=AB.maps.map((x,i)=>'<tr data-i="'+i+'">'+
+    '<td class="l">'+abInp(x,'hosp','병원명',130)+'</td>'+
+    '<td class="l">'+pin(x.hosp,'haddr','병원 주소',180)+'</td>'+
+    '<td class="l">'+abInp(x,'pharm','약국/공급처명',130)+'</td>'+
+    '<td class="l">'+pin(x.pharm,'pbiz','사업자번호',105)+'</td>'+
+    '<td class="l">'+pin(x.pharm,'paddr','약국 주소',180)+'</td>'+
+    '<td style="text-align:center;white-space:nowrap">'+abDistBadge(x)+' <button class="btn reg-mini ab-mdist" type="button" title="주소로 거리계산">📏</button></td>'+
+    '<td class="l">'+kindSel(x.kind)+'</td>'+
+    '<td class="l">'+abInp(x,'note','비고',110)+'</td>'+
+    '<td><button class="btn reg-mini abx-del" type="button">🗑</button></td></tr>').join('');
   $('abMapEmpty').classList.toggle('hide',AB.maps.length>0);
   const nH=new Set(AB.maps.map(m=>normHosp(m.hosp)).filter(Boolean)).size;
-  $('abMapFoot').innerHTML='매핑 <b>'+AB.maps.length+'건</b> · 병원 <b>'+nH+'곳</b> · 문전=기본 약국, 근처=흡수율 보정용 추가 매핑';
+  const nOver=AB.maps.filter(m=>{const d=abRowDist(m); return d!=null&&d>AB_NEAR_M;}).length;
+  $('abMapFoot').innerHTML='매핑 <b>'+AB.maps.length+'건</b> · 병원 <b>'+nH+'곳</b> · 문전=기본 약국('+AB_NEAR_M+'m 이내만 허용), 근처=흡수율 보정용 추가 매핑'+(nOver?(' · <span class="gain-neg">'+AB_NEAR_M+'m 초과 '+nOver+'건</span>'):'')+' · 지도API: '+(abKakaoKey()?'<b class="gain-pos">설정됨</b>':'<b style="color:var(--amber)">미설정(⚙ 지도API에서 카카오 JavaScript 키 입력)</b>');
   abCnt();
 }
 function abRenderSub(){
@@ -1284,7 +1356,7 @@ function abEnter(){ abLoad(); buildRows(); abRenderAll(); }
 function abTpl(name,aoa,wchs){ const ws=XLSX.utils.aoa_to_sheet(aoa); ws['!cols']=wchs.map(w=>({wch:w})); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,name); XLSX.writeFile(wb,name+'_양식.xlsx'); }
 function abRxTemplate(){ abTpl('흡수율_실적',[['월(예:4월)','병원명','제약사','품목명','보험코드','수량','비고'],['4월','서울OO의원','한독','레가바정75mg','660703410',120,'']],[10,18,12,22,12,8,16]); }
 function abSupTemplate(){ abTpl('흡수율_사입',[['월(예:4월)','약국/공급처명','품목명','보험코드','수량','비고'],['4월','OO온누리약국','레가바정75mg','660703410',100,'']],[10,18,22,12,8,16]); }
-function abMapTemplate(){ abTpl('병원약국_매핑',[['병원명','약국/공급처명','구분(문전/근처/도매)','비고'],['서울OO의원','OO온누리약국','문전',''],['서울OO의원','건너편OO약국','근처','흡수율 보정']],[18,18,16,20]); }
+function abMapTemplate(){ abTpl('병원약국_매핑',[['병원명','병원주소','약국/공급처명','약국사업자번호','약국주소','구분(문전/근처/도매)','비고'],['서울OO의원','서울 강남구 테헤란로 123','OO온누리약국','123-45-67890','서울 강남구 테헤란로 125','문전',''],['서울OO의원','','건너편OO약국','','서울 강남구 역삼로 80','근처','흡수율 보정']],[16,24,16,14,24,16,16]); }
 function abReadHead(rows){ let hr=0; for(let i=0;i<Math.min(rows.length,12);i++){ const t=(rows[i]||[]).map(x=>String(x).replace(/\s/g,'')); if(t.some(c=>/수량|약국|병원/.test(c))&&t.some(c=>/품목|제품|약품|약국|병원/.test(c))){hr=i;break;} }
   const H=(rows[hr]||[]).map(x=>String(x||'').replace(/\s/g,'')); const find=(...ks)=>{ for(let i=0;i<H.length;i++)for(const k of ks)if(H[i].includes(k))return i; return -1; }; return {hr,find}; }
 function abImport(file,fn){ const fr=new FileReader(); fr.onload=e=>{ try{
@@ -1304,14 +1376,21 @@ function abSupMImport(file){ abImport(file,rows=>{ const {hr,find}=abReadHead(ro
   let add=0; for(let i=hr+1;i<rows.length;i++){ const row=rows[i]; if(!row)continue; const pharm=String(row[fi]||'').trim(); const qty=numOr(row[qi]); if(!pharm||qty==null||SKIP_RE.test(pharm))continue;
     AB.supm.push({month:normMonth(mi>=0?row[mi]:''),pharm,prod:ni>=0?String(row[ni]||'').trim():'',code:ci>=0?normCode(row[ci]):'',qty,note:bi>=0?String(row[bi]||'').trim():''}); add++; }
   abSave(); abRenderSup(); toast('사입 '+add+'행 등록'); }); }
-function abMapImport(file){ abImport(file,rows=>{ const {hr,find}=abReadHead(rows);
-  const hi=find('병원','병의원'), fi=find('약국','공급처','거래처'), ki=find('구분'), bi=find('비고','메모');
+function abMapImport(file){ abImport(file,rows=>{ const {hr}=abReadHead(rows);
+  const H=(rows[hr]||[]).map(x=>String(x||'').replace(/\s/g,''));
+  const idx=t=>{ for(let i=0;i<H.length;i++)if(t(H[i]))return i; return -1; };
+  const hi=idx(h=>/병원|병의원/.test(h)&&!/주소/.test(h)), hai=idx(h=>/(병원|병의원)주소/.test(h));
+  const fi=idx(h=>/약국|공급처|거래처/.test(h)&&!/주소|사업자/.test(h)), pai=idx(h=>/주소/.test(h)&&!/(병원|병의원)/.test(h)), bzi=idx(h=>/사업자/.test(h));
+  const ki=idx(h=>/구분/.test(h)), bi=idx(h=>/비고|메모/.test(h));
   if(hi<0||fi<0){ alert('병원명·약국(공급처)명 열이 필요합니다. [⬇ 양식]을 확인하세요.'); return; }
   let add=0,upd=0; for(let i=hr+1;i<rows.length;i++){ const row=rows[i]; if(!row)continue; const hosp=String(row[hi]||'').trim(), pharm=String(row[fi]||'').trim(); if(!hosp||!pharm)continue;
-    const kind=ki>=0?(String(row[ki]||'').trim()||'문전'):'문전'; const note=bi>=0?String(row[bi]||'').trim():'';
+    const kind=ki>=0?(String(row[ki]||'').trim().replace(/\(.*\)/,'')||'문전'):'문전'; const note=bi>=0?String(row[bi]||'').trim():'';
     const j=AB.maps.findIndex(m=>normHosp(m.hosp)===normHosp(hosp)&&normHosp(m.pharm)===normHosp(pharm));
-    if(j>=0){ AB.maps[j]={hosp,pharm,kind,note}; upd++; } else { AB.maps.push({hosp,pharm,kind,note}); add++; } }
-  abSave(); abRenderMap(); toast('매핑 신규 '+add+'건 · 갱신 '+upd+'건'); }); }
+    if(j>=0){ AB.maps[j]={hosp,pharm,kind,note}; upd++; } else { AB.maps.push({hosp,pharm,kind,note}); add++; }
+    const ha=hai>=0?String(row[hai]||'').trim():''; if(ha){ const pl=abPlace(hosp); if(pl&&pl.addr!==ha){ pl.addr=ha; pl.lat=null; pl.lng=null; } }
+    const pa=pai>=0?String(row[pai]||'').trim():''; const bz=bzi>=0?String(row[bzi]||'').trim():'';
+    if(pa||bz){ const pl=abPlace(pharm); if(pl){ if(pa&&pl.addr!==pa){ pl.addr=pa; pl.lat=null; pl.lng=null; } if(bz)pl.biz=bz; } } }
+  abSave(); abRenderMap(); toast('매핑 신규 '+add+'건 · 갱신 '+upd+'건 — [📏 전체 거리계산]으로 문전 여부를 검증하세요'); }); }
 function abExport(){ const A=AB._agg||(AB._agg=abAgg()); const list=abDetailRows(A);
   if(!list.length){alert('내보낼 흡수율 데이터가 없습니다');return;}
   const aoa=[['병원명','품목명','보험코드','처방수량','사입수량','부족수량','흡수율%','상태(기준 '+AB.th+'%)']];
@@ -1326,6 +1405,24 @@ function abEditBind(bodyId,key,render,foot){ const b=$(bodyId); if(!b)return; //
   const onEdit=e=>{ const tr=e.target.closest('tr'); if(!tr)return; const list=AB[key]; const i=+tr.dataset.i, k=e.target.dataset.k; if(k!=null&&list[i]){ list[i][k]=e.target.value; abSave(); if(foot)foot(); } };
   b.addEventListener('input',onEdit); b.addEventListener('change',onEdit);
   b.addEventListener('click',e=>{ if(e.target.closest('.abx-del')){ const i=+e.target.closest('tr').dataset.i; AB[key].splice(i,1); abSave(); render(); } });
+}
+function abMapBind(){ const b=$('abMapBody'); if(!b)return;
+  const onEdit=e=>{ const tr=e.target.closest('tr'); if(!tr)return; const m=AB.maps[+tr.dataset.i]; if(!m)return;
+    const k=e.target.dataset.k; if(k==null)return; const v=e.target.value;
+    if(k==='haddr'||k==='paddr'||k==='pbiz'){ // 장소(주소/사업자) 정보는 이름 기준으로 공유 저장
+      const pl=abPlace(k==='haddr'?m.hosp:m.pharm); if(!pl)return;
+      if(k==='pbiz')pl.biz=v.trim();
+      else if(pl.addr!==v.trim()){ pl.addr=v.trim(); pl.lat=null; pl.lng=null; }
+      abSave(); return; }
+    if(k==='kind'&&v==='문전'){ const d=abRowDist(m);
+      if(d!=null&&d>AB_NEAR_M){ alert('이 약국은 병원에서 '+fmt(Math.round(d),0)+'m 떨어져 있어 문전약국으로 매핑할 수 없습니다(기준 '+AB_NEAR_M+'m 이내).\n[근처]로 저장하거나 주소를 확인하세요.'); e.target.value=(m.kind==='문전')?'근처':(m.kind||'근처'); m.kind=e.target.value; abSave(); return; } }
+    m[k]=v; abSave();
+    if((k==='hosp'||k==='pharm')&&e.type==='change')setTimeout(abRenderMap,0); }; // 이름 확정 시 주소칸 활성화/공유주소 반영(이벤트 처리 후 재렌더)
+  b.addEventListener('input',onEdit); b.addEventListener('change',onEdit);
+  b.addEventListener('click',e=>{ const tr=e.target.closest('tr'); if(!tr)return; const i=+tr.dataset.i, m=AB.maps[i];
+    if(e.target.closest('.abx-del')){ AB.maps.splice(i,1); abSave(); abRenderMap(); return; }
+    const db=e.target.closest('.ab-mdist');
+    if(db&&m){ db.disabled=true; abGeoRow(m,false).then(()=>abRenderMap()).catch(err=>{ db.disabled=false; abGeoFail(err); }); } });
 }
 function abBind(){
   if(!$('abTabs'))return;
@@ -1349,12 +1446,14 @@ function abBind(){
   $('abSupAddFileBtn').onclick=()=>$('abSupFile').click();
   $('abSupFile').onchange=e=>{ [...(e.target.files||[])].forEach(f=>abReadSupFile(f)); e.target.value=''; };
   $('abMapAddBtn').onclick=()=>{ AB.maps.push({hosp:'',pharm:'',kind:'문전',note:''}); abSave(); abRenderMap(); };
+  if($('abKakaoBtn'))$('abKakaoBtn').onclick=abKakaoSettings;
+  if($('abGeoAllBtn'))$('abGeoAllBtn').onclick=()=>{ abGeoAll().catch(abGeoFail); };
   $('abMapTplBtn').onclick=abMapTemplate;
   $('abMapUpBtn').onclick=()=>$('abMapFile').click();
   $('abMapFile').onchange=e=>{ const f=e.target.files&&e.target.files[0]; if(f)abMapImport(f); e.target.value=''; };
   abEditBind('abRxBody','rx',abRenderRx,abRxFoot);
   abEditBind('abSupBody','supm',abRenderSup,null);
-  abEditBind('abMapBody','maps',abRenderMap,null);
+  abMapBind();
   // 사입자료 파일 카드
   const sf=$('abSupFiles');
   sf.addEventListener('input',e=>{ const row=e.target.closest('.ab-frow'); if(!row)return; const en=AB.files.find(x=>x.id===row.dataset.id); if(!en)return;
