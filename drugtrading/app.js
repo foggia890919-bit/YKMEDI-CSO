@@ -42,6 +42,17 @@ function colIndex(header, patterns) {
   return -1;
 }
 
+/* 정확히 일치하는 열 찾기 ('코드'가 '보험코드'에 걸리지 않도록) */
+function exactColIndex(header, names) {
+  for (var p = 0; p < names.length; p++) {
+    for (var j = 0; j < header.length; j++) {
+      var cell = String(header[j] === undefined ? '' : header[j]).replace(/\s/g, '');
+      if (cell === names[p]) return j;
+    }
+  }
+  return -1;
+}
+
 /* 약가마스터: 제품코드 → {grp: 주성분코드_동일제형, ing: 주성분명} */
 function buildMaster(rows) {
   var h = findHeaderRow(rows, ['주성분코드', '제품코드', '주성분명']);
@@ -104,6 +115,8 @@ function parseRate(rows) {
   }
   var cCode = colIndex(header, ['보험코드']);
   if (cCode < 0) throw new Error('요율표에 보험코드 열이 없습니다.');
+  var cRate = exactColIndex(header, ['코드', '요율', '요율(%)']);
+  var cPrice = exactColIndex(header, ['약가', '상한가', '단가']);
   var body = [];
   for (var i = h + 1; i < rows.length; i++) {
     var r = rows[i] || [];
@@ -111,7 +124,7 @@ function parseRate(rows) {
     if (!code) continue;
     body.push({ code: code, cells: r });
   }
-  return { header: header, rows: body, codeCol: cCode };
+  return { header: header, rows: body, codeCol: cCode, rateCol: cRate, priceCol: cPrice };
 }
 
 /* 매핑 실행 */
@@ -127,6 +140,15 @@ function buildMapping(pharm, rate, master) {
       pgroups[hit.grp].push(d);
     }
   }
+  /* 그룹별 기준단가: 조제량이 가장 많은 보유품목의 조제단가 */
+  var baseline = {};
+  for (var g in pgroups) {
+    var bl = pgroups[g][0];
+    for (var b = 1; b < pgroups[g].length; b++) {
+      if (pgroups[g][b].qty > bl.qty) bl = pgroups[g][b];
+    }
+    baseline[g] = bl.price;
+  }
   var outRows = [];
   for (var k = 0; k < rate.rows.length; k++) {
     var rr = rate.rows[k];
@@ -139,10 +161,17 @@ function buildMapping(pharm, rate, master) {
       names.push(plist[p].name);
       qty += plist[p].qty; amt += plist[p].amt;
     }
+    var price = rate.priceCol >= 0 ? num(rr.cells[rate.priceCol]) : 0;
+    var pct = rate.rateCol >= 0 ? num(rr.cells[rate.rateCol]) : 0;
+    var basePrice = baseline[mhit.grp] || 0;
+    var diff = price - basePrice;
+    var cmp = basePrice > 0 ? (diff > 0 ? '높음' : (diff < 0 ? '낮음' : '동일')) : '기준없음';
     outRows.push({
       grp: mhit.grp, ing: mhit.ing,
       kind: own ? '보유품목' : '대체가능',
       pNames: names.join(' / '), pQty: qty, pAmt: amt,
+      price: price, basePrice: basePrice, diff: diff, cmp: cmp,
+      pct: pct, profit: Math.round(price * pct) / 100,
       cells: rr.cells
     });
   }
