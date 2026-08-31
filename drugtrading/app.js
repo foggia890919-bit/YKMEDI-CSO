@@ -167,12 +167,14 @@ function buildMapping(pharm, rate, master) {
     var basePrice = baseline[mhit.grp] || 0;
     var diff = price - basePrice;
     var cmp = basePrice > 0 ? (diff > 0 ? '높음' : (diff < 0 ? '낮음' : '동일')) : '기준없음';
+    /* 저가약 대체조제 장려금: 저가 대체 시 약가 차액의 30% */
+    var incentive = (basePrice > 0 && diff < 0) ? Math.round(-diff * 30) / 100 : 0;
     outRows.push({
       grp: mhit.grp, ing: mhit.ing,
       kind: own ? '보유품목' : '대체가능',
       pNames: names.join(' / '), pMakers: makers.join(' / '), pQty: qty, pAmt: amt,
       price: price, basePrice: basePrice, diff: diff, cmp: cmp,
-      pct: pct, profit: Math.round(price * pct) / 100,
+      pct: pct, profit: Math.round(price * pct) / 100, incentive: incentive,
       cells: rr.cells
     });
   }

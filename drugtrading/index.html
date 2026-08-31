@@ -131,7 +131,8 @@
   <p class="note">
     매칭 기준: 건강보험 약가파일의 <b>주성분코드_동일제형</b>이 같으면 동일성분·동일함량·동일제형으로 보아 대체조제 가능 후보로 분류합니다.<br>
     <b>보유단가</b> = 같은 성분 보유품목 중 조제량이 가장 많은 품목의 조제단가. <b>차액</b> = 후보 약가 − 보유단가 (<span style="color:var(--ok)">초록 −</span> = 더 저렴한 대체, <span style="color:var(--err)">빨강 +</span> = 단가 상승).
-    <b>정당이익</b> = 약가 × 요율(코드%) ÷ 100 — 1정(단위)당 이익 금액.<br>
+    <b>정당이익</b> = 약가 × 요율(코드%) ÷ 100 — 1정(단위)당 이익 금액.
+    <b>저가 인센티브</b> = 저가약 대체조제 장려금: 보유품목보다 약가가 낮은 약으로 대체 시 차액의 30% (정당).<br>
     표 머리글을 클릭하면 해당 열 기준 오름차순↔내림차순으로 정렬됩니다. 체크박스로 약가 낮음/동일/높음을 골라 볼 수 있습니다.<br>
     ⚠️ 실제 대체조제 시 생동성 인정품목 여부(요율표의 생동/생산 열)와 심평원 고시를 최종 확인하세요. 화면에는 최대 2,000행까지 표시되며 전체 결과는 엑셀 다운로드에 포함됩니다.
   </p>
@@ -252,7 +253,8 @@
       { label: '약가비교', key: 'cmp', str: true },
       { label: '차액(약가-보유단가)', key: 'diff' },
       { label: '요율(%)', key: 'pct' },
-      { label: '정당이익(약가×요율)', key: 'profit' }
+      { label: '정당이익(약가×요율)', key: 'profit' },
+      { label: '저가 인센티브(정당)', key: 'incentive' }
     ];
   }
 
@@ -381,7 +383,8 @@
         cmp: '<td>' + esc(x.cmp) + '</td>',
         diff: '<td class="' + diffCls + '">' + (x.diff > 0 ? '+' : '') + fmt(x.diff) + '</td>',
         pct: '<td class="num">' + fmt(x.pct) + '</td>',
-        profit: '<td class="num">' + fmt(x.profit) + '</td>'
+        profit: '<td class="num">' + fmt(x.profit) + '</td>',
+        incentive: x.incentive > 0 ? '<td class="num neg">' + fmt(x.incentive) + '</td>' : '<td class="num"></td>'
       };
       var tds = '';
       frontCols().forEach(function (c) { if (colVis.front[c.key]) tds += frontTd[c.key]; });
@@ -399,10 +402,10 @@
     var wb = XLSX.utils.book_new();
 
     var head1 = ['주성분코드(동일제형)', '주성분명', '구분', '약국 보유약품', '보유 제조회사', '약국 조제량(계)', '약국 조제금액(계)',
-      '보유단가', '약가비교', '차액(약가-보유단가)', '요율(%)', '정당이익(약가×요율)'].concat(state.rateParsed.header);
+      '보유단가', '약가비교', '차액(약가-보유단가)', '요율(%)', '정당이익(약가×요율)', '저가 인센티브(정당)'].concat(state.rateParsed.header);
     var aoa1 = [head1];
     sortedRows().forEach(function (x) {
-      var row = [x.grp, x.ing, x.kind, x.pNames, x.pMakers, x.pQty, x.pAmt, x.basePrice, x.cmp, x.diff, x.pct, x.profit];
+      var row = [x.grp, x.ing, x.kind, x.pNames, x.pMakers, x.pQty, x.pAmt, x.basePrice, x.cmp, x.diff, x.pct, x.profit, x.incentive];
       for (var j = 0; j < state.rateParsed.header.length; j++) row.push(x.cells[j] === undefined ? '' : x.cells[j]);
       aoa1.push(row);
     });
@@ -431,6 +434,7 @@
       ['"보유단가" = 같은 성분 보유품목 중 조제량이 가장 많은 품목의 조제단가 (비교 기준)'],
       ['"약가비교" = 후보 약가 vs 보유단가 (낮음=저렴한 대체 / 높음=단가 상승), "차액" = 약가 - 보유단가'],
       ['"정당이익(약가×요율)" = 요율표의 약가 × 코드(요율%) ÷ 100 — 1정(단위)당 이익 금액'],
+      ['"저가 인센티브(정당)" = 저가약 대체조제 장려금: 보유품목보다 약가가 낮은 대체 시 (보유단가 - 후보약가) × 30%'],
       ['주의: 실제 대체조제 시 생동성 인정품목 여부(생동/생산 열), 저함량 배수 조제 등은 심평원 고시 기준으로 최종 확인 필요.']
     ];
     var ws3 = XLSX.utils.aoa_to_sheet(notes);
