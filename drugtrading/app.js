@@ -91,11 +91,16 @@ function parsePharmacy(rows) {
   var out = [];
   for (var i = h + 1; i < rows.length; i++) {
     var r = rows[i] || [];
-    var code = normCode(r[cCode]);
+    var rawCode = String(r[cCode] === undefined ? '' : r[cCode]);
+    var name = String(r[cName] === undefined ? '' : r[cName]).trim();
+    /* 합계/총계 등 요약 행 제외: 약품명이 없거나, 코드에 숫자가 4자리 미만 */
+    if (!name || /합계|총계|갯수|소계/.test(name) || /합계|총계|갯수|소계/.test(rawCode)) continue;
+    if (rawCode.replace(/\D/g, '').length < 4) continue;
+    var code = normCode(rawCode);
     if (!code) continue;
     out.push({
       code: code,
-      name: String(r[cName] === undefined ? '' : r[cName]).trim(),
+      name: name,
       maker: cMaker >= 0 ? String(r[cMaker] === undefined ? '' : r[cMaker]).trim() : '',
       price: cPrice >= 0 ? num(r[cPrice]) : 0,
       qty: cQty >= 0 ? num(r[cQty]) : 0,
@@ -140,62 +145,50 @@ function buildMapping(pharm, rate, master) {
       pgroups[hit.grp].push(d);
     }
   }
-  /* 그룹별 기준단가: 조제량이 가장 많은 보유품목의 조제단가 */
-  var baseline = {};
-  for (var g in pgroups) {
-    var bl = pgroups[g][0];
-    for (var b = 1; b < pgroups[g].length; b++) {
-      if (pgroups[g][b].qty > bl.qty) bl = pgroups[g][b];
-    }
-    baseline[g] = bl.price;
-  }
+  /* 보유품목 각각을 별도 기준으로: (보유품목 × 그 성분의 요율표 행) 조합마다 한 행 */
   var outRows = [];
+  var candCount = {}; /* 보유품목 code → 대체후보 수 */
   for (var k = 0; k < rate.rows.length; k++) {
     var rr = rate.rows[k];
     var mhit = master[rr.code];
     if (!mhit || !mhit.grp || !pgroups[mhit.grp]) continue;
     var plist = pgroups[mhit.grp];
-    var own = false, names = [], makers = [], qty = 0, amt = 0;
-    for (var p = 0; p < plist.length; p++) {
-      if (plist[p].code === rr.code) own = true;
-      names.push(plist[p].name);
-      if (plist[p].maker && makers.indexOf(plist[p].maker) === -1) makers.push(plist[p].maker);
-      qty += plist[p].qty; amt += plist[p].amt;
-    }
     var price = rate.priceCol >= 0 ? num(rr.cells[rate.priceCol]) : 0;
     var pct = rate.rateCol >= 0 ? num(rr.cells[rate.rateCol]) : 0;
-    var basePrice = baseline[mhit.grp] || 0;
-    var diff = price - basePrice;
-    var cmp = basePrice > 0 ? (diff > 0 ? '높음' : (diff < 0 ? '낮음' : '동일')) : '기준없음';
-    /* 저가약 대체조제 장려금: 저가 대체 시 약가 차액의 30% */
-    var incentive = (basePrice > 0 && diff < 0) ? Math.round(-diff * 30) / 100 : 0;
-    outRows.push({
-      grp: mhit.grp, ing: mhit.ing,
-      kind: own ? '보유품목' : '대체가능',
-      pNames: names.join(' / '), pMakers: makers.join(' / '), pQty: qty, pAmt: amt,
-      price: price, basePrice: basePrice, diff: diff, cmp: cmp,
-      pct: pct, profit: Math.round(price * pct) / 100, incentive: incentive,
-      cells: rr.cells
-    });
-  }
-  var grpCount = {};
-  for (var o = 0; o < outRows.length; o++) {
-    if (outRows[o].kind === '대체가능') grpCount[outRows[o].grp] = (grpCount[outRows[o].grp] || 0) + 1;
+    for (var p = 0; p < plist.length; p++) {
+      var held = plist[p];
+      var own = held.code === rr.code;
+      var basePrice = held.price || 0;
+      var diff = price - basePrice;
+      var cmp = basePrice > 0 ? (diff > 0 ? '높음' : (diff < 0 ? '낮음' : '동일')) : '기준없음';
+      /* 저가약 대체조제 장려금: 저가 대체 시 약가 차액의 30% */
+      var incentive = (basePrice > 0 && diff < 0) ? Math.round(-diff * 30) / 100 : 0;
+      if (!own) candCount[held.code] = (candCount[held.code] || 0) + 1;
+      outRows.push({
+        grp: mhit.grp, ing: mhit.ing,
+        kind: own ? '보유품목' : '대체가능',
+        pName: held.name, pMaker: held.maker, pQty: held.qty, pAmt: held.amt,
+        price: price, basePrice: basePrice, diff: diff, cmp: cmp,
+        pct: pct, profit: Math.round(price * pct) / 100, incentive: incentive,
+        cells: rr.cells
+      });
+    }
   }
   for (var q = 0; q < pharm.length; q++) {
     var dd = pharm[q];
+    dd.candCount = candCount[dd.code] || 0;
     if (!dd.grp) dd.status = '약가파일 미등재(비급여 등)';
-    else if (grpCount[dd.grp]) dd.status = '대체후보 있음';
+    else if (dd.candCount) dd.status = '대체후보 있음';
     else dd.status = '요율표에 동일성분 없음';
-    dd.candCount = grpCount[dd.grp] || 0;
   }
-  /* 정렬: 주성분명 → 보유품목 우선 */
+  /* 정렬: 주성분명 → 보유품목명 → 자기 자신(보유품목) 우선 */
   outRows.sort(function (a, b) {
     if (a.ing !== b.ing) return a.ing < b.ing ? -1 : 1;
+    if (a.pName !== b.pName) return a.pName < b.pName ? -1 : 1;
     if (a.kind !== b.kind) return a.kind === '보유품목' ? -1 : 1;
     return 0;
   });
-  return { outRows: outRows, pharm: pharm, grpCount: grpCount };
+  return { outRows: outRows, pharm: pharm, candCount: candCount };
 }
 
 if (typeof module !== 'undefined' && module.exports) {

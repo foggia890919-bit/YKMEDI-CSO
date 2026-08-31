@@ -47,6 +47,32 @@
   .chk .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
   .dot.low { background: var(--ok); } .dot.same { background: #888; } .dot.high { background: var(--err); }
   .tablewrap { display: none; background: #fff; border: 1px solid var(--line); border-radius: 10px; overflow: auto; max-height: 62vh; }
+  /* 결과 영역: 좌측 표 + 우측 제조회사 패널 (정산내역서 양식) */
+  .split { display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap; }
+  .lcol { flex: 1; min-width: 0; }
+  .rpanel { display: none; width: 300px; flex: none; background: #fff; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .rpanel .panel-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); font-weight: 800; font-size: 14px; }
+  .rpanel .panel-head .sub { font-size: 11.5px; color: #667; font-weight: 600; margin-left: auto; }
+  .ptools { padding: 8px 12px; display: flex; flex-direction: column; gap: 8px; border-bottom: 1px solid var(--line); }
+  .ptools .row { display: flex; gap: 6px; align-items: center; }
+  .ptools input[type=search] { flex: 1; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-size: 12px; font-family: inherit; }
+  .mini { font-size: 11px; color: #667; font-weight: 600; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; font-size: 11px; }
+  .seg button { border: 0; border-radius: 0; background: #fff; padding: 5px 8px; font-size: 11px; font-weight: 600; cursor: pointer; }
+  .seg button.on { background: var(--blue); color: #fff; }
+  .sbtn { border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 5px 9px; font-size: 11.5px; font-weight: 600; cursor: pointer; }
+  .clist { max-height: 48vh; overflow: auto; }
+  .crow { display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; align-items: center; padding: 7px 12px; border-bottom: 1px solid #f1f2f4; cursor: pointer; }
+  .crow:hover { background: #f3f7ff; }
+  .crow.on { background: #eef6ff; }
+  .crow .cname { font-weight: 700; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .crow .camt { text-align: right; font-variant-numeric: tabular-nums; }
+  .crow .camt b { display: block; font-size: 12.5px; }
+  .crow .camt span { font-size: 10.5px; color: #667; }
+  .crow input { accent-color: var(--blue); }
+  .csum { padding: 10px 12px; border-top: 2px solid var(--line); background: #f8fafc; }
+  .csum .l { display: flex; justify-content: space-between; font-size: 12px; padding: 2px 0; }
+  .csum .l b { font-variant-numeric: tabular-nums; }
   table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
   th { position: sticky; top: 0; background: var(--blue); color: #fff; padding: 8px 10px; text-align: left; white-space: nowrap; font-weight: 600; cursor: pointer; }
   th:hover { background: var(--blue-dark); }
@@ -124,13 +150,37 @@
     <summary>👁 표시할 열 선택 (체크 해제하면 숨김)</summary>
     <div class="boxes" id="colBoxes"></div>
   </details>
-  <div class="tablewrap" id="tablewrap">
-    <table id="tbl"><thead></thead><tbody></tbody></table>
+  <div class="split">
+    <div class="lcol">
+      <div class="tablewrap" id="tablewrap">
+        <table id="tbl"><thead></thead><tbody></tbody></table>
+      </div>
+    </div>
+    <aside class="rpanel" id="makerPanel">
+      <div class="panel-head">🏭 보유 제조회사<span class="sub" id="makerSub"></span></div>
+      <div class="ptools">
+        <div class="row"><input type="search" id="makerSearch" placeholder="제조회사 검색…"></div>
+        <div class="row">
+          <span class="mini">정렬</span>
+          <div class="seg" id="makerSortSeg">
+            <button data-k="name">가나다</button>
+            <button data-k="amt" class="on">총금액</button>
+            <button data-k="cnt">품목수</button>
+          </div>
+          <button class="sbtn" id="makerDir">▼</button>
+          <span style="flex:1"></span>
+          <button class="sbtn" id="makerAll">전체</button>
+          <button class="sbtn" id="makerNone">해제</button>
+        </div>
+      </div>
+      <div class="clist" id="makerList"></div>
+      <div class="csum" id="makerSum"></div>
+    </aside>
   </div>
 
   <p class="note">
     매칭 기준: 건강보험 약가파일의 <b>주성분코드_동일제형</b>이 같으면 동일성분·동일함량·동일제형으로 보아 대체조제 가능 후보로 분류합니다.<br>
-    <b>보유단가</b> = 같은 성분 보유품목 중 조제량이 가장 많은 품목의 조제단가. <b>차액</b> = 후보 약가 − 보유단가 (<span style="color:var(--ok)">초록 −</span> = 더 저렴한 대체, <span style="color:var(--err)">빨강 +</span> = 단가 상승).
+    보유품목이 여러 개인 성분은 보유품목별로 행이 각각 생성됩니다. <b>보유단가</b> = 그 행의 보유품목 조제단가. <b>차액</b> = 후보 약가 − 보유단가 (<span style="color:var(--ok)">초록 −</span> = 더 저렴한 대체, <span style="color:var(--err)">빨강 +</span> = 단가 상승).
     <b>정당이익</b> = 약가 × 요율(코드%) ÷ 100 — 1정(단위)당 이익 금액.
     <b>저가 인센티브</b> = 저가약 대체조제 장려금: 보유품목보다 약가가 낮은 약으로 대체 시 차액의 30% (정당).<br>
     표 머리글을 클릭하면 해당 열 기준 오름차순↔내림차순으로 정렬됩니다. 체크박스로 약가 낮음/동일/높음을 골라 볼 수 있습니다.<br>
@@ -239,16 +289,90 @@
     initColVis();
     buildColPanel();
     buildHead();
+    renderMakers();
     drawRows();
   }
+
+  /* ---- 우측 제조회사 패널 (정산내역서 양식) ---- */
+  var makerState = { checked: {}, sort: 'amt', dir: -1, q: '' };
+
+  function makerAggs() {
+    var m = {};
+    state.result.pharm.forEach(function (d) {
+      var name = d.maker || '(제조사 미상)';
+      if (!m[name]) m[name] = { name: name, cnt: 0, qty: 0, amt: 0 };
+      m[name].cnt++; m[name].qty += d.qty; m[name].amt += d.amt;
+    });
+    var arr = Object.keys(m).map(function (k) { return m[k]; });
+    arr.sort(function (a, b) {
+      var k = makerState.sort, va = a[k], vb = b[k];
+      if (k === 'name') return (va < vb ? -1 : va > vb ? 1 : 0) * -makerState.dir;
+      return (va - vb) * makerState.dir;
+    });
+    return arr;
+  }
+  function checkedMakers() {
+    return Object.keys(makerState.checked).filter(function (k) { return makerState.checked[k]; });
+  }
+  function renderMakers() {
+    var aggs = makerAggs();
+    var list = $('makerList'); list.innerHTML = '';
+    var q = makerState.q.toLowerCase();
+    aggs.forEach(function (a) {
+      if (q && a.name.toLowerCase().indexOf(q) === -1) return;
+      var on = !!makerState.checked[a.name];
+      var div = document.createElement('div');
+      div.className = 'crow' + (on ? ' on' : '');
+      div.innerHTML = '<input type="checkbox"' + (on ? ' checked' : '') + '>'
+        + '<div class="cname">' + esc(a.name) + '</div>'
+        + '<div class="camt"><b>₩' + Math.round(a.amt).toLocaleString('ko-KR') + '</b>'
+        + '<span>' + a.cnt + '품목 · 조제량 ' + Math.round(a.qty).toLocaleString('ko-KR') + '</span></div>';
+      div.onclick = function () {
+        makerState.checked[a.name] = !makerState.checked[a.name];
+        renderMakers(); drawRows();
+      };
+      list.appendChild(div);
+    });
+    var sel = checkedMakers();
+    $('makerSub').textContent = aggs.length + '곳' + (sel.length ? ' / 선택 ' + sel.length : '');
+    var use = sel.length ? aggs.filter(function (a) { return makerState.checked[a.name]; }) : aggs;
+    var tC = 0, tQ = 0, tA = 0;
+    use.forEach(function (a) { tC += a.cnt; tQ += a.qty; tA += a.amt; });
+    $('makerSum').innerHTML =
+      '<div class="l"><span>' + (sel.length ? '선택' : '전체') + ' 품목수</span><b>' + tC.toLocaleString('ko-KR') + '</b></div>'
+      + '<div class="l"><span>조제량 합계</span><b>' + Math.round(tQ).toLocaleString('ko-KR') + '</b></div>'
+      + '<div class="l" style="color:var(--blue)"><span>총 조제금액</span><b>₩' + Math.round(tA).toLocaleString('ko-KR') + '</b></div>';
+    $('makerPanel').style.display = 'block';
+  }
+  $('makerSearch').addEventListener('input', function () { makerState.q = this.value.trim(); renderMakers(); });
+  $('makerSortSeg').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    makerState.sort = b.getAttribute('data-k');
+    this.querySelectorAll('button').forEach(function (x) { x.classList.remove('on'); });
+    b.classList.add('on');
+    renderMakers();
+  });
+  $('makerDir').addEventListener('click', function () {
+    makerState.dir = -makerState.dir;
+    this.textContent = makerState.dir < 0 ? '▼' : '▲';
+    renderMakers();
+  });
+  $('makerAll').addEventListener('click', function () {
+    makerAggs().forEach(function (a) { makerState.checked[a.name] = true; });
+    renderMakers(); drawRows();
+  });
+  $('makerNone').addEventListener('click', function () {
+    makerState.checked = {};
+    renderMakers(); drawRows();
+  });
 
   /* 앞부분 계산 열 + 요율표 원본 열. key가 있으면 정렬 가능 */
   function frontCols() {
     return [
       { label: '주성분명', key: 'ing', str: true },
       { label: '구분', key: 'kind', str: true },
-      { label: '약국 보유약품', key: 'pNames', str: true },
-      { label: '보유 제조회사', key: 'pMakers', str: true },
+      { label: '약국 보유약품', key: 'pName', str: true },
+      { label: '보유 제조회사', key: 'pMaker', str: true },
       { label: '보유단가', key: 'basePrice' },
       { label: '약가비교', key: 'cmp', str: true },
       { label: '차액(약가-보유단가)', key: 'diff' },
@@ -358,6 +482,7 @@
     var q = $('q').value.trim().toLowerCase();
     var kind = $('fKind').value, ing = $('fIng').value;
     var showLow = $('cLow').checked, showSame = $('cSame').checked, showHigh = $('cHigh').checked;
+    var anyMaker = checkedMakers().length > 0;
     var rows = sortedRows();
     var tb = $('tbl').querySelector('tbody'), html = [], shown = 0;
     for (var i = 0; i < rows.length && shown < 2000; i++) {
@@ -367,8 +492,9 @@
       if (x.cmp === '낮음' && !showLow) continue;
       if (x.cmp === '동일' && !showSame) continue;
       if (x.cmp === '높음' && !showHigh) continue;
+      if (anyMaker && !makerState.checked[x.pMaker || '(제조사 미상)']) continue;
       if (q) {
-        var hay = (x.ing + ' ' + x.pNames + ' ' + x.cells.join(' ')).toLowerCase();
+        var hay = (x.ing + ' ' + x.pName + ' ' + x.pMaker + ' ' + x.cells.join(' ')).toLowerCase();
         if (hay.indexOf(q) === -1) continue;
       }
       shown++;
@@ -377,8 +503,8 @@
       var frontTd = {
         ing: '<td>' + esc(x.ing) + '</td>',
         kind: '<td>' + badge + '</td>',
-        pNames: '<td>' + esc(x.pNames) + '</td>',
-        pMakers: '<td>' + esc(x.pMakers) + '</td>',
+        pName: '<td>' + esc(x.pName) + '</td>',
+        pMaker: '<td>' + esc(x.pMaker) + '</td>',
         basePrice: '<td class="num">' + fmt(x.basePrice) + '</td>',
         cmp: '<td>' + esc(x.cmp) + '</td>',
         diff: '<td class="' + diffCls + '">' + (x.diff > 0 ? '+' : '') + fmt(x.diff) + '</td>',
@@ -401,11 +527,11 @@
     var r = state.result; if (!r) return;
     var wb = XLSX.utils.book_new();
 
-    var head1 = ['주성분코드(동일제형)', '주성분명', '구분', '약국 보유약품', '보유 제조회사', '약국 조제량(계)', '약국 조제금액(계)',
+    var head1 = ['주성분코드(동일제형)', '주성분명', '구분', '약국 보유약품', '보유 제조회사', '조제량', '조제금액',
       '보유단가', '약가비교', '차액(약가-보유단가)', '요율(%)', '정당이익(약가×요율)', '저가 인센티브(정당)'].concat(state.rateParsed.header);
     var aoa1 = [head1];
     sortedRows().forEach(function (x) {
-      var row = [x.grp, x.ing, x.kind, x.pNames, x.pMakers, x.pQty, x.pAmt, x.basePrice, x.cmp, x.diff, x.pct, x.profit, x.incentive];
+      var row = [x.grp, x.ing, x.kind, x.pName, x.pMaker, x.pQty, x.pAmt, x.basePrice, x.cmp, x.diff, x.pct, x.profit, x.incentive];
       for (var j = 0; j < state.rateParsed.header.length; j++) row.push(x.cells[j] === undefined ? '' : x.cells[j]);
       aoa1.push(row);
     });
@@ -419,6 +545,17 @@
     r.pharm.forEach(function (d) {
       aoa2.push([d.code, d.name, d.maker, d.price, d.qty, d.amt, d.grp || '', d.ing || '', d.candCount, d.status]);
     });
+    var makerRows = makerAggs().slice().sort(function (a, b) { return b.amt - a.amt; });
+    var aoaM = [['제조회사', '품목수', '조제량 합계', '조제금액 합계']];
+    makerRows.forEach(function (a) { aoaM.push([a.name, a.cnt, a.qty, a.amt]); });
+    var tQ2 = 0, tA2 = 0, tC2 = 0;
+    makerRows.forEach(function (a) { tC2 += a.cnt; tQ2 += a.qty; tA2 += a.amt; });
+    aoaM.push(['합계', tC2, tQ2, tA2]);
+    var wsM = XLSX.utils.aoa_to_sheet(aoaM);
+    wsM['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: aoaM.length - 1, c: 3 } }) };
+    wsM['!cols'] = [{ wch: 24 }, { wch: 8 }, { wch: 12 }, { wch: 14 }];
+    XLSX.utils.book_append_sheet(wb, wsM, '제조회사별 보유현황');
+
     var ws2 = XLSX.utils.aoa_to_sheet(aoa2);
     ws2['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: aoa2.length - 1, c: head2.length - 1 } }) };
     ws2['!cols'] = [{ wch: 11 }, { wch: 36 }, { wch: 18 }, { wch: 9 }, { wch: 8 }, { wch: 11 }, { wch: 17 }, { wch: 30 }, { wch: 10 }, { wch: 22 }];
@@ -431,7 +568,7 @@
       ['  1) 약국 약품코드(보험코드) → 약가파일 제품코드 매칭 → 주성분코드_동일제형 확보'],
       ['  2) 요율표 보험코드 → 약가파일 매칭 → 주성분코드_동일제형이 약국 보유 성분과 같은 행만 추출'],
       ['"구분" 열: 보유품목 = 약국이 현재 쓰는 그 제품이 요율표에도 있음 / 대체가능 = 동일성분 대체조제 후보'],
-      ['"보유단가" = 같은 성분 보유품목 중 조제량이 가장 많은 품목의 조제단가 (비교 기준)'],
+      ['보유품목이 여러 개인 성분은 보유품목별로 행이 각각 생성되며, "보유단가" = 해당 보유품목의 조제단가'],
       ['"약가비교" = 후보 약가 vs 보유단가 (낮음=저렴한 대체 / 높음=단가 상승), "차액" = 약가 - 보유단가'],
       ['"정당이익(약가×요율)" = 요율표의 약가 × 코드(요율%) ÷ 100 — 1정(단위)당 이익 금액'],
       ['"저가 인센티브(정당)" = 저가약 대체조제 장려금: 보유품목보다 약가가 낮은 대체 시 (보유단가 - 후보약가) × 30%'],
