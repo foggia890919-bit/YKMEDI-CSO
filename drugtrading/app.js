@@ -148,6 +148,51 @@ function parseRate(rows) {
   return { header: header, rows: body, codeCol: cCode, rateCol: cRate, priceCol: cPrice };
 }
 
+/* 여러 요율표 병합: 첫 번째(기본, 예: 메디펄스)를 그대로 두고,
+   이후 요율표에서는 기본에 없는 보험코드 품목만 추가. 열은 기본 헤더 이름으로 매핑. */
+function mergeRates(parsedList, names) {
+  var base = parsedList[0];
+  var header = base.header.slice();
+  header.push('요율표출처');
+  var seen = {}, rows = [], addedPerFile = [0];
+  base.rows.forEach(function (r) {
+    seen[r.code] = 1;
+    var c = [];
+    for (var j = 0; j < base.header.length; j++) c.push(r.cells[j] === undefined ? '' : r.cells[j]);
+    c.push(names[0] || '기본');
+    rows.push({ code: r.code, cells: c });
+  });
+  for (var i = 1; i < parsedList.length; i++) {
+    var p = parsedList[i], added = 0;
+    var mapIdx = [];
+    for (var b = 0; b < base.header.length; b++) {
+      var hn = String(base.header[b]).replace(/\s/g, '');
+      var found = -1;
+      for (var j2 = 0; j2 < p.header.length; j2++) {
+        if (String(p.header[j2]).replace(/\s/g, '') === hn) { found = j2; break; }
+      }
+      mapIdx.push(found);
+    }
+    /* 이전 파일에 이미 있는 코드만 제외 — 같은 파일 안의 중복 행(코드 동일)은 유지 */
+    var addedHere = {};
+    for (var r2 = 0; r2 < p.rows.length; r2++) {
+      var row = p.rows[r2];
+      if (seen[row.code] && !addedHere[row.code]) continue;
+      addedHere[row.code] = 1; added++;
+      var c2 = mapIdx.map(function (j3) { return j3 >= 0 && row.cells[j3] !== undefined ? row.cells[j3] : ''; });
+      c2.push(names[i] || ('추가' + i));
+      rows.push({ code: row.code, cells: c2 });
+    }
+    for (var k2 in addedHere) seen[k2] = 1;
+    addedPerFile.push(added);
+  }
+  return {
+    header: header, rows: rows,
+    codeCol: base.codeCol, rateCol: base.rateCol, priceCol: base.priceCol,
+    baseCount: base.rows.length, addedPerFile: addedPerFile
+  };
+}
+
 /* 매핑 실행 */
 function buildMapping(pharm, rate, master) {
   var pgroups = {};
@@ -218,5 +263,5 @@ function buildMapping(pharm, rate, master) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { normCode: normCode, num: num, findHeaderRow: findHeaderRow, buildMaster: buildMaster, detectPharmacy: detectPharmacy, parsePharmacy: parsePharmacy, parseRate: parseRate, buildMapping: buildMapping };
+  module.exports = { normCode: normCode, num: num, findHeaderRow: findHeaderRow, buildMaster: buildMaster, detectPharmacy: detectPharmacy, parsePharmacy: parsePharmacy, parseRate: parseRate, mergeRates: mergeRates, buildMapping: buildMapping };
 }

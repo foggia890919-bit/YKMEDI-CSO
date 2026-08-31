@@ -120,9 +120,10 @@
     </div>
     <div class="card">
       <h2>② 요율표</h2>
-      <p class="hint">.xlsx — 성분명·품목명·보험코드 열 포함 (시트 선택 가능)</p>
-      <input type="file" id="fRate" accept=".xls,.xlsx">
+      <p class="hint">.xlsx — 성분명·품목명·보험코드 열 포함. 여러 파일 선택 시 메디펄스(파일명 기준)를 기본으로 두고 나머지에서 없는 품목만 추가해 공통요율표로 병합</p>
+      <input type="file" id="fRate" accept=".xls,.xlsx" multiple>
       <select id="rateSheet" style="display:none"></select>
+      <button class="sbtn" id="btnCloudRate" style="margin-top:8px">☁️ 공통요율표 자동 불러오기 (구글시트)</button>
       <div class="stat" id="sRate"></div>
     </div>
     <div class="card">
@@ -226,7 +227,7 @@
     var el = $(id); el.textContent = text; el.className = 'stat ' + (ok ? 'ok' : 'err');
   }
   function ready() {
-    $('btnRun').disabled = !(state.pharm && state.rateWb && state.master);
+    $('btnRun').disabled = !(state.pharm && (state.rateWb || state.rateMerged) && state.master);
   }
 
   $('fPharm').addEventListener('change', function (e) {
@@ -338,17 +339,68 @@
   MAP_FIELDS.forEach(function (f) { $(f.id).addEventListener('change', applyPharmMap); });
 
   $('fRate').addEventListener('change', function (e) {
-    var f = e.target.files[0]; if (!f) return;
+    var files = Array.prototype.slice.call(e.target.files);
+    if (!files.length) return;
     setStat('sRate', '읽는 중…', true);
-    readWb(f, function (err, wb) {
-      if (err) { setStat('sRate', '읽기 실패: ' + err.message, false); return; }
-      state.rateWb = wb;
-      var sel = $('rateSheet'); sel.innerHTML = ''; sel.style.display = wb.SheetNames.length > 1 ? '' : 'none';
-      wb.SheetNames.forEach(function (n) {
-        var o = document.createElement('option'); o.value = n; o.textContent = '시트: ' + n; sel.appendChild(o);
+    if (files.length === 1) {
+      readWb(files[0], function (err, wb) {
+        if (err) { setStat('sRate', '읽기 실패: ' + err.message, false); return; }
+        state.rateWb = wb; state.rateMerged = null;
+        var sel = $('rateSheet'); sel.innerHTML = ''; sel.style.display = wb.SheetNames.length > 1 ? '' : 'none';
+        wb.SheetNames.forEach(function (n) {
+          var o = document.createElement('option'); o.value = n; o.textContent = '시트: ' + n; sel.appendChild(o);
+        });
+        setStat('sRate', '✓ 시트 ' + wb.SheetNames.length + '개 (첫 시트 기본 사용)', true);
+        ready();
       });
-      setStat('sRate', '✓ 시트 ' + wb.SheetNames.length + '개 (첫 시트 기본 사용)', true);
+      return;
+    }
+    /* 여러 파일 → 메디펄스(파일명 기준, 없으면 첫 파일)를 기본으로 병합 */
+    var results = [], done = 0, failed = null;
+    files.forEach(function (f, i) {
+      readWb(f, function (err, wb) {
+        if (err) failed = f.name + ': ' + err.message;
+        else results[i] = { name: f.name.replace(/\.(xlsx?|csv)$/i, ''), wb: wb };
+        done++;
+        if (done === files.length) {
+          if (failed) { setStat('sRate', '읽기 실패: ' + failed, false); return; }
+          try {
+            var baseIdx = 0;
+            results.forEach(function (r, j) { if (/메디펄스|medipulse/i.test(r.name)) baseIdx = j; });
+            var ordered = [results[baseIdx]].concat(results.filter(function (_, j) { return j !== baseIdx; }));
+            var parsedList = ordered.map(function (r) { return parseRate(sheetRows(r.wb, r.wb.SheetNames[0])); });
+            var names = ordered.map(function (r) { return r.name; });
+            state.rateMerged = mergeRates(parsedList, names);
+            state.rateWb = null;
+            $('rateSheet').style.display = 'none';
+            var addSum = state.rateMerged.rows.length - state.rateMerged.baseCount;
+            setStat('sRate', '✓ 공통요율표: ' + names[0] + ' ' + state.rateMerged.baseCount.toLocaleString()
+              + '행 기준 + 타 요율표 ' + addSum.toLocaleString() + '행 추가 (' + files.length + '개 파일)', true);
+          } catch (e2) { state.rateMerged = null; setStat('sRate', e2.message, false); }
+          ready();
+        }
+      });
+    });
+  });
+
+  /* 사이트에 설정된 구글시트 공통요율표 자동 불러오기 (yk-marketing 배포에서 동작) */
+  $('btnCloudRate').addEventListener('click', function () {
+    setStat('sRate', '공통요율표 불러오는 중…', true);
+    fetch('/api/rates/common').then(function (res) {
+      if (!res.ok) return res.json().then(function (j) { throw new Error(j.error || ('HTTP ' + res.status)); });
+      return res.json();
+    }).then(function (j) {
+      var parsedList = j.files.map(function (f) { return parseRate(f.rows); });
+      var names = j.files.map(function (f) { return f.name; });
+      state.rateMerged = parsedList.length > 1 ? mergeRates(parsedList, names) : parsedList[0];
+      if (parsedList.length === 1) { state.rateMerged.baseCount = state.rateMerged.rows.length; }
+      state.rateWb = null;
+      $('rateSheet').style.display = 'none';
+      setStat('sRate', '✓ 구글시트 공통요율표 ' + state.rateMerged.rows.length.toLocaleString() + '행 로드'
+        + (parsedList.length > 1 ? ' (' + names.join(' + ') + ')' : ''), true);
       ready();
+    }).catch(function (err) {
+      setStat('sRate', '자동 불러오기 실패: ' + err.message + ' — yk-marketing 사이트에서 관리자가 구글시트를 연결해야 합니다.', false);
     });
   });
 
@@ -368,8 +420,12 @@
   $('btnRun').addEventListener('click', function () {
     var msg = $('msg'); msg.className = ''; msg.textContent = '매핑 중…';
     try {
-      var sheetName = $('rateSheet').style.display === 'none' ? state.rateWb.SheetNames[0] : $('rateSheet').value;
-      state.rateParsed = parseRate(sheetRows(state.rateWb, sheetName));
+      if (state.rateMerged) {
+        state.rateParsed = state.rateMerged;
+      } else {
+        var sheetName = $('rateSheet').style.display === 'none' ? state.rateWb.SheetNames[0] : $('rateSheet').value;
+        state.rateParsed = parseRate(sheetRows(state.rateWb, sheetName));
+      }
       state.result = buildMapping(state.pharm, state.rateParsed, state.master);
       renderResult();
       msg.textContent = '완료';
