@@ -383,24 +383,35 @@
     });
   });
 
-  /* 사이트에 설정된 구글시트 공통요율표 자동 불러오기 (yk-marketing 배포에서 동작) */
+  /* 공통요율표 자동 불러오기: ① 실시간 API(드라이브 직접) → ② 월간 자동 생성본(/rates-common.json) */
+  function loadCommonRates(j, label) {
+    var parsedList = j.files.map(function (f) { return parseRate(f.rows); });
+    var names = j.files.map(function (f) { return f.name; });
+    state.rateMerged = parsedList.length > 1 ? mergeRates(parsedList, names) : parsedList[0];
+    if (parsedList.length === 1) { state.rateMerged.baseCount = state.rateMerged.rows.length; }
+    state.rateWb = null;
+    $('rateSheet').style.display = 'none';
+    setStat('sRate', '✓ 공통요율표 ' + state.rateMerged.rows.length.toLocaleString() + '행 로드' + label
+      + (names.length > 1 ? ' — ' + names.join(', ') : ''), true);
+    ready();
+  }
   $('btnCloudRate').addEventListener('click', function () {
     setStat('sRate', '공통요율표 불러오는 중…', true);
     fetch('/api/rates/common').then(function (res) {
       if (!res.ok) return res.json().then(function (j) { throw new Error(j.error || ('HTTP ' + res.status)); });
       return res.json();
     }).then(function (j) {
-      var parsedList = j.files.map(function (f) { return parseRate(f.rows); });
-      var names = j.files.map(function (f) { return f.name; });
-      state.rateMerged = parsedList.length > 1 ? mergeRates(parsedList, names) : parsedList[0];
-      if (parsedList.length === 1) { state.rateMerged.baseCount = state.rateMerged.rows.length; }
-      state.rateWb = null;
-      $('rateSheet').style.display = 'none';
-      setStat('sRate', '✓ 구글시트 공통요율표 ' + state.rateMerged.rows.length.toLocaleString() + '행 로드'
-        + (parsedList.length > 1 ? ' (' + names.join(' + ') + ')' : ''), true);
-      ready();
-    }).catch(function (err) {
-      setStat('sRate', '자동 불러오기 실패: ' + err.message + ' — yk-marketing 사이트에서 관리자가 구글시트를 연결해야 합니다.', false);
+      loadCommonRates(j, '');
+    }).catch(function () {
+      /* API 미설정/실패 시: 매달 자동 갱신되는 정적 생성본 사용 */
+      fetch('/rates-common.json').then(function (res) {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+      }).then(function (j) {
+        loadCommonRates(j, j.generatedAt ? ' (' + String(j.generatedAt).slice(0, 10) + ' 생성)' : ' (자동 생성본)');
+      }).catch(function (err2) {
+        setStat('sRate', '자동 불러오기 실패: ' + err2.message + ' — 아직 공통요율표가 생성되지 않았습니다. 구글드라이브 "공통요율표" 폴더에 요율표를 올린 뒤 관리자에게 갱신을 요청하세요.', false);
+      });
     });
   });
 
