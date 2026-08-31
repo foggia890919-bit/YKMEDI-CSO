@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>와이케이메디 명함관리</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
+<style>
+:root{
+  --navy:#0e2b4d; --ink:#1a2433; --wine:#7e1e00; --wine-bright:#a4300d; --gold:#c2a24a;
+  --muted:#647285; --line:#e7ecf3; --bg:#f3f6fa; --card:#fff; --green:#1d7a4f;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Pretendard","Apple SD Gothic Neo",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer}
+
+/* top bar */
+.topbar{position:sticky;top:0;z-index:20;height:60px;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 16px}
+.topbar__brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:16px;white-space:nowrap}
+.topbar__logo{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;color:var(--navy);font-weight:900;background:linear-gradient(150deg,var(--gold),#e4cf8e);flex:none}
+.topbar__brand small{display:block;font-size:9px;letter-spacing:.16em;color:rgba(255,255,255,.6);font-weight:700;margin-top:2px}
+.topbar__right{display:flex;align-items:center;gap:8px}
+.ghost-link{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px;border-radius:9px;border:1px solid rgba(255,255,255,.25);color:#fff;font-weight:700;font-size:13px;transition:.15s;white-space:nowrap;background:none}
+.ghost-link:hover{background:rgba(255,255,255,.12)}
+#user-who{color:rgba(255,255,255,.6);font-size:12px;font-weight:600;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.wrap{max-width:760px;margin:0 auto;padding:16px 14px 90px}
+.tabs{display:flex;gap:6px;margin-bottom:16px;position:sticky;top:60px;z-index:15;background:var(--bg);padding:10px 0 8px}
+.tab{height:42px;padding:0 16px;border-radius:999px;border:1px solid var(--line);background:#fff;font-weight:700;font-size:14px;color:var(--muted);transition:.15s;display:inline-flex;align-items:center;gap:7px;white-space:nowrap;flex:1;justify-content:center}
+.tab.active{background:var(--navy);color:#fff;border-color:var(--navy)}
+.tab .cnt{background:var(--gold);color:var(--navy);font-size:11px;font-weight:900;min-width:20px;height:20px;border-radius:999px;display:inline-grid;place-items:center;padding:0 5px}
+
+.panel-view{display:none}
+.panel-view.active{display:block}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:14px}
+.card h2{font-size:17px;font-weight:800;margin:0 0 4px}
+.card .desc{color:var(--muted);font-size:13px;margin:0 0 16px;line-height:1.55}
+
+.f{margin-bottom:12px}
+.f label{display:block;font-weight:700;font-size:12.5px;margin-bottom:5px}
+.f label .hint{font-weight:600;color:var(--muted);font-size:11px;margin-left:5px}
+.f input,.f select,.f textarea{width:100%;padding:11px 12px;border:1.5px solid var(--line);border-radius:10px;font-family:inherit;font-size:15px;color:var(--ink);background:#f8fafc;transition:.14s}
+.f input:focus,.f select:focus,.f textarea:focus{outline:none;border-color:var(--wine);background:#fff;box-shadow:0 0 0 3px rgba(126,30,0,.08)}
+.f textarea{resize:vertical;min-height:80px;line-height:1.55}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
+.fgrid .full{grid-column:1 / -1}
+
+.btn{height:46px;padding:0 20px;border-radius:11px;font-weight:800;font-size:14.5px;border:1.5px solid transparent;transition:.15s;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.btn-primary{background:var(--wine);color:#fff}
+.btn-primary:hover{background:var(--wine-bright)}
+.btn-primary:disabled{opacity:.55;cursor:not-allowed}
+.btn-navy{background:var(--navy);color:#fff}
+.btn-navy:disabled{opacity:.55;cursor:not-allowed}
+.btn-light{background:#fff;color:var(--muted);border-color:var(--line)}
+.btn-light:hover{border-color:#cdd7e3;color:var(--ink)}
+.btn-danger{background:#fff;color:#d64545;border-color:#f2caca}
+.btn-danger:hover{background:#fdf2f2}
+.btnrow{display:flex;gap:8px;margin-top:6px}
+.btnrow .btn{flex:1}
+
+/* photo capture slots */
+.shots{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.shot{border:1.5px dashed #cdd7e3;border-radius:14px;background:#f8fafc;overflow:hidden;position:relative}
+.shot__ph{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-height:130px;color:var(--muted);font-size:13px;font-weight:700;cursor:pointer;padding:14px;text-align:center}
+.shot__ph svg{width:30px;height:30px;opacity:.6}
+.shot img{width:100%;aspect-ratio:8/5;object-fit:cover;display:block;cursor:pointer}
+.shot__tag{position:absolute;top:8px;left:8px;background:rgba(14,43,77,.85);color:#fff;font-size:11px;font-weight:800;padding:3px 9px;border-radius:999px;pointer-events:none}
+.shot__x{position:absolute;top:6px;right:6px;width:28px;height:28px;border-radius:50%;border:none;background:rgba(0,0,0,.55);color:#fff;font-size:14px;font-weight:800;display:none;line-height:1}
+.shot.has-img .shot__x{display:block}
+.shot.has-img{border-style:solid;border-color:var(--line)}
+
+/* ocr */
+.ocr-box{background:#fff8f1;border:1px solid #f0e2d4;border-radius:12px;padding:12px 14px;margin-bottom:14px}
+.ocr-box__row{display:flex;align-items:center;gap:10px}
+.ocr-status{font-size:12.5px;color:#7e1e00;font-weight:700;margin-top:8px;min-height:16px}
+.ocr-bar{height:6px;background:#f0e2d4;border-radius:99px;overflow:hidden;margin-top:6px;display:none}
+.ocr-bar i{display:block;height:100%;width:0;background:var(--wine);transition:width .2s}
+
+/* edit banner */
+.edit-banner{display:none;align-items:center;justify-content:space-between;background:#eef4ff;border:1px solid #d5e2f7;border-radius:12px;padding:10px 14px;margin-bottom:12px;font-size:13.5px;font-weight:700;color:var(--navy)}
+.edit-banner button{background:none;border:none;color:var(--wine);font-weight:800;font-size:13px}
+
+/* list */
+.searchrow{display:flex;gap:8px;margin-bottom:12px}
+.searchrow input{flex:1;padding:12px 14px;border:1.5px solid var(--line);border-radius:11px;font-family:inherit;font-size:15px;background:#fff}
+.searchrow input:focus{outline:none;border-color:var(--wine)}
+.searchrow select{padding:0 10px;border:1.5px solid var(--line);border-radius:11px;font-family:inherit;font-size:13.5px;background:#fff;color:var(--ink);max-width:42%}
+.cardlist{display:flex;flex-direction:column;gap:10px}
+.citem{display:flex;gap:12px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px;cursor:pointer;transition:.14s;align-items:center}
+.citem:hover{border-color:#cdd7e3;box-shadow:0 6px 18px -12px rgba(14,43,77,.35)}
+.citem__thumb{width:84px;height:53px;border-radius:8px;object-fit:cover;background:linear-gradient(150deg,#eef2f7,#dfe7f0);flex:none;display:grid;place-items:center;color:#9aa8b8;font-weight:900;font-size:16px;overflow:hidden}
+.citem__thumb img{width:100%;height:100%;object-fit:cover}
+.citem__body{flex:1;min-width:0}
+.citem__name{font-weight:800;font-size:15.5px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.citem__name .t{font-size:12px;color:var(--muted);font-weight:700}
+.citem__co{font-size:13px;color:var(--muted);font-weight:600;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.citem__meta{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+.chip{font-size:10.5px;font-weight:800;padding:2.5px 8px;border-radius:999px;background:#f1f5fa;color:#5a6b80}
+.chip.ev{background:#fdf6e7;color:#8a6d1f}
+.chip.memo{background:#eef8f1;color:var(--green)}
+.empty{padding:50px 20px;text-align:center;color:var(--muted);font-size:14px;font-weight:600;line-height:1.7}
+.empty b{color:var(--ink)}
+
+/* settings */
+.codebox{position:relative;margin-top:10px}
+.codebox textarea{width:100%;height:150px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;background:#0e1726;color:#cfe3ff;border:none;border-radius:12px;padding:14px;resize:vertical;line-height:1.5}
+.codebox button{position:absolute;top:8px;right:8px;height:30px;padding:0 12px;border-radius:8px;border:none;background:rgba(255,255,255,.14);color:#fff;font-size:12px;font-weight:700}
+.status-dot{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--muted)}
+.status-dot::before{content:"";width:8px;height:8px;border-radius:50%;background:#cdd7e3}
+.status-dot.on{color:var(--green)}
+.status-dot.on::before{background:var(--green)}
+.steps{margin:10px 0 0;padding-left:18px;color:var(--muted);font-size:13px;line-height:1.8}
+.steps b{color:var(--ink)}
+
+/* image viewer */
+.viewer{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:60;display:none;align-items:center;justify-content:center;padding:20px}
+.viewer.show{display:flex}
+.viewer img{max-width:100%;max-height:92vh;border-radius:10px}
+
+/* toast */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--navy);color:#fff;padding:13px 22px;border-radius:12px;font-weight:700;font-size:14px;box-shadow:0 16px 40px -12px rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:.25s;z-index:70;max-width:90vw;text-align:center}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media(max-width:520px){
+  .fgrid{grid-template-columns:1fr}
+  .topbar .hide-m{display:none}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar__brand">
+    <span class="topbar__logo">YK</span>
+    <span>명함관리<small>BUSINESS CARDS</small></span>
+  </div>
+  <div class="topbar__right">
+    <span id="user-who"></span>
+    <a class="ghost-link hide-m" href="관리자페이지.html">관리자</a>
+    <button class="ghost-link" id="logout-btn" style="display:none">로그아웃</button>
+  </div>
+</header>
+
+<!-- ============ LOGIN ============ -->
+<div id="login-screen" style="display:none;min-height:calc(100vh - 60px);align-items:center;justify-content:center;padding:24px">
+  <form id="login-form" class="card" style="width:100%;max-width:380px">
+    <h2 style="margin-bottom:4px">로그인</h2>
+    <p class="desc">와이케이메디 관리자 계정으로 로그인하세요.<br>명함 데이터는 로그인한 계정으로 안전하게 보관됩니다.</p>
+    <div class="f"><label>이메일</label><input id="login-email" type="email" autocomplete="username"></div>
+    <div class="f"><label>비밀번호</label><input id="login-pw" type="password" placeholder="••••••••" autocomplete="current-password"></div>
+    <p id="login-err" style="color:#d64545;font-size:13px;font-weight:600;margin:0 0 12px;min-height:18px"></p>
+    <button type="submit" class="btn btn-primary" id="login-btn" style="width:100%">로그인</button>
+  </form>
+</div>
+
+<div class="wrap" id="app-body" style="display:none">
+
+  <div class="tabs">
+    <button class="tab active" data-tab="add">＋ 명함 등록</button>
+    <button class="tab" data-tab="list">목록 <span class="cnt" id="tab-cnt">0</span></button>
+    <button class="tab" data-tab="settings">설정</button>
+  </div>
+
+  <!-- ============ ADD / EDIT ============ -->
+  <section class="panel-view active" id="view-add">
+    <div class="edit-banner" id="edit-banner">
+      <span>✏️ 명함 수정 중</span>
+      <button type="button" id="edit-cancel">수정 취소 · 새 명함 등록</button>
+    </div>
+
+    <div class="card">
+      <h2>명함 촬영</h2>
+      <p class="desc">명함을 앞·뒤로 촬영하거나 사진첩에서 선택하세요. 촬영 후 <b>글자 자동인식</b>을 누르면 회사명·이름·연락처가 자동으로 채워집니다.</p>
+
+      <div class="shots">
+        <div class="shot" id="shot-front">
+          <span class="shot__tag">앞면</span>
+          <div class="shot__ph">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            앞면 촬영 · 선택
+          </div>
+          <button type="button" class="shot__x" aria-label="앞면 삭제">✕</button>
+          <input type="file" accept="image/*" capture="environment" hidden>
+        </div>
+        <div class="shot" id="shot-back">
+          <span class="shot__tag">뒷면</span>
+          <div class="shot__ph">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            뒷면 촬영 · 선택
+          </div>
+          <button type="button" class="shot__x" aria-label="뒷면 삭제">✕</button>
+          <input type="file" accept="image/*" capture="environment" hidden>
+        </div>
+      </div>
+
+      <div class="ocr-box">
+        <div class="ocr-box__row">
+          <button type="button" class="btn btn-navy" id="ocr-btn" style="flex:1" disabled>🔍 명함 글자 자동인식 (OCR)</button>
+        </div>
+        <div class="ocr-status" id="ocr-status">명함 사진을 먼저 등록해 주세요.</div>
+        <div class="ocr-bar" id="ocr-bar"><i></i></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>명함 정보</h2>
+      <p class="desc">자동인식된 내용을 확인하고 틀린 부분은 직접 고쳐주세요.</p>
+      <div class="fgrid">
+        <div class="f"><label>이름 *</label><input id="c-name" placeholder="홍길동"></div>
+        <div class="f"><label>직함</label><input id="c-title" placeholder="대표 / 부장 / 약사 ..."></div>
+        <div class="f"><label>회사명</label><input id="c-company" placeholder="(주)OO제약"></div>
+        <div class="f"><label>부서</label><input id="c-department" placeholder="영업1팀"></div>
+        <div class="f"><label>휴대폰</label><input id="c-mobile" type="tel" placeholder="010-0000-0000"></div>
+        <div class="f"><label>전화</label><input id="c-phone" type="tel" placeholder="02-000-0000"></div>
+        <div class="f"><label>이메일</label><input id="c-email" type="email" placeholder="name@company.com"></div>
+        <div class="f"><label>팩스</label><input id="c-fax" type="tel"></div>
+        <div class="f full"><label>홈페이지</label><input id="c-website" placeholder="www.company.com"></div>
+        <div class="f full"><label>주소</label><input id="c-address" placeholder="서울시 금천구 ..."></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>만남 기록 · 메모</h2>
+      <p class="desc">어디서 만났고 어떤 이야기를 나눴는지 남겨두면 나중에 바로 기억납니다.</p>
+      <div class="fgrid">
+        <div class="f"><label>만난 행사 · 장소</label><input id="c-met-event" placeholder="예: 2026 국제병원의료산업박람회" list="event-list"><datalist id="event-list"></datalist></div>
+        <div class="f"><label>만난 날짜</label><input id="c-met-date" type="date"></div>
+      </div>
+      <div class="f"><label>소통 메모 <span class="hint">나눈 대화 · 후속 조치 · 특징</span></label>
+        <textarea id="c-memo" placeholder="예: 부스에서 신제품 유통 문의. 다음주 화요일 견적서 보내기로 함. 골프 좋아하심."></textarea>
+      </div>
+      <div class="btnrow">
+        <button type="button" class="btn btn-primary" id="save-btn">저장하기</button>
+        <button type="button" class="btn btn-light" id="clear-btn" style="flex:0 0 auto">초기화</button>
+        <button type="button" class="btn btn-danger" id="delete-btn" style="display:none;flex:0 0 auto">삭제</button>
+      </div>
+      <p id="save-note" style="font-size:12px;color:var(--muted);font-weight:600;margin:10px 0 0"></p>
+    </div>
+  </section>
+
+  <!-- ============ LIST ============ -->
+  <section class="panel-view" id="view-list">
+    <div class="searchrow">
+      <input id="search" type="search" placeholder="이름 · 회사 · 메모 검색">
+      <select id="filter-event"><option value="">전체 행사</option></select>
+    </div>
+    <div class="cardlist" id="cardlist"></div>
+    <div class="empty" id="list-empty" style="display:none"><b>저장된 명함이 없습니다.</b><br>‘명함 등록’ 탭에서 첫 명함을 촬영해 보세요.</div>
+  </section>
+
+  <!-- ============ SETTINGS ============ -->
+  <section class="panel-view" id="view-settings">
+    <div class="card">
+      <h2>구글시트 주소록 실시간 연동</h2>
+      <p class="desc">명함을 저장·수정·삭제할 때마다 연결된 구글시트 주소록에 자동으로 반영됩니다.</p>
+      <p class="status-dot" id="sheet-status" style="margin:0 0 12px">연동 안 됨</p>
+      <div class="f"><label>Apps Script 웹앱 URL</label><input id="sheet-url" placeholder="https://script.google.com/macros/s/....../exec"></div>
+      <div class="btnrow">
+        <button type="button" class="btn btn-primary" id="sheet-save">연동 저장</button>
+        <button type="button" class="btn btn-light" id="sheet-test">연결 테스트</button>
+      </div>
+      <div class="btnrow">
+        <button type="button" class="btn btn-navy" id="sheet-syncall">📋 전체 명함 → 시트 동기화</button>
+      </div>
+
+      <ol class="steps">
+        <li>구글시트를 새로 만들고 <b>확장 프로그램 → Apps Script</b>를 엽니다.</li>
+        <li>아래 코드를 전체 붙여넣고 저장합니다.</li>
+        <li><b>배포 → 새 배포 → 웹 앱</b> · 액세스 권한 <b>“모든 사용자”</b>로 배포합니다.</li>
+        <li>발급된 웹앱 URL(…/exec)을 위 칸에 붙여넣고 <b>연동 저장</b>을 누릅니다.</li>
+      </ol>
+      <div class="codebox">
+        <textarea id="gs-code-view" readonly spellcheck="false"></textarea>
+        <button type="button" id="gs-copy">코드 복사</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>엑셀(주소록 양식) 내보내기</h2>
+      <p class="desc">전체 명함을 엑셀에서 바로 열리는 주소록 양식(CSV)으로 다운로드합니다.</p>
+      <button type="button" class="btn btn-light" id="csv-btn" style="width:100%">⬇️ 주소록 CSV 다운로드</button>
+    </div>
+
+    <div class="card" id="backend-card">
+      <h2>서버 저장 설정 (Supabase)</h2>
+      <p class="desc" id="backend-desc">명함 데이터를 저장할 테이블이 필요합니다. 처음 한 번만 Supabase → SQL Editor에서 아래 SQL을 실행해 주세요.</p>
+      <div class="codebox">
+        <textarea id="sql-code-view" readonly spellcheck="false"></textarea>
+        <button type="button" id="sql-copy">SQL 복사</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="viewer" id="viewer"><img alt="명함 확대"></div>
+<div class="toast" id="toast"></div>
+
+<!-- ===== Google Apps Script code (복사용) ===== -->
+<script type="text/plain" id="gs-code">
+/* 와이케이메디 명함관리 → 구글시트 주소록 자동 연동 스크립트 */
+var SHEET_NAME = '명함주소록';
+var HEADERS = ['ID','등록일','이름','회사','부서','직함','휴대폰','전화','팩스','이메일','홈페이지','주소','만난 행사/장소','만난 날짜','메모','명함(앞)','명함(뒤)'];
+
+function doGet() {
+  return ContentService.createTextOutput(JSON.stringify({ ok: true, app: 'ykmedi-cards' }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function doPost(e) {
+  var out = { ok: false };
+  try {
+    var body = JSON.parse(e.postData.contents);
+    var sh = getSheet();
+    if (body.action === 'upsert' && body.card) { upsertRow(sh, body.card); out.ok = true; }
+    else if (body.action === 'delete' && body.id) { deleteRow(sh, body.id); out.ok = true; }
+    else if (body.action === 'syncAll' && body.cards) { syncAll(sh, body.cards); out.ok = true; out.count = body.cards.length; }
+    else out.error = 'unknown action';
+  } catch (err) { out.error = String(err); }
+  return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function getSheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(SHEET_NAME) || ss.insertSheet(SHEET_NAME);
+  if (sh.getLastRow() === 0) {
+    sh.appendRow(HEADERS);
+    sh.getRange(1, 1, 1, HEADERS.length).setFontWeight('bold').setBackground('#0e2b4d').setFontColor('#ffffff');
+    sh.setFrozenRows(1);
+    sh.hideColumns(1); // ID 열 숨김
+  }
+  return sh;
+}
+
+function cardToRow(c) {
+  return [c.id||'', c.created_at||'', c.name||'', c.company||'', c.department||'', c.title||'',
+          c.mobile||'', c.phone||'', c.fax||'', c.email||'', c.website||'', c.address||'',
+          c.met_event||'', c.met_date||'', c.memo||'', c.front_url||'', c.back_url||''];
+}
+
+function findRowById(sh, id) {
+  var last = sh.getLastRow();
+  if (last < 2) return -1;
+  var ids = sh.getRange(2, 1, last - 1, 1).getValues();
+  for (var i = 0; i < ids.length; i++) if (String(ids[i][0]) === String(id)) return i + 2;
+  return -1;
+}
+
+function upsertRow(sh, card) {
+  var row = findRowById(sh, card.id);
+  var values = cardToRow(card);
+  if (row === -1) sh.appendRow(values);
+  else sh.getRange(row, 1, 1, values.length).setValues([values]);
+}
+
+function deleteRow(sh, id) {
+  var row = findRowById(sh, id);
+  if (row !== -1) sh.deleteRow(row);
+}
+
+function syncAll(sh, cards) {
+  var last = sh.getLastRow();
+  if (last > 1) sh.getRange(2, 1, last - 1, HEADERS.length).clearContent();
+  if (!cards.length) return;
+  var rows = cards.map(cardToRow);
+  sh.getRange(2, 1, rows.length, HEADERS.length).setValues(rows);
+}
+</script>
+
+<!-- ===== Supabase table SQL (복사용) ===== -->
+<script type="text/plain" id="sql-code">
+-- 명함관리 테이블 (Supabase SQL Editor에서 1회 실행)
+create table if not exists public.business_cards (
+  id uuid primary key,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  name text, company text, department text, title text,
+  mobile text, phone text, fax text, email text,
+  website text, address text,
+  met_event text, met_date text, memo text,
+  front_url text, back_url text, ocr_text text
+);
+
+alter table public.business_cards enable row level security;
+
+-- 로그인(관리자) 계정만 읽기/쓰기 가능
+create policy "cards auth select" on public.business_cards
+  for select to authenticated using (true);
+create policy "cards auth insert" on public.business_cards
+  for insert to authenticated with check (true);
+create policy "cards auth update" on public.business_cards
+  for update to authenticated using (true);
+create policy "cards auth delete" on public.business_cards
+  for delete to authenticated using (true);
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="site/supabase-config.js"></script>
+<script src="site/cards.js"></script>
+</body>
+</html>
