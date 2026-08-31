@@ -78,6 +78,12 @@
   .csum { padding: 10px 12px; border-top: 2px solid var(--line); background: #f8fafc; }
   .csum .l { display: flex; justify-content: space-between; font-size: 12px; padding: 2px 0; }
   .csum .l b { font-variant-numeric: tabular-nums; }
+  .ptabs { display: flex; border-bottom: 1px solid var(--line); }
+  .ptabs button { flex: 1; border: 0; border-radius: 0; background: #fff; padding: 9px 4px; font-size: 12.5px; font-weight: 700; color: #667; cursor: pointer; }
+  .ptabs button.on { color: var(--blue); box-shadow: inset 0 -2px 0 var(--blue); background: #f6f9ff; }
+  .crow .filtreq { cursor: pointer; border: 1px solid #c7d2fe; background: #eef2ff; color: #3730a3; border-radius: 6px; font-size: 10px; font-weight: 700; padding: 4px 6px; white-space: nowrap; line-height: 1.2; }
+  .crow .filtreq:hover { background: #dbe3ff; border-color: #a5b4fc; }
+  .crow.sw { grid-template-columns: 22px 1fr auto auto; }
   table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
   th { position: sticky; top: 0; background: var(--blue); color: #fff; padding: 8px 10px; text-align: left; white-space: nowrap; font-weight: 600; cursor: pointer; }
   th:hover { background: var(--blue-dark); }
@@ -173,9 +179,14 @@
       </div>
     </div>
     <aside class="rpanel" id="makerPanel">
-      <div class="panel-head">🏭 보유 제조회사<span class="sub" id="makerSub"></span></div>
+      <div class="panel-head"><span id="makerTitle">🏭 제약사</span><span class="sub" id="makerSub"></span></div>
+      <div class="ptabs">
+        <button id="tabOwn" class="on">보유 제조회사</button>
+        <button id="tabSwitch">스위칭 제약사</button>
+      </div>
       <div class="ptools">
-        <div class="row"><input type="search" id="makerSearch" placeholder="제조회사 검색…"></div>
+        <div class="row" id="pharmNameRow" style="display:none"><input type="search" id="pharmName" placeholder="약국(거래처)명 — 필터링요청에 기재됩니다"></div>
+        <div class="row"><input type="search" id="makerSearch" placeholder="제약사 검색…"></div>
         <div class="row">
           <span class="mini">정렬</span>
           <div class="seg" id="makerSortSeg">
@@ -487,13 +498,73 @@
 
     initColVis();
     buildColPanel();
+    state.makerCol = rateMakerCol();
+    makerState.swChecked = {};
+    try { $('pharmName').value = localStorage.getItem('dt_pharm_name') || ''; } catch (e) {}
     buildHead();
     renderMakers();
     drawRows();
   }
 
   /* ---- 우측 제조회사 패널 (정산내역서 양식) ---- */
-  var makerState = { checked: {}, sort: 'amt', dir: -1, q: '', focus: -1, view: [] };
+  var makerState = { tab: 'own', checked: {}, swChecked: {}, sort: 'amt', dir: -1, q: '', focus: -1, view: [] };
+
+  function currentChecked() { return makerState.tab === 'own' ? makerState.checked : makerState.swChecked; }
+
+  /* 요율표의 제약사명 열 인덱스 */
+  function rateMakerCol() {
+    var h = state.rateParsed.header;
+    for (var j = 0; j < h.length; j++) {
+      var n = String(h[j]).replace(/\s/g, '');
+      if (n === '제약사명' || n === '제약사' || n === '제조사' || n === '업체명' || n === '회사명' || n === '판매사') return j;
+    }
+    return -1;
+  }
+
+  /* 스위칭 제약사 집계: 대체가능 행을 후보 제약사별로 묶어
+     스위칭 대상 처방금액(보유품목 조제금액 합)과 전량 대체 시 인센티브(품목별 최적 후보 기준) 계산 */
+  function switchAggs() {
+    var mcol = state.makerCol;
+    var m = {};
+    state.result.outRows.forEach(function (x) {
+      if (x.kind !== '대체가능') return;
+      var comp = mcol >= 0 ? String(x.cells[mcol] === undefined ? '' : x.cells[mcol]).trim() : '';
+      if (!comp) comp = '(제약사 미상)';
+      if (!m[comp]) m[comp] = { name: comp, helds: {}, cnt: 0, amt: 0, inc: 0 };
+      var h = m[comp].helds[x.pName];
+      var incTotal = x.incentive > 0 ? Math.round(x.incentive * x.pQty) : 0;
+      if (!h) m[comp].helds[x.pName] = { amt: x.pAmt, inc: incTotal };
+      else if (incTotal > h.inc) h.inc = incTotal;
+    });
+    var arr = Object.keys(m).map(function (k) {
+      var a = m[k];
+      for (var hk in a.helds) { a.cnt++; a.amt += a.helds[hk].amt; a.inc += a.helds[hk].inc; }
+      return a;
+    });
+    arr.sort(function (a, b) {
+      var k = makerState.sort, va = a[k], vb = b[k];
+      if (k === 'name') return (va < vb ? -1 : va > vb ? 1 : 0) * -makerState.dir;
+      if (k === 'qty') { va = a.inc; vb = b.inc; }
+      return (va - vb) * makerState.dir;
+    });
+    return arr;
+  }
+
+  /* 필터링요청 — 정산내역서와 같은 /api/availability 접수 */
+  function openFilterReq(comp) {
+    var name = ($('pharmName').value || '').trim();
+    if (!name) { alert('먼저 패널 상단에 약국(거래처)명을 입력해주세요.'); $('pharmName').focus(); return; }
+    try { localStorage.setItem('dt_pharm_name', name); } catch (e) {}
+    if (!confirm('필터링요청을 접수할까요?\n· 거래처: ' + name + '\n· 제약사: ' + comp)) return;
+    fetch('/api/availability', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category: '필터링', name: name, bizNo: '', vendor: comp, note: '대체조제 스위칭 검토(대체조제 매핑 도구)' })
+    }).then(function (r) { return r.json().catch(function () { return {}; }); })
+      .then(function (d) {
+        if (d && d.ok) alert('✅ 필터링요청 접수됨\n· 거래처: ' + name + '\n· 제약사: ' + comp);
+        else alert('요청 실패: ' + ((d && d.error) || '영업포털(yk-marketing)에 로그인된 상태에서만 접수됩니다.'));
+      }).catch(function () { alert('요청 실패: 영업포털(yk-marketing) 사이트에서 열었을 때만 접수할 수 있습니다.'); });
+  }
 
   function makerAggs() {
     var m = {};
@@ -516,6 +587,15 @@
     return Object.keys(makerState.checked).filter(function (k) { return makerState.checked[k]; });
   }
   function renderMakers() {
+    if (makerState.tab === 'own') renderOwnList(); else renderSwitchList();
+    $('makerPanel').classList.add('show');
+    var f = $('makerList').querySelector('.kfocus');
+    if (f) f.scrollIntoView({ block: 'nearest' });
+  }
+
+  function renderOwnList() {
+    $('makerTitle').textContent = '🏭 보유 제조회사';
+    $('pharmNameRow').style.display = 'none';
     var aggs = makerAggs();
     var list = $('makerList'); list.innerHTML = '';
     var q = makerState.q.toLowerCase();
@@ -550,9 +630,53 @@
       + '<div class="l" style="color:var(--blue)"><span>총 조제금액</span><b>₩' + Math.round(tA).toLocaleString('ko-KR') + '</b></div>'
       + '<div class="l"><span>대체가능 품목</span><b>' + tSC.toLocaleString('ko-KR') + '품목 · ₩' + Math.round(tSA).toLocaleString('ko-KR') + '</b></div>'
       + '<div class="l" style="color:var(--ok)"><span>전체 저가대체 시 인센티브</span><b>₩' + Math.round(tI).toLocaleString('ko-KR') + '</b></div>';
-    $('makerPanel').classList.add('show');
-    var f = list.querySelector('.kfocus');
-    if (f) f.scrollIntoView({ block: 'nearest' });
+  }
+
+  function renderSwitchList() {
+    $('makerTitle').textContent = '🔄 스위칭 제약사';
+    $('pharmNameRow').style.display = '';
+    var aggs = switchAggs();
+    var list = $('makerList'); list.innerHTML = '';
+    var q = makerState.q.toLowerCase();
+    var view = aggs.filter(function (a) { return !q || a.name.toLowerCase().indexOf(q) !== -1; });
+    makerState.view = view;
+    if (makerState.focus >= view.length) makerState.focus = view.length - 1;
+    if (makerState.focus < 0 && view.length) makerState.focus = 0;
+    view.forEach(function (a, ri) {
+      var on = !!makerState.swChecked[a.name];
+      var div = document.createElement('div');
+      div.className = 'crow sw' + (on ? ' on' : '') + (ri === makerState.focus ? ' kfocus' : '');
+      div.innerHTML = '<input type="checkbox"' + (on ? ' checked' : '') + '>'
+        + '<div class="cname">' + esc(a.name) + '</div>'
+        + '<div class="camt"><b>₩' + Math.round(a.amt).toLocaleString('ko-KR') + '</b>'
+        + '<span>' + a.cnt + '품목 · 인센 ₩' + Math.round(a.inc).toLocaleString('ko-KR') + '</span></div>'
+        + '<button class="filtreq" title="이 제약사로 스위칭 검토 — 필터링요청 접수">필터링요청</button>';
+      div.onclick = function (e) {
+        if (e.target.closest('.filtreq')) { openFilterReq(a.name); return; }
+        makerState.focus = ri;
+        makerState.swChecked[a.name] = !makerState.swChecked[a.name];
+        renderMakers(); drawRows();
+      };
+      list.appendChild(div);
+    });
+    var sel = Object.keys(makerState.swChecked).filter(function (k) { return makerState.swChecked[k]; });
+    $('makerSub').textContent = aggs.length + '곳' + (sel.length ? ' / 선택 ' + sel.length : '');
+    var use = sel.length ? aggs.filter(function (a) { return makerState.swChecked[a.name]; }) : aggs;
+    /* 같은 보유품목이 여러 회사에 걸치므로 품목 기준으로 중복 제거해 합산 */
+    var union = {};
+    use.forEach(function (a) {
+      for (var hk in a.helds) {
+        var h = a.helds[hk];
+        if (!union[hk]) union[hk] = { amt: h.amt, inc: h.inc };
+        else if (h.inc > union[hk].inc) union[hk].inc = h.inc;
+      }
+    });
+    var tC = 0, tA = 0, tI = 0;
+    for (var uk in union) { tC++; tA += union[uk].amt; tI += union[uk].inc; }
+    $('makerSum').innerHTML =
+      '<div class="l"><span>' + (sel.length ? '선택 회사' : '전체') + ' 스위칭 대상 품목</span><b>' + tC.toLocaleString('ko-KR') + '</b></div>'
+      + '<div class="l" style="color:var(--blue)"><span>대상 처방(조제)금액</span><b>₩' + Math.round(tA).toLocaleString('ko-KR') + '</b></div>'
+      + '<div class="l" style="color:var(--ok)"><span>전량 스위칭 시 인센티브(최적)</span><b>₩' + Math.round(tI).toLocaleString('ko-KR') + '</b></div>';
   }
 
   /* ↑↓ = 포커스 이동, Space = 체크 토글 (정산내역서와 동일) */
@@ -573,9 +697,24 @@
       var a = makerState.view[makerState.focus];
       if (!a) return;
       e.preventDefault();
-      makerState.checked[a.name] = !makerState.checked[a.name];
+      var set = currentChecked();
+      set[a.name] = !set[a.name];
       renderMakers(); drawRows();
     }
+  });
+
+  $('tabOwn').addEventListener('click', function () {
+    makerState.tab = 'own'; makerState.focus = 0;
+    this.classList.add('on'); $('tabSwitch').classList.remove('on');
+    renderMakers();
+  });
+  $('tabSwitch').addEventListener('click', function () {
+    makerState.tab = 'switch'; makerState.focus = 0;
+    this.classList.add('on'); $('tabOwn').classList.remove('on');
+    renderMakers();
+  });
+  $('pharmName').addEventListener('change', function () {
+    try { localStorage.setItem('dt_pharm_name', this.value.trim()); } catch (e) {}
   });
   $('makerSearch').addEventListener('input', function () { makerState.q = this.value.trim(); renderMakers(); });
   $('makerSortSeg').addEventListener('click', function (e) {
@@ -591,11 +730,12 @@
     renderMakers();
   });
   $('makerAll').addEventListener('click', function () {
-    makerAggs().forEach(function (a) { makerState.checked[a.name] = true; });
+    var set = currentChecked();
+    (makerState.tab === 'own' ? makerAggs() : switchAggs()).forEach(function (a) { set[a.name] = true; });
     renderMakers(); drawRows();
   });
   $('makerNone').addEventListener('click', function () {
-    makerState.checked = {};
+    if (makerState.tab === 'own') makerState.checked = {}; else makerState.swChecked = {};
     renderMakers(); drawRows();
   });
 
@@ -716,6 +856,8 @@
     var kind = $('fKind').value, ing = $('fIng').value;
     var showLow = $('cLow').checked, showSame = $('cSame').checked, showHigh = $('cHigh').checked;
     var anyMaker = checkedMakers().length > 0;
+    var anySw = Object.keys(makerState.swChecked).some(function (k) { return makerState.swChecked[k]; });
+    var mcol = state.makerCol;
     var rows = sortedRows();
     var tb = $('tbl').querySelector('tbody'), html = [], shown = 0;
     for (var i = 0; i < rows.length && shown < 2000; i++) {
@@ -726,6 +868,11 @@
       if (x.cmp === '동일' && !showSame) continue;
       if (x.cmp === '높음' && !showHigh) continue;
       if (anyMaker && !makerState.checked[x.pMaker || '(제조사 미상)']) continue;
+      if (anySw) {
+        if (x.kind !== '대체가능') continue;
+        var comp = mcol >= 0 ? String(x.cells[mcol] === undefined ? '' : x.cells[mcol]).trim() : '(제약사 미상)';
+        if (!makerState.swChecked[comp || '(제약사 미상)']) continue;
+      }
       if (q) {
         var hay = (x.ing + ' ' + x.pName + ' ' + x.pMaker + ' ' + x.cells.join(' ')).toLowerCase();
         if (hay.indexOf(q) === -1) continue;
