@@ -391,11 +391,12 @@
       return {
         text: f.raw_text || '',
         parsed: {
-          name: f.name || '', company: f.company || '', department: f.department || '',
-          title: f.title || '', mobile: f.mobile || '', phone: f.phone || '',
-          fax: f.fax || '', email: f.email || '', website: f.website || '',
-          address: f.address || ''
+          name: f.name || '', name_en: f.name_en || '', company: f.company || '',
+          department: f.department || '', title: f.title || '', mobile: f.mobile || '',
+          phone: f.phone || '', fax: f.fax || '', email: f.email || '',
+          website: f.website || '', address: f.address || '', country: f.country || ''
         },
+        extraMemo: f.extra || '',
         engine: 'ai'
       };
     });
@@ -423,6 +424,8 @@
     run.then(function (r) {
       state.ocrText = r.text;
       var filled = applyParsed(r.parsed);
+      // 명함 뒷면·부가정보(공장 전화, 지점 등)는 메모가 비어 있을 때만 채움
+      if (r.extraMemo && !$('c-memo').value.trim()) { $('c-memo').value = r.extraMemo; filled++; }
       stEl.textContent = (r.engine === 'ai' ? '✨ AI 정밀 인식 완료' : '인식 완료') + ' — 자동으로 채운 내용을 꼭 확인해 주세요.';
       toast(filled ? '자동인식 완료! 내용을 확인해 주세요.' : '글자를 인식했지만 항목을 찾지 못했습니다. 직접 입력해 주세요.');
     }).catch(function (err) {
@@ -530,7 +533,7 @@
     return out;
   }
 
-  var FIELD_IDS = { name: 'c-name', company: 'c-company', department: 'c-department', title: 'c-title', mobile: 'c-mobile', phone: 'c-phone', fax: 'c-fax', email: 'c-email', website: 'c-website', address: 'c-address' };
+  var FIELD_IDS = { name: 'c-name', name_en: 'c-name-en', company: 'c-company', department: 'c-department', title: 'c-title', mobile: 'c-mobile', phone: 'c-phone', fax: 'c-fax', email: 'c-email', website: 'c-website', address: 'c-address', country: 'c-country' };
 
   function applyParsed(parsed) {
     var filled = 0;
@@ -586,12 +589,28 @@
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
+  function normMobile(v) { return String(v || '').replace(/[^\d]/g, ''); }
+  function normEmail(v) { return String(v || '').trim().toLowerCase(); }
+  // email 또는 mobile이 같은 다른 명함 (인수인계 사양: 경고만 하고 저장은 허용)
+  function findDuplicate(form, excludeId) {
+    var em = normEmail(form.email), mo = normMobile(form.mobile);
+    if (!em && !mo) return null;
+    for (var i = 0; i < state.cards.length; i++) {
+      var c = state.cards[i];
+      if (c.id === excludeId) continue;
+      if ((em && normEmail(c.email) === em) || (mo && normMobile(c.mobile) === mo)) return c;
+    }
+    return null;
+  }
+
   function saveCard() {
     var form = readForm();
     if (!form.name && !form.company && !state.shots.front.url) {
       toast('이름, 회사명 또는 명함 사진 중 하나는 필요합니다.');
       return;
     }
+    var dup = findDuplicate(form, state.editingId);
+    if (dup && !confirm('같은 이메일/휴대폰의 명함이 이미 있습니다: ' + (dup.name || dup.company || '(이름 없음)') + '\n그래도 저장할까요?')) return;
     var btn = $('save-btn');
     btn.disabled = true; btn.textContent = '저장 중...';
 
@@ -689,7 +708,7 @@
     var list = state.cards.filter(function (c) {
       if (ev && (c.met_event || '') !== ev) return false;
       if (!q) return true;
-      var hay = [c.name, c.company, c.department, c.title, c.mobile, c.phone, c.email, c.memo, c.met_event].join(' ').toLowerCase();
+      var hay = [c.name, c.name_en, c.company, c.department, c.title, c.mobile, c.phone, c.email, c.memo, c.met_event, c.country].join(' ').toLowerCase();
       return hay.indexOf(q) !== -1;
     });
 
@@ -747,9 +766,10 @@
   function sheetCardPayload(c) {
     return {
       id: c.id, created_at: fmtDateTime(c.created_at),
-      name: c.name || '', company: c.company || '', department: c.department || '', title: c.title || '',
+      name: c.name || '', name_en: c.name_en || '', company: c.company || '',
+      department: c.department || '', title: c.title || '',
       mobile: c.mobile || '', phone: c.phone || '', fax: c.fax || '', email: c.email || '',
-      website: c.website || '', address: c.address || '',
+      website: c.website || '', address: c.address || '', country: c.country || '',
       met_event: c.met_event || '', met_date: c.met_date || '', memo: c.memo || '',
       front_url: looksLikeUrl(c.front_url) ? c.front_url : '',
       back_url: looksLikeUrl(c.back_url) ? c.back_url : ''
@@ -847,23 +867,149 @@
      ========================================================= */
   $('csv-btn').addEventListener('click', function () {
     if (!state.cards.length) { toast('내보낼 명함이 없습니다.'); return; }
-    var headers = ['등록일', '이름', '회사', '부서', '직함', '휴대폰', '전화', '팩스', '이메일', '홈페이지', '주소', '만난 행사/장소', '만난 날짜', '메모', '명함(앞)', '명함(뒤)'];
+    var headers = ['등록일', '이름', '영문이름', '회사', '부서', '직함', '휴대폰', '전화', '팩스', '이메일', '홈페이지', '주소', '국가', '만난 행사/장소', '만난 날짜', '메모', '명함(앞)', '명함(뒤)'];
     function cell(v) {
       v = String(v == null ? '' : v);
       return '"' + v.replace(/"/g, '""') + '"';
     }
     var rows = state.cards.map(function (c) {
       var p = sheetCardPayload(c);
-      return [p.created_at, p.name, p.company, p.department, p.title, p.mobile, p.phone, p.fax, p.email, p.website, p.address, p.met_event, p.met_date, p.memo, p.front_url, p.back_url].map(cell).join(',');
+      return [p.created_at, p.name, p.name_en, p.company, p.department, p.title, p.mobile, p.phone, p.fax, p.email, p.website, p.address, p.country, p.met_event, p.met_date, p.memo, p.front_url, p.back_url].map(cell).join(',');
     });
     var csv = '\ufeff' + headers.map(cell).join(',') + '\r\n' + rows.join('\r\n');
-    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    downloadFile('명함주소록_' + todayStr().replace(/-/g, '') + '.csv', new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    toast('CSV 다운로드를 시작했습니다.');
+  });
+
+  function downloadFile(name, blob) {
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = '명함주소록_' + todayStr().replace(/-/g, '') + '.csv';
+    a.download = name;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 3000);
-    toast('CSV 다운로드를 시작했습니다.');
+  }
+
+  /* =========================================================
+     vCard 내보내기 (휴대폰 연락처 일괄 등록용)
+     ========================================================= */
+  $('vcf-btn').addEventListener('click', function () {
+    if (!state.cards.length) { toast('내보낼 명함이 없습니다.'); return; }
+    function ve(v) {
+      return String(v == null ? '' : v)
+        .replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+    }
+    var vcf = state.cards.map(function (c) {
+      var fn = c.name || c.name_en || c.company || '(이름 없음)';
+      var L = ['BEGIN:VCARD', 'VERSION:3.0', 'N:' + ve(fn) + ';;;;', 'FN:' + ve(fn)];
+      if (c.company || c.department) L.push('ORG:' + ve(c.company || '') + (c.department ? ';' + ve(c.department) : ''));
+      if (c.title) L.push('TITLE:' + ve(c.title));
+      if (c.mobile) L.push('TEL;TYPE=CELL:' + ve(c.mobile));
+      if (c.phone) L.push('TEL;TYPE=WORK:' + ve(c.phone));
+      if (c.fax) L.push('TEL;TYPE=FAX:' + ve(c.fax));
+      if (c.email) L.push('EMAIL;TYPE=WORK:' + ve(c.email));
+      if (c.website) L.push('URL:' + ve(c.website));
+      if (c.address) L.push('ADR;TYPE=WORK:;;' + ve(c.address) + ';;;;');
+      var notes = [];
+      if (c.name_en && c.name_en !== fn) notes.push('영문명: ' + c.name_en);
+      if (c.country) notes.push('국가: ' + c.country);
+      if (c.met_event) notes.push('만남: ' + c.met_event + (c.met_date ? ' (' + c.met_date + ')' : ''));
+      if (c.memo) notes.push(c.memo);
+      if (notes.length) L.push('NOTE:' + ve(notes.join('\n')));
+      L.push('END:VCARD');
+      return L.join('\r\n');
+    }).join('\r\n');
+    downloadFile('명함주소록_' + todayStr().replace(/-/g, '') + '.vcf', new Blob([vcf], { type: 'text/vcard;charset=utf-8' }));
+    toast('vCard 다운로드 시작 — 휴대폰에서 열면 연락처로 등록됩니다.');
+  });
+
+  /* =========================================================
+     JSON 가져오기 (구 명함관리 단일 HTML 도구 백업 / 본 앱 데이터)
+     구 도구 카드 구조: {name(로마자), nameLocal(한글), tel, tags[], thumb, createdAt ...}
+     ========================================================= */
+  function mapImportedCard(o) {
+    var isOldTool = o.nameLocal !== undefined || o.tel !== undefined || o.thumb !== undefined;
+    var name, nameEn;
+    if (isOldTool) {
+      name = o.nameLocal || o.name || '';
+      nameEn = (o.nameLocal && o.name) ? o.name : '';
+    } else {
+      name = o.name || '';
+      nameEn = o.name_en || '';
+    }
+    var memo = [
+      o.memo || '',
+      (o.tags && o.tags.length) ? '[태그] ' + o.tags.join(', ') : ''
+    ].filter(Boolean).join('\n');
+    return {
+      id: uuid(), // 구 도구의 id는 uuid가 아닐 수 있어 새로 발급
+      created_at: o.createdAt || o.created_at || new Date().toISOString(),
+      name: name, name_en: nameEn,
+      company: o.company || '', department: o.department || '', title: o.title || '',
+      mobile: o.mobile || '', phone: isOldTool ? (o.tel || '') : (o.phone || ''),
+      fax: o.fax || '', email: o.email || '', website: o.website || '',
+      address: o.address || '', country: o.country || '',
+      met_event: o.met_event || '', met_date: o.met_date || '',
+      memo: memo,
+      front_url: o.front_url || o.thumb || '', back_url: o.back_url || '',
+      ocr_text: o.ocr_text || ''
+    };
+  }
+
+  var importInput = $('import-json');
+  if (importInput) importInput.addEventListener('change', function () {
+    var f = importInput.files[0];
+    importInput.value = '';
+    if (!f) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      var arr;
+      try {
+        var j = JSON.parse(reader.result);
+        arr = Array.isArray(j) ? j : (j.cards || []);
+      } catch (e) { toast('JSON 파일을 읽을 수 없습니다.'); return; }
+      if (!arr.length) { toast('가져올 명함이 없습니다.'); return; }
+
+      var emails = {}, mobiles = {};
+      state.cards.forEach(function (c) {
+        var em = normEmail(c.email), mo = normMobile(c.mobile);
+        if (em) emails[em] = true;
+        if (mo) mobiles[mo] = true;
+      });
+
+      toast('가져오는 중... (' + arr.length + '건)');
+      var useLocal = !sb || state.tableMissing;
+      var repo = useLocal ? localRepo : sbRepo;
+      var imported = 0, skipped = 0, failed = 0;
+      var chain = Promise.resolve();
+      arr.forEach(function (o) {
+        chain = chain.then(function () {
+          var card = mapImportedCard(o);
+          var em = normEmail(card.email), mo = normMobile(card.mobile);
+          if ((em && emails[em]) || (mo && mobiles[mo])) { skipped++; return; }
+          if (useLocal) card._local = true;
+          return repo.save(card).catch(function (err) {
+            if (!useLocal && isMissingTable(err)) state.tableMissing = true;
+            card._local = true;
+            return localRepo.save(card);
+          }).then(function () {
+            if (em) emails[em] = true;
+            if (mo) mobiles[mo] = true;
+            upsertLocalState(card);
+            imported++;
+          }, function () { failed++; });
+        });
+      });
+      chain.then(function () {
+        renderList();
+        toast('가져오기 완료: ' + imported + '건 추가, 중복 ' + skipped + '건 제외' + (failed ? ', 실패 ' + failed + '건' : ''));
+        if (imported && state.settings.sheetUrl && confirm('가져온 명함을 구글시트에도 반영할까요? (전체 동기화)')) {
+          sheetPost({ action: 'syncAll', cards: state.cards.map(sheetCardPayload) })
+            .then(function () { toast('시트 동기화 완료'); })
+            .catch(function (err) { toast('시트 동기화 실패: ' + (err.message || err)); });
+        }
+      });
+    };
+    reader.readAsText(f);
   });
 
   /* ---------- 코드 복사 ---------- */

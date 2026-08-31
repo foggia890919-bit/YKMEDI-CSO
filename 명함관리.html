@@ -220,6 +220,8 @@ button{font-family:inherit;cursor:pointer}
       <div class="fgrid">
         <div class="f"><label>이름 *</label><input id="c-name" placeholder="홍길동"></div>
         <div class="f"><label>직함</label><input id="c-title" placeholder="대표 / 부장 / 약사 ..."></div>
+        <div class="f"><label>영문이름 <span class="hint">외국 명함·로마자</span></label><input id="c-name-en" placeholder="Gildong Hong"></div>
+        <div class="f"><label>국가</label><input id="c-country" placeholder="한국 / 중국 / 인도 ..."></div>
         <div class="f"><label>회사명</label><input id="c-company" placeholder="(주)OO제약"></div>
         <div class="f"><label>부서</label><input id="c-department" placeholder="영업1팀"></div>
         <div class="f"><label>휴대폰</label><input id="c-mobile" type="tel" placeholder="010-0000-0000"></div>
@@ -302,9 +304,15 @@ button{font-family:inherit;cursor:pointer}
     </div>
 
     <div class="card">
-      <h2>엑셀(주소록 양식) 내보내기</h2>
-      <p class="desc">전체 명함을 엑셀에서 바로 열리는 주소록 양식(CSV)으로 다운로드합니다.</p>
-      <button type="button" class="btn btn-light" id="csv-btn" style="width:100%">⬇️ 주소록 CSV 다운로드</button>
+      <h2>가져오기 · 내보내기</h2>
+      <p class="desc">엑셀용 CSV, 휴대폰 연락처용 vCard로 내보내거나, 이전 명함관리 도구의 JSON 백업을 가져옵니다. (가져오기 시 이메일·휴대폰이 같은 명함은 자동으로 중복 제외)</p>
+      <div class="btnrow">
+        <button type="button" class="btn btn-light" id="csv-btn">⬇️ CSV (엑셀)</button>
+        <button type="button" class="btn btn-light" id="vcf-btn">📇 vCard (연락처)</button>
+      </div>
+      <div class="btnrow">
+        <label class="btn btn-light" style="flex:1;cursor:pointer">📥 JSON 백업 가져오기<input type="file" id="import-json" accept=".json,application/json" hidden></label>
+      </div>
     </div>
 
     <div class="card" id="backend-card">
@@ -325,7 +333,7 @@ button{font-family:inherit;cursor:pointer}
 <script type="text/plain" id="gs-code">
 /* 와이케이메디 명함관리 → 구글시트 주소록 자동 연동 스크립트 */
 var SHEET_NAME = '명함주소록';
-var HEADERS = ['ID','등록일','이름','회사','부서','직함','휴대폰','전화','팩스','이메일','홈페이지','주소','만난 행사/장소','만난 날짜','메모','명함(앞)','명함(뒤)'];
+var HEADERS = ['ID','등록일','이름','영문이름','회사','부서','직함','휴대폰','전화','팩스','이메일','홈페이지','주소','국가','만난 행사/장소','만난 날짜','메모','명함(앞)','명함(뒤)'];
 
 function doGet() {
   return ContentService.createTextOutput(JSON.stringify({ ok: true, app: 'ykmedi-cards' }))
@@ -358,8 +366,8 @@ function getSheet() {
 }
 
 function cardToRow(c) {
-  return [c.id||'', c.created_at||'', c.name||'', c.company||'', c.department||'', c.title||'',
-          c.mobile||'', c.phone||'', c.fax||'', c.email||'', c.website||'', c.address||'',
+  return [c.id||'', c.created_at||'', c.name||'', c.name_en||'', c.company||'', c.department||'', c.title||'',
+          c.mobile||'', c.phone||'', c.fax||'', c.email||'', c.website||'', c.address||'', c.country||'',
           c.met_event||'', c.met_date||'', c.memo||'', c.front_url||'', c.back_url||''];
 }
 
@@ -401,12 +409,15 @@ create table if not exists public.business_cards (
   user_id uuid not null default auth.uid(),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  name text, company text, department text, title text,
+  name text, name_en text, company text, department text, title text,
   mobile text, phone text, fax text, email text,
-  website text, address text,
+  website text, address text, country text,
   met_event text, met_date text, memo text,
   front_url text, back_url text, ocr_text text
 );
+-- (이미 테이블을 만든 경우) 아래 두 줄만 실행
+-- alter table public.business_cards add column if not exists name_en text;
+-- alter table public.business_cards add column if not exists country text;
 create index if not exists business_cards_user_idx
   on public.business_cards (user_id, created_at desc);
 

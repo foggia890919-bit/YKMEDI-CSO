@@ -8,7 +8,8 @@ import { z } from "npm:zod";
 import { zodOutputFormat } from "npm:@anthropic-ai/sdk/helpers/zod";
 
 const CardFields = z.object({
-  name: z.string().describe("사람 이름 (한글 이름 우선, 없으면 영문)"),
+  name: z.string().describe("사람 이름 — 한글·한자 등 현지 표기 우선, 없으면 로마자"),
+  name_en: z.string().describe("로마자(영문) 이름 — name과 동일 표기면 빈 문자열"),
   company: z.string().describe("회사/기관명"),
   department: z.string().describe("부서/팀"),
   title: z.string().describe("직함/직급"),
@@ -18,6 +19,8 @@ const CardFields = z.object({
   email: z.string().describe("이메일 주소"),
   website: z.string().describe("홈페이지 주소"),
   address: z.string().describe("주소"),
+  country: z.string().describe("국가 (예: 한국, 중국, 인도 — 명함 정보로 판단)"),
+  extra: z.string().describe("명함의 부가 정보 — 추가 연락처, 공장/지점 전화, 인증마크 등 메모할 만한 내용"),
   raw_text: z.string().describe("명함에 보이는 전체 텍스트"),
 });
 
@@ -67,10 +70,11 @@ Deno.serve(async (req) => {
   content.push({
     type: "text",
     text:
-      "위 명함 이미지에서 연락처 정보를 추출해줘. " +
+      "위 명함 이미지에서 연락처 정보를 추출해줘. (사진이 회전되어 있어도 그대로 읽으면 돼) " +
       "읽을 수 없거나 명함에 없는 항목은 빈 문자열로 둬. " +
-      "전화번호는 하이픈(-)으로 구분하고, 국가번호 +82는 0으로 바꿔줘. " +
-      "한글 면과 영문 면이 모두 있으면 한글 정보를 우선하되 이메일·홈페이지는 그대로 적어줘.",
+      "전화번호는 하이픈(-)으로 구분하고, 한국 번호의 국가번호 +82는 0으로 바꿔줘. " +
+      "한글 면과 영문 면이 모두 있으면 병합하되 name은 한글, name_en은 로마자로 나눠 적어줘. " +
+      "뒷면·로고면에서 얻은 부가정보(공장 전화, 부서 메일 등)는 extra에 정리해줘.",
   });
 
   try {
