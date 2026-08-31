@@ -126,18 +126,49 @@ function parsePharmacy(rows, map) {
   return out;
 }
 
+/* 요율표 헤더 탐색: 코드류 열 + (품목명류 또는 성분류) 열이 함께 있는 첫 행.
+   "코드"라고만 적힌 열은 명시적 코드열(보험코드 등)이 없을 때 코드열로 간주(예: 보령). */
+function findRateHeader(rows) {
+  var limit = Math.min(rows.length, 40);
+  for (var i = 0; i < limit; i++) {
+    var row = rows[i] || [];
+    var groups = {}, bareCode = false;
+    for (var j = 0; j < row.length; j++) {
+      var n = String(row[j] === undefined ? '' : row[j]).replace(/\s/g, '');
+      if (n === '코드') bareCode = true;
+      var g = matchGroup(n);
+      if (g >= 0) groups[g] = 1;
+    }
+    var hasCode = false;
+    for (var j2 = 0; j2 < row.length; j2++) {
+      if (aliasGroup(row[j2]) === 0) { hasCode = true; break; }
+    }
+    if ((hasCode || bareCode) && (groups[3] || groups[4])) return i;
+  }
+  return -1;
+}
+
 /* 요율표: 헤더 행과 보험코드 열을 찾아 모든 열을 그대로 유지 */
 function parseRate(rows) {
-  var h = findHeaderRow(rows, ['보험코드', '성분명', '품목명']);
+  var h = findRateHeader(rows);
+  if (h < 0) h = findHeaderRow(rows, ['보험코드', '성분명', '품목명']);
   if (h < 0) throw new Error('요율표에서 헤더(보험코드/성분명/품목명)를 찾지 못했습니다.');
   var header = [];
   for (var j = 0; j < rows[h].length; j++) {
     header.push(String(rows[h][j] === undefined ? '' : rows[h][j]).trim());
   }
-  var cCode = colIndex(header, ['보험코드']);
+  var cCode = colIndex(header, ['보험코드', '표준코드', '품목코드', 'EDI코드', '급여코드']);
+  if (cCode < 0) cCode = exactColIndex(header, ['코드']); /* "코드"만 있으면 그것이 코드열 (예: 보령) */
   if (cCode < 0) throw new Error('요율표에 보험코드 열이 없습니다.');
-  var cRate = exactColIndex(header, ['코드', '요율', '요율(%)']);
-  var cPrice = exactColIndex(header, ['약가', '상한가', '단가']);
+  var RATE_NAMES = ['코드', '요율', '요율(%)', '기본요율', '기본요율(%)', '수수료율', '수수료율(%)', '수수료', '수수료(%)', 'CSO수수료', '지급률', '지급율'];
+  var cRate = exactColIndex(header, RATE_NAMES);
+  if (cRate === cCode) cRate = exactColIndex(header, RATE_NAMES.slice(1)); /* "코드"가 코드열로 쓰였으면 요율 후보에서 제외 */
+  var cPrice = exactColIndex(header, ['약가', '보험약가', '상한가', '보험상한가', '단가', '보험단가', '약가(원)', '기준가', '기준가격']);
+  if (cPrice < 0) {
+    for (var jp = 0; jp < header.length; jp++) {
+      if (matchGroup(header[jp]) === 2 && jp !== cRate && jp !== cCode) { cPrice = jp; break; }
+    }
+  }
   var body = [];
   for (var i = h + 1; i < rows.length; i++) {
     var r = rows[i] || [];
@@ -148,8 +179,39 @@ function parseRate(rows) {
   return { header: header, rows: body, codeCol: cCode, rateCol: cRate, priceCol: cPrice };
 }
 
+/* 열 이름 별칭: 업체마다 요율표 열 이름이 달라도 같은 의미면 매핑 */
+var COL_ALIASES = [
+  ['보험코드', 'EDI코드', 'EDI', 'edi코드', '급여코드', '제품코드', '표준코드', '품목코드'],
+  ['코드', '요율', '요율(%)', '기본요율', '기본요율(%)', '수수료율', '수수료율(%)', '수수료', '수수료(%)', 'CSO수수료', '지급률', '지급율'],
+  ['약가', '보험약가', '상한가', '보험상한가', '단가', '보험단가', '약가(원)'],
+  ['품목명', '제품명', '품명', '상품명', '제품'],
+  ['성분명', '주성분', '성분', '주성분명'],
+  ['제약사명', '제약사', '제조사', '업체명', '회사명', '제조회사', '판매사']
+];
+function aliasGroup(name) {
+  var n = String(name).replace(/\s/g, '');
+  for (var g = 0; g < COL_ALIASES.length; g++) {
+    for (var a = 0; a < COL_ALIASES[g].length; a++) {
+      if (n === COL_ALIASES[g][a]) return g;
+    }
+  }
+  return -1;
+}
+
+/* 느슨한 매칭: 정확 일치가 없으면 포함 여부로 판별 (예: "유니메드 제품명", "주요성분", "기준가") */
+function matchGroup(name) {
+  var n = String(name).replace(/\s/g, '');
+  var g = aliasGroup(n);
+  if (g >= 0) return g;
+  if (n.indexOf('제품명') !== -1 || n.indexOf('품목명') !== -1) return 3;
+  if (n.indexOf('성분') !== -1) return 4;
+  if (n.indexOf('기준가') !== -1 || n.indexOf('상한금액') !== -1) return 2;
+  return -1;
+}
+
 /* 여러 요율표 병합: 첫 번째(기본, 예: 메디펄스)를 그대로 두고,
-   이후 요율표에서는 기본에 없는 보험코드 품목만 추가. 열은 기본 헤더 이름으로 매핑. */
+   이후 요율표에서는 기본에 없는 보험코드 품목만 추가.
+   열은 기본 헤더 이름으로 매핑하되, 이름이 달라도 별칭(요율/수수료율 등)이면 매핑. */
 function mergeRates(parsedList, names) {
   var base = parsedList[0];
   var header = base.header.slice();
@@ -167,12 +229,22 @@ function mergeRates(parsedList, names) {
     var mapIdx = [];
     for (var b = 0; b < base.header.length; b++) {
       var hn = String(base.header[b]).replace(/\s/g, '');
+      var hg = aliasGroup(hn);
       var found = -1;
       for (var j2 = 0; j2 < p.header.length; j2++) {
         if (String(p.header[j2]).replace(/\s/g, '') === hn) { found = j2; break; }
       }
+      if (found < 0 && hg >= 0) {
+        for (var j4 = 0; j4 < p.header.length; j4++) {
+          if (aliasGroup(p.header[j4]) === hg) { found = j4; break; }
+        }
+      }
       mapIdx.push(found);
     }
+    /* 핵심 3열(보험코드/요율/약가)은 각 파일에서 감지된 열 인덱스로 강제 매핑 */
+    if (base.codeCol >= 0 && p.codeCol >= 0) mapIdx[base.codeCol] = p.codeCol;
+    if (base.rateCol >= 0 && p.rateCol >= 0) mapIdx[base.rateCol] = p.rateCol;
+    if (base.priceCol >= 0 && p.priceCol >= 0) mapIdx[base.priceCol] = p.priceCol;
     /* 이전 파일에 이미 있는 코드만 제외 — 같은 파일 안의 중복 행(코드 동일)은 유지 */
     var addedHere = {};
     for (var r2 = 0; r2 < p.rows.length; r2++) {
@@ -180,6 +252,11 @@ function mergeRates(parsedList, names) {
       if (seen[row.code] && !addedHere[row.code]) continue;
       addedHere[row.code] = 1; added++;
       var c2 = mapIdx.map(function (j3) { return j3 >= 0 && row.cells[j3] !== undefined ? row.cells[j3] : ''; });
+      /* 요율 표기 통일: 0.55처럼 소수(비율)로 적힌 요율은 %로 환산 */
+      if (base.rateCol >= 0) {
+        var rv = num(c2[base.rateCol]);
+        if (rv > 0 && rv <= 1.5) c2[base.rateCol] = Math.round(rv * 10000) / 100;
+      }
       c2.push(names[i] || ('추가' + i));
       rows.push({ code: row.code, cells: c2 });
     }

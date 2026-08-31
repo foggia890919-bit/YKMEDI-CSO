@@ -385,8 +385,30 @@
 
   /* 공통요율표 자동 불러오기: ① 실시간 API(드라이브 직접) → ② 월간 자동 생성본(/rates-common.json) */
   function loadCommonRates(j, label) {
-    var parsedList = j.files.map(function (f) { return parseRate(f.rows); });
-    var names = j.files.map(function (f) { return f.name; });
+    /* 서버가 미리 병합해 둔 형식 */
+    if (j.merged) {
+      var m = j.merged;
+      state.rateMerged = {
+        header: m.header, codeCol: m.codeCol, rateCol: m.rateCol, priceCol: m.priceCol,
+        baseCount: m.baseCount || m.rows.length,
+        rows: m.rows.map(function (c) { return { code: normCode(c[m.codeCol]), cells: c }; })
+      };
+      state.rateWb = null;
+      $('rateSheet').style.display = 'none';
+      setStat('sRate', '✓ 공통요율표 ' + state.rateMerged.rows.length.toLocaleString() + '행 로드' + label
+        + (m.names && m.names.length > 1 ? ' — ' + m.names.join(', ') : ''), true);
+      ready();
+      return;
+    }
+    var parsedList = [], names = [], skipped = [];
+    j.files.forEach(function (f) {
+      try {
+        parsedList.push(parseRate(f.rows));
+        names.push(f.name);
+      } catch (e) { skipped.push(f.name); }
+    });
+    if (!parsedList.length) throw new Error('불러온 파일 중 요율표 형식을 인식한 것이 없습니다.');
+    if (skipped.length) label += ' · 형식 미인식 제외: ' + skipped.join(', ');
     state.rateMerged = parsedList.length > 1 ? mergeRates(parsedList, names) : parsedList[0];
     if (parsedList.length === 1) { state.rateMerged.baseCount = state.rateMerged.rows.length; }
     state.rateWb = null;
