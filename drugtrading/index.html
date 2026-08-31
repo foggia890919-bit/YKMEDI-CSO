@@ -158,8 +158,9 @@
       <div class="n"><b id="nPharm">0</b>약국 품목</div>
       <div class="n"><b id="nMatched">0</b>약가파일 매칭</div>
       <div class="n"><b id="nGroups">0</b>동일제형 그룹</div>
-      <div class="n"><b id="nRows">0</b>요율표 대체가능 행</div>
+      <div class="n"><b id="nRows">0</b>정상 대체가능 행</div>
       <div class="n"><b id="nOwn">0</b>보유품목 행</div>
+      <div class="n"><b id="nExc">0</b>예외 행(중단 등)</div>
     </div>
   </div>
 
@@ -174,6 +175,7 @@
     <label class="chk"><input type="checkbox" id="cLow" checked><span class="dot low"></span>약가 낮음(저렴한 대체)</label>
     <label class="chk"><input type="checkbox" id="cSame" checked><span class="dot same"></span>동일</label>
     <label class="chk"><input type="checkbox" id="cHigh" checked><span class="dot high"></span>높음</label>
+    <label class="chk"><input type="checkbox" id="cExc"><span class="dot" style="background:var(--warn)"></span>예외 품목 표시(중단·정산불가·가격미상 등)</label>
   </div>
   <details class="colpanel" id="colPanel">
     <summary>👁 표시할 열 선택 (체크 해제하면 숨김)</summary>
@@ -500,8 +502,9 @@
     $('nPharm').textContent = r.pharm.length;
     $('nMatched').textContent = matched;
     $('nGroups').textContent = Object.keys(groups).length;
-    $('nRows').textContent = r.outRows.length;
+    $('nRows').textContent = r.outRows.filter(function (x) { return x.kind === '대체가능' && x.status === '정상'; }).length;
     $('nOwn').textContent = r.outRows.filter(function (x) { return x.kind === '보유품목'; }).length;
+    $('nExc').textContent = r.outRows.filter(function (x) { return x.status !== '정상'; }).length;
     $('summary').style.display = 'block';
     $('filters').style.display = 'flex';
     $('tablewrap').style.display = 'block';
@@ -550,7 +553,7 @@
     var mcol = state.makerCol;
     var m = {};
     state.result.outRows.forEach(function (x) {
-      if (x.kind !== '대체가능') return;
+      if (x.kind !== '대체가능' || x.status !== '정상') return;
       if (anyOwn && !makerState.checked[x.pMaker || '(제조사 미상)']) return;
       var comp = mcol >= 0 ? String(x.cells[mcol] === undefined ? '' : x.cells[mcol]).trim() : '';
       if (!comp) comp = '(제약사 미상)';
@@ -890,6 +893,7 @@
     return [
       { label: '주성분명', key: 'ing', str: true },
       { label: '구분', key: 'kind', str: true },
+      { label: '품목상태', key: 'status', str: true },
       { label: '약국 보유약품', key: 'pName', str: true },
       { label: '보유 제조회사', key: 'pMaker', str: true },
       { label: '조제량', key: 'pQty' },
@@ -1004,6 +1008,7 @@
     var q = $('q').value.trim().toLowerCase();
     var kind = $('fKind').value, ing = $('fIng').value;
     var showLow = $('cLow').checked, showSame = $('cSame').checked, showHigh = $('cHigh').checked;
+    var showExc = $('cExc').checked;
     var anyMaker = checkedMakers().length > 0;
     var anySw = Object.keys(makerState.swChecked).some(function (k) { return makerState.swChecked[k]; });
     var mcol = state.makerCol;
@@ -1013,6 +1018,7 @@
       var x = rows[i];
       if (kind && x.kind !== kind) continue;
       if (ing && x.ing !== ing) continue;
+      if (!showExc && x.status !== '정상') continue;
       if (x.cmp === '낮음' && !showLow) continue;
       if (x.cmp === '동일' && !showSame) continue;
       if (x.cmp === '높음' && !showHigh) continue;
@@ -1032,6 +1038,7 @@
       var frontTd = {
         ing: '<td>' + esc(x.ing) + '</td>',
         kind: '<td>' + badge + '</td>',
+        status: x.status === '정상' ? '<td>정상</td>' : '<td style="color:var(--warn);font-weight:700">' + esc(x.status) + '</td>',
         pName: '<td>' + esc(x.pName) + '</td>',
         pMaker: '<td>' + esc(x.pMaker) + '</td>',
         basePrice: '<td class="num">' + fmt(x.basePrice) + '</td>',
@@ -1053,17 +1060,17 @@
     }
     tb.innerHTML = html.join('');
   }
-  ['q', 'fKind', 'fIng', 'cLow', 'cSame', 'cHigh'].forEach(function (id) { $(id).addEventListener('input', drawRows); });
+  ['q', 'fKind', 'fIng', 'cLow', 'cSame', 'cHigh', 'cExc'].forEach(function (id) { $(id).addEventListener('input', drawRows); });
 
   $('btnDown').addEventListener('click', function () {
     var r = state.result; if (!r) return;
     var wb = XLSX.utils.book_new();
 
-    var head1 = ['주성분코드(동일제형)', '주성분명', '구분', '약국 보유약품', '보유 제조회사', '조제량', '조제금액',
+    var head1 = ['주성분코드(동일제형)', '주성분명', '구분', '품목상태', '약국 보유약품', '보유 제조회사', '조제량', '조제금액',
       '보유단가', '약가비교', '차액(약가-보유단가)', '요율(%)', '정당이익(약가×요율)', '저가 인센티브(정당)'].concat(state.rateParsed.header);
     var aoa1 = [head1];
     sortedRows().forEach(function (x) {
-      var row = [x.grp, x.ing, x.kind, x.pName, x.pMaker, x.pQty, x.pAmt, x.basePrice, x.cmp, x.diff, x.pct, x.profit, x.incentive];
+      var row = [x.grp, x.ing, x.kind, x.status, x.pName, x.pMaker, x.pQty, x.pAmt, x.basePrice, x.cmp, x.diff, x.pct, x.profit, x.incentive];
       for (var j = 0; j < state.rateParsed.header.length; j++) row.push(x.cells[j] === undefined ? '' : x.cells[j]);
       aoa1.push(row);
     });

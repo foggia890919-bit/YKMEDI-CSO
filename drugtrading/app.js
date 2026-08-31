@@ -160,7 +160,7 @@ function parseRate(rows) {
   var cCode = colIndex(header, ['보험코드', '표준코드', '품목코드', 'EDI코드', '급여코드']);
   if (cCode < 0) cCode = exactColIndex(header, ['코드']); /* "코드"만 있으면 그것이 코드열 (예: 보령) */
   if (cCode < 0) throw new Error('요율표에 보험코드 열이 없습니다.');
-  var RATE_NAMES = ['코드', '요율', '요율(%)', '기본요율', '기본요율(%)', '수수료율', '수수료율(%)', '수수료', '수수료(%)', 'CSO수수료', '지급률', '지급율'];
+  var RATE_NAMES = ['코드', '요율', '요율(%)', '기본요율', '기본요율(%)', '수수료율', '수수료율(%)', '수수료', '수수료(%)', 'CSO수수료', '지급률', '지급율', '정책'];
   var cRate = exactColIndex(header, RATE_NAMES);
   if (cRate === cCode) cRate = exactColIndex(header, RATE_NAMES.slice(1)); /* "코드"가 코드열로 쓰였으면 요율 후보에서 제외 */
   var cPrice = exactColIndex(header, ['약가', '보험약가', '상한가', '보험상한가', '단가', '보험단가', '약가(원)', '기준가', '기준가격']);
@@ -182,7 +182,7 @@ function parseRate(rows) {
 /* 열 이름 별칭: 업체마다 요율표 열 이름이 달라도 같은 의미면 매핑 */
 var COL_ALIASES = [
   ['보험코드', 'EDI코드', 'EDI', 'edi코드', '급여코드', '제품코드', '표준코드', '품목코드'],
-  ['코드', '요율', '요율(%)', '기본요율', '기본요율(%)', '수수료율', '수수료율(%)', '수수료', '수수료(%)', 'CSO수수료', '지급률', '지급율'],
+  ['코드', '요율', '요율(%)', '기본요율', '기본요율(%)', '수수료율', '수수료율(%)', '수수료', '수수료(%)', 'CSO수수료', '지급률', '지급율', '정책'],
   ['약가', '보험약가', '상한가', '보험상한가', '단가', '보험단가', '약가(원)'],
   ['품목명', '제품명', '품명', '상품명', '제품'],
   ['성분명', '주성분', '성분', '주성분명'],
@@ -270,6 +270,43 @@ function mergeRates(parsedList, names) {
   };
 }
 
+/* ── 품목 상태 분류 ─────────────────────────────────────────────
+   법인별 예외 표기 조사 결과(2026.08 기준):
+   - 메디펄스: 품목명 끝 "(중단)" "(중단 25.07)" — 특이사항의 '종료/불가'는 프로모션 설명이므로 제외
+   - 이음: 유통이슈 열(생산중단·판매중단·장기품절·정산중단·공급중단·급여삭제·단종·판매불가·행정처분),
+           급여여부 열(비급여·급여삭제·급여정지·건강기능식품), 비고 "[정산불가]"
+   - 서원: 참고 열(생산중단·정산불가(품목)·정산중단/~까지 정산·판매중단)
+   - 유니메드: 품목명 "(중단, X월 EDI까지 정산)"
+   - 대화제약: 삭제품목 시트(비고 "~부터 신규처 정산불가")
+   - 서울제약: No 열 = "중단", 비고 "판매중단"
+   - 엠디파머(CTC): 요율 열 이름이 '정책', 우측에 공급중단품목 별도표
+   긴 셀(프로모션 설명문)은 오탐 방지를 위해 32자 이하 셀만 키워드 검사. */
+var STOP_KEYWORDS = ['생산중단', '판매중단', '판매중지', '공급중단', '정산중단', '정산불가', '장기품절', '품절',
+  '급여삭제', '급여정지', '단종', '판매불가', '행정처분', '비급여', '건강기능식품', '철수', '퇴장'];
+
+/* 요율표 행 상태: '정상' 또는 예외 사유. nameCol은 품목명 열 인덱스(-1 가능) */
+function classifyRateRow(cells, price, pct, hasRateCol, nameCol) {
+  /* 1) 품목명 괄호 표기: (중단), (중단 25.07), (품절...), (단종...) */
+  if (nameCol >= 0) {
+    var nm = String(cells[nameCol] === undefined ? '' : cells[nameCol]);
+    var pm = /\((중단|품절|단종)[^)]*\)/.exec(nm);
+    if (pm) return pm[1];
+  }
+  /* 2) 짧은 셀의 예외 키워드 (유통이슈/참고/비고/급여여부/No 등 어떤 열이든) */
+  for (var j = 0; j < cells.length; j++) {
+    var v = String(cells[j] === undefined ? '' : cells[j]).trim();
+    if (!v || v.length > 32) continue;
+    if (v === '중단') return '중단';
+    for (var k = 0; k < STOP_KEYWORDS.length; k++) {
+      if (v.indexOf(STOP_KEYWORDS[k]) !== -1) return STOP_KEYWORDS[k];
+    }
+  }
+  /* 3) 수치 결측 */
+  if (price <= 0) return '가격미상';
+  if (hasRateCol && pct <= 0) return '요율없음';
+  return '정상';
+}
+
 /* 매핑 실행 */
 function buildMapping(pharm, rate, master) {
   var pgroups = {};
@@ -285,8 +322,12 @@ function buildMapping(pharm, rate, master) {
   }
   /* 보유품목 각각을 별도 기준으로: (보유품목 × 그 성분의 요율표 행) 조합마다 한 행 */
   var outRows = [];
-  var candCount = {}; /* 보유품목 code → 대체후보 수 */
-  var minCandPrice = {}; /* 보유품목 code → 대체후보 중 최저 약가 */
+  var candCount = {}; /* 보유품목 code → 정상 대체후보 수 */
+  var minCandPrice = {}; /* 보유품목 code → 정상 대체후보 중 최저 약가 */
+  var nameCol = -1;
+  for (var nc = 0; nc < rate.header.length; nc++) {
+    if (matchGroup(rate.header[nc]) === 3) { nameCol = nc; break; }
+  }
   for (var k = 0; k < rate.rows.length; k++) {
     var rr = rate.rows[k];
     var mhit = master[rr.code];
@@ -294,6 +335,8 @@ function buildMapping(pharm, rate, master) {
     var plist = pgroups[mhit.grp];
     var price = rate.priceCol >= 0 ? num(rr.cells[rate.priceCol]) : 0;
     var pct = rate.rateCol >= 0 ? num(rr.cells[rate.rateCol]) : 0;
+    var status = classifyRateRow(rr.cells, price, pct, rate.rateCol >= 0, nameCol);
+    var normal = status === '정상';
     for (var p = 0; p < plist.length; p++) {
       var held = plist[p];
       var own = held.code === rr.code;
@@ -303,23 +346,23 @@ function buildMapping(pharm, rate, master) {
       var cmp;
       if (price <= 0) { cmp = '가격미상'; diff = 0; }
       else cmp = basePrice > 0 ? (diff > 0 ? '높음' : (diff < 0 ? '낮음' : '동일')) : '기준없음';
-      /* 저가약 대체조제 장려금: 저가 대체 시 약가 차액의 30% */
-      var incentive = (price > 0 && basePrice > 0 && diff < 0) ? Math.round(-diff * 30) / 100 : 0;
-      if (!own) {
+      /* 저가약 대체조제 장려금: 저가 대체 시 약가 차액의 30%. 예외(중단·정산불가 등)는 0 처리 */
+      var incentive = (normal && price > 0 && basePrice > 0 && diff < 0) ? Math.round(-diff * 30) / 100 : 0;
+      if (!own && normal) {
         candCount[held.code] = (candCount[held.code] || 0) + 1;
         if (price > 0 && (!(held.code in minCandPrice) || price < minCandPrice[held.code])) {
           minCandPrice[held.code] = price;
         }
       }
-      /* 참고: price<=0인 후보는 minCandPrice에도 이미 제외되어 있음 */
       outRows.push({
         grp: mhit.grp, ing: mhit.ing,
         kind: own ? '보유품목' : '대체가능',
+        status: status,
         pName: held.name, pMaker: held.maker, pQty: held.qty, pAmt: held.amt,
         price: price, basePrice: basePrice, diff: diff, cmp: cmp,
-        pct: pct, profit: Math.round(price * pct) / 100, incentive: incentive,
-      incTotal: incentive > 0 ? Math.round(incentive * held.qty) : 0,
-      profTotal: price > 0 && pct > 0 ? Math.round(price * pct / 100 * held.qty) : 0,
+        pct: pct, profit: normal ? Math.round(price * pct) / 100 : 0, incentive: incentive,
+        incTotal: incentive > 0 ? Math.round(incentive * held.qty) : 0,
+        profTotal: normal && price > 0 && pct > 0 ? Math.round(price * pct / 100 * held.qty) : 0,
         cells: rr.cells
       });
     }
