@@ -299,21 +299,27 @@ function buildMapping(pharm, rate, master) {
       var own = held.code === rr.code;
       var basePrice = held.price || 0;
       var diff = price - basePrice;
-      var cmp = basePrice > 0 ? (diff > 0 ? '높음' : (diff < 0 ? '낮음' : '동일')) : '기준없음';
+      /* 약가 정보가 없는(0) 후보는 저가로 오인하지 않도록 비교·인센티브에서 제외 */
+      var cmp;
+      if (price <= 0) { cmp = '가격미상'; diff = 0; }
+      else cmp = basePrice > 0 ? (diff > 0 ? '높음' : (diff < 0 ? '낮음' : '동일')) : '기준없음';
       /* 저가약 대체조제 장려금: 저가 대체 시 약가 차액의 30% */
-      var incentive = (basePrice > 0 && diff < 0) ? Math.round(-diff * 30) / 100 : 0;
+      var incentive = (price > 0 && basePrice > 0 && diff < 0) ? Math.round(-diff * 30) / 100 : 0;
       if (!own) {
         candCount[held.code] = (candCount[held.code] || 0) + 1;
         if (price > 0 && (!(held.code in minCandPrice) || price < minCandPrice[held.code])) {
           minCandPrice[held.code] = price;
         }
       }
+      /* 참고: price<=0인 후보는 minCandPrice에도 이미 제외되어 있음 */
       outRows.push({
         grp: mhit.grp, ing: mhit.ing,
         kind: own ? '보유품목' : '대체가능',
         pName: held.name, pMaker: held.maker, pQty: held.qty, pAmt: held.amt,
         price: price, basePrice: basePrice, diff: diff, cmp: cmp,
         pct: pct, profit: Math.round(price * pct) / 100, incentive: incentive,
+      incTotal: incentive > 0 ? Math.round(incentive * held.qty) : 0,
+      profTotal: price > 0 && pct > 0 ? Math.round(price * pct / 100 * held.qty) : 0,
         cells: rr.cells
       });
     }
