@@ -38,6 +38,12 @@
   .filters input[type=text] { min-width: 260px; }
   .chk { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; cursor: pointer; user-select: none; }
   .chk input { accent-color: var(--blue); }
+  .colpanel { display: none; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin: 0 0 10px; font-size: 13px; }
+  .colpanel summary { cursor: pointer; font-weight: 700; color: var(--blue); }
+  .colpanel .boxes { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 10px; }
+  .colpanel label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+  .colpanel input { accent-color: var(--blue); }
+  .colpanel .grouplabel { width: 100%; font-size: 11.5px; color: #889; margin-top: 4px; text-transform: uppercase; letter-spacing: .04em; }
   .chk .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
   .dot.low { background: var(--ok); } .dot.same { background: #888; } .dot.high { background: var(--err); }
   .tablewrap { display: none; background: #fff; border: 1px solid var(--line); border-radius: 10px; overflow: auto; max-height: 62vh; }
@@ -114,6 +120,10 @@
     <label class="chk"><input type="checkbox" id="cSame" checked><span class="dot same"></span>동일</label>
     <label class="chk"><input type="checkbox" id="cHigh" checked><span class="dot high"></span>높음</label>
   </div>
+  <details class="colpanel" id="colPanel">
+    <summary>👁 표시할 열 선택 (체크 해제하면 숨김)</summary>
+    <div class="boxes" id="colBoxes"></div>
+  </details>
   <div class="tablewrap" id="tablewrap">
     <table id="tbl"><thead></thead><tbody></tbody></table>
   </div>
@@ -225,6 +235,8 @@
         var o = document.createElement('option'); o.value = x.ing; o.textContent = x.ing; ingSel.appendChild(o); }
     });
 
+    initColVis();
+    buildColPanel();
     buildHead();
     drawRows();
   }
@@ -235,6 +247,7 @@
       { label: '주성분명', key: 'ing', str: true },
       { label: '구분', key: 'kind', str: true },
       { label: '약국 보유약품', key: 'pNames', str: true },
+      { label: '보유 제조회사', key: 'pMakers', str: true },
       { label: '보유단가', key: 'basePrice' },
       { label: '약가비교', key: 'cmp', str: true },
       { label: '차액(약가-보유단가)', key: 'diff' },
@@ -245,13 +258,56 @@
 
   var sortState = { key: null, idx: -1, asc: true, str: false };
 
-  function buildHead() {
-    var fc = frontCols();
-    var ths = fc.map(function (c, i) {
-      var arrow = sortState.key === c.key ? '<span class="arrow">' + (sortState.asc ? '▲' : '▼') + '</span>' : '';
-      return '<th data-key="' + c.key + '" data-str="' + (c.str ? 1 : 0) + '">' + esc(c.label) + arrow + '</th>';
+  /* 열 표시/숨김 — 기본으로 중복·부가 열은 숨김 */
+  var colVis = { front: {}, rate: {} };
+  var DEFAULT_HIDDEN_RATE = { '분류(A)': 1, '분류(B)': 1, '성분명': 1 };
+
+  function initColVis() {
+    var saved = null;
+    try { saved = JSON.parse(localStorage.getItem('dt_colvis') || 'null'); } catch (e) { saved = null; }
+    colVis = { front: {}, rate: {} };
+    frontCols().forEach(function (c) {
+      colVis.front[c.key] = saved && saved.front && (c.key in saved.front) ? !!saved.front[c.key] : true;
     });
     state.rateParsed.header.forEach(function (h, j) {
+      var k = String(j);
+      var def = !DEFAULT_HIDDEN_RATE[String(h).replace(/\s/g, '')];
+      colVis.rate[k] = saved && saved.rate && (k in saved.rate) && saved.rateHeader === state.rateParsed.header.join('|') ? !!saved.rate[k] : def;
+    });
+  }
+  function saveColVis() {
+    try { localStorage.setItem('dt_colvis', JSON.stringify({ front: colVis.front, rate: colVis.rate, rateHeader: state.rateParsed.header.join('|') })); } catch (e) {}
+  }
+
+  function buildColPanel() {
+    var box = $('colBoxes'); box.innerHTML = '';
+    var g1 = document.createElement('div'); g1.className = 'grouplabel'; g1.textContent = '계산 열'; box.appendChild(g1);
+    frontCols().forEach(function (c) {
+      box.appendChild(colBox(c.label, colVis.front[c.key], function (on) { colVis.front[c.key] = on; }));
+    });
+    var g2 = document.createElement('div'); g2.className = 'grouplabel'; g2.textContent = '요율표 원본 열'; box.appendChild(g2);
+    state.rateParsed.header.forEach(function (h, j) {
+      box.appendChild(colBox(h, colVis.rate[String(j)], function (on) { colVis.rate[String(j)] = on; }));
+    });
+    $('colPanel').style.display = 'block';
+  }
+  function colBox(label, checked, setter) {
+    var l = document.createElement('label');
+    var i = document.createElement('input'); i.type = 'checkbox'; i.checked = checked;
+    i.addEventListener('change', function () { setter(i.checked); saveColVis(); buildHead(); drawRows(); });
+    l.appendChild(i); l.appendChild(document.createTextNode(label));
+    return l;
+  }
+
+  function buildHead() {
+    var ths = [];
+    frontCols().forEach(function (c) {
+      if (!colVis.front[c.key]) return;
+      var arrow = sortState.key === c.key ? '<span class="arrow">' + (sortState.asc ? '▲' : '▼') + '</span>' : '';
+      ths.push('<th data-key="' + c.key + '" data-str="' + (c.str ? 1 : 0) + '">' + esc(c.label) + arrow + '</th>');
+    });
+    state.rateParsed.header.forEach(function (h, j) {
+      if (!colVis.rate[String(j)]) return;
       var arrow = (sortState.key === null && sortState.idx === j) ? '<span class="arrow">' + (sortState.asc ? '▲' : '▼') + '</span>' : '';
       ths.push('<th data-idx="' + j + '">' + esc(h) + arrow + '</th>');
     });
@@ -316,13 +372,22 @@
       shown++;
       var badge = x.kind === '보유품목' ? '<span class="badge own">보유품목</span>' : '<span class="badge sub">대체가능</span>';
       var diffCls = x.diff > 0 ? 'num pos' : (x.diff < 0 ? 'num neg' : 'num');
-      var tds = '<td>' + esc(x.ing) + '</td><td>' + badge + '</td><td>' + esc(x.pNames) + '</td>'
-        + '<td class="num">' + fmt(x.basePrice) + '</td>'
-        + '<td>' + esc(x.cmp) + '</td>'
-        + '<td class="' + diffCls + '">' + (x.diff > 0 ? '+' : '') + fmt(x.diff) + '</td>'
-        + '<td class="num">' + fmt(x.pct) + '</td>'
-        + '<td class="num">' + fmt(x.profit) + '</td>';
-      for (var j = 0; j < state.rateParsed.header.length; j++) tds += '<td>' + esc(x.cells[j]) + '</td>';
+      var frontTd = {
+        ing: '<td>' + esc(x.ing) + '</td>',
+        kind: '<td>' + badge + '</td>',
+        pNames: '<td>' + esc(x.pNames) + '</td>',
+        pMakers: '<td>' + esc(x.pMakers) + '</td>',
+        basePrice: '<td class="num">' + fmt(x.basePrice) + '</td>',
+        cmp: '<td>' + esc(x.cmp) + '</td>',
+        diff: '<td class="' + diffCls + '">' + (x.diff > 0 ? '+' : '') + fmt(x.diff) + '</td>',
+        pct: '<td class="num">' + fmt(x.pct) + '</td>',
+        profit: '<td class="num">' + fmt(x.profit) + '</td>'
+      };
+      var tds = '';
+      frontCols().forEach(function (c) { if (colVis.front[c.key]) tds += frontTd[c.key]; });
+      for (var j = 0; j < state.rateParsed.header.length; j++) {
+        if (colVis.rate[String(j)]) tds += '<td>' + esc(x.cells[j]) + '</td>';
+      }
       html.push('<tr class="' + (x.kind === '보유품목' ? 'own' : '') + '">' + tds + '</tr>');
     }
     tb.innerHTML = html.join('');
@@ -333,11 +398,11 @@
     var r = state.result; if (!r) return;
     var wb = XLSX.utils.book_new();
 
-    var head1 = ['주성분코드(동일제형)', '주성분명', '구분', '약국 보유약품', '약국 조제량(계)', '약국 조제금액(계)',
+    var head1 = ['주성분코드(동일제형)', '주성분명', '구분', '약국 보유약품', '보유 제조회사', '약국 조제량(계)', '약국 조제금액(계)',
       '보유단가', '약가비교', '차액(약가-보유단가)', '요율(%)', '정당이익(약가×요율)'].concat(state.rateParsed.header);
     var aoa1 = [head1];
     sortedRows().forEach(function (x) {
-      var row = [x.grp, x.ing, x.kind, x.pNames, x.pQty, x.pAmt, x.basePrice, x.cmp, x.diff, x.pct, x.profit];
+      var row = [x.grp, x.ing, x.kind, x.pNames, x.pMakers, x.pQty, x.pAmt, x.basePrice, x.cmp, x.diff, x.pct, x.profit];
       for (var j = 0; j < state.rateParsed.header.length; j++) row.push(x.cells[j] === undefined ? '' : x.cells[j]);
       aoa1.push(row);
     });

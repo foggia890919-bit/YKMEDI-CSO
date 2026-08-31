@@ -155,10 +155,11 @@ function buildMapping(pharm, rate, master) {
     var mhit = master[rr.code];
     if (!mhit || !mhit.grp || !pgroups[mhit.grp]) continue;
     var plist = pgroups[mhit.grp];
-    var own = false, names = [], qty = 0, amt = 0;
+    var own = false, names = [], makers = [], qty = 0, amt = 0;
     for (var p = 0; p < plist.length; p++) {
       if (plist[p].code === rr.code) own = true;
       names.push(plist[p].name);
+      if (plist[p].maker && makers.indexOf(plist[p].maker) === -1) makers.push(plist[p].maker);
       qty += plist[p].qty; amt += plist[p].amt;
     }
     var price = rate.priceCol >= 0 ? num(rr.cells[rate.priceCol]) : 0;
@@ -169,7 +170,7 @@ function buildMapping(pharm, rate, master) {
     outRows.push({
       grp: mhit.grp, ing: mhit.ing,
       kind: own ? '보유품목' : '대체가능',
-      pNames: names.join(' / '), pQty: qty, pAmt: amt,
+      pNames: names.join(' / '), pMakers: makers.join(' / '), pQty: qty, pAmt: amt,
       price: price, basePrice: basePrice, diff: diff, cmp: cmp,
       pct: pct, profit: Math.round(price * pct) / 100,
       cells: rr.cells
