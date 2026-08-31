@@ -23,6 +23,9 @@
   .card select { width: 100%; margin-top: 8px; padding: 6px; font-size: 13px; border: 1px solid var(--line); border-radius: 6px; }
   .card .stat { margin-top: 10px; font-size: 12.5px; }
   .stat.ok { color: var(--ok); } .stat.err { color: var(--err); }
+  .maprow { display: grid; grid-template-columns: 74px 1fr; gap: 6px; align-items: center; margin-top: 4px; }
+  .maprow span { font-size: 11.5px; color: #556; font-weight: 600; }
+  .maprow select { margin-top: 0; padding: 4px 6px; font-size: 12px; width: 100%; }
   .actions { margin: 18px 0; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
   button { border: 0; border-radius: 8px; padding: 11px 22px; font-size: 14.5px; font-weight: 700; cursor: pointer; font-family: inherit; }
   #btnRun { background: var(--blue); color: #fff; }
@@ -50,7 +53,9 @@
   /* 결과 영역: 좌측 표 + 우측 제조회사 패널 (정산내역서 양식) */
   .split { display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap; }
   .lcol { flex: 1; min-width: 0; }
-  .rpanel { display: none; width: 300px; flex: none; background: #fff; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .rpanel { display: none; width: 300px; flex: none; background: #fff; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; position: sticky; top: 12px; max-height: calc(100vh - 24px); flex-direction: column; }
+  .rpanel.show { display: flex; }
+  .crow.kfocus { box-shadow: inset 0 0 0 2px var(--blue); background: #e7f0ff; border-radius: 6px; }
   .rpanel .panel-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); font-weight: 800; font-size: 14px; }
   .rpanel .panel-head .sub { font-size: 11.5px; color: #667; font-weight: 600; margin-left: auto; }
   .ptools { padding: 8px 12px; display: flex; flex-direction: column; gap: 8px; border-bottom: 1px solid var(--line); }
@@ -61,7 +66,7 @@
   .seg button { border: 0; border-radius: 0; background: #fff; padding: 5px 8px; font-size: 11px; font-weight: 600; cursor: pointer; }
   .seg button.on { background: var(--blue); color: #fff; }
   .sbtn { border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 5px 9px; font-size: 11.5px; font-weight: 600; cursor: pointer; }
-  .clist { max-height: 48vh; overflow: auto; }
+  .clist { flex: 1; min-height: 0; overflow: auto; }
   .crow { display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; align-items: center; padding: 7px 12px; border-bottom: 1px solid #f1f2f4; cursor: pointer; }
   .crow:hover { background: #f3f7ff; }
   .crow.on { background: #eef6ff; }
@@ -102,6 +107,16 @@
       <p class="hint">.xls/.xlsx — 약품코드(보험코드)·약품명·조제량·조제금액 열 포함</p>
       <input type="file" id="fPharm" accept=".xls,.xlsx,.csv">
       <div class="stat" id="sPharm"></div>
+      <div id="pharmMap" style="display:none; margin-top:10px">
+        <div class="mini" style="margin-bottom:6px">열 매핑 — 양식이 다르면 각 항목이 몇 번째 열인지 지정하세요</div>
+        <div class="maprow"><span>헤더 행</span><select id="mHead"></select></div>
+        <div class="maprow"><span>약품코드 *</span><select id="mCode"></select></div>
+        <div class="maprow"><span>약품명 *</span><select id="mName"></select></div>
+        <div class="maprow"><span>제조회사</span><select id="mMaker"></select></div>
+        <div class="maprow"><span>조제단가</span><select id="mPrice"></select></div>
+        <div class="maprow"><span>조제량</span><select id="mQty"></select></div>
+        <div class="maprow"><span>조제금액</span><select id="mAmt"></select></div>
+      </div>
     </div>
     <div class="card">
       <h2>② 요율표</h2>
@@ -219,13 +234,108 @@
     setStat('sPharm', '읽는 중…', true);
     readWb(f, function (err, wb) {
       if (err) { setStat('sPharm', '읽기 실패: ' + err.message, false); return; }
-      try {
-        state.pharm = parsePharmacy(sheetRows(wb, wb.SheetNames[0]));
-        setStat('sPharm', '✓ ' + state.pharm.length + '개 품목 인식', true);
-      } catch (e2) { state.pharm = null; setStat('sPharm', e2.message, false); }
-      ready();
+      state.pharmRows = sheetRows(wb, wb.SheetNames[0]);
+      var det = detectPharmacy(state.pharmRows);
+      buildPharmMapUI(det.headerRow, det.cols);
+      applyPharmMap();
     });
   });
+
+  /* ---- 약국파일 열 매핑 UI ---- */
+  var MAP_FIELDS = [
+    { id: 'mCode', key: 'code', required: true },
+    { id: 'mName', key: 'name', required: true },
+    { id: 'mMaker', key: 'maker' },
+    { id: 'mPrice', key: 'price' },
+    { id: 'mQty', key: 'qty' },
+    { id: 'mAmt', key: 'amt' }
+  ];
+  function colLabel(header, j) {
+    var name = String(header[j] === undefined ? '' : header[j]).trim();
+    var letter = String.fromCharCode(65 + (j % 26));
+    if (j >= 26) letter = String.fromCharCode(64 + Math.floor(j / 26)) + letter;
+    return letter + '열' + (name ? ': ' + name : '');
+  }
+  function buildPharmMapUI(headerRow, cols) {
+    var rows = state.pharmRows;
+    var hSel = $('mHead'); hSel.innerHTML = '';
+    var limit = Math.min(rows.length, 15);
+    for (var i = 0; i < limit; i++) {
+      var preview = (rows[i] || []).slice(0, 4).join(' | ').slice(0, 40);
+      var o = document.createElement('option');
+      o.value = i; o.textContent = (i + 1) + '행: ' + preview;
+      if (i === headerRow) o.selected = true;
+      hSel.appendChild(o);
+    }
+    fillColSelects(headerRow, cols);
+    $('pharmMap').style.display = 'block';
+  }
+  function fillColSelects(headerRow, cols) {
+    var header = state.pharmRows[headerRow] || [];
+    var width = 0;
+    for (var i = headerRow; i < Math.min(state.pharmRows.length, headerRow + 5); i++) {
+      width = Math.max(width, (state.pharmRows[i] || []).length);
+    }
+    MAP_FIELDS.forEach(function (f) {
+      var sel = $(f.id); sel.innerHTML = '';
+      if (!f.required) {
+        var none = document.createElement('option');
+        none.value = '-1'; none.textContent = '(없음)';
+        sel.appendChild(none);
+      }
+      for (var j = 0; j < width; j++) {
+        var o = document.createElement('option');
+        o.value = j; o.textContent = colLabel(header, j);
+        if (cols[f.key] === j) o.selected = true;
+        sel.appendChild(o);
+      }
+      if (f.required && cols[f.key] < 0) sel.selectedIndex = -1;
+    });
+  }
+  function currentPharmMap() {
+    var headerRow = parseInt($('mHead').value, 10) || 0;
+    var cols = {};
+    MAP_FIELDS.forEach(function (f) {
+      var v = $(f.id).value;
+      cols[f.key] = v === '' || v === null ? -1 : parseInt(v, 10);
+      if (isNaN(cols[f.key])) cols[f.key] = -1;
+    });
+    return { headerRow: headerRow, cols: cols };
+  }
+  function applyPharmMap() {
+    try {
+      state.pharm = parsePharmacy(state.pharmRows, currentPharmMap());
+      setStat('sPharm', '✓ ' + state.pharm.length + '개 품목 인식', true);
+    } catch (e2) { state.pharm = null; setStat('sPharm', e2.message, false); }
+    ready();
+  }
+  $('mHead').addEventListener('change', function () {
+    /* 새 헤더 행 기준으로 열 이름 다시 추측 */
+    var headerRow = parseInt(this.value, 10);
+    fillColSelects(headerRow, detectPharmacyColsAt(headerRow));
+    applyPharmMap();
+  });
+  function detectPharmacyColsAt(headerRow) {
+    var header = state.pharmRows[headerRow] || [];
+    function ci(pats) {
+      for (var p = 0; p < pats.length; p++) {
+        for (var j = 0; j < header.length; j++) {
+          var cell = String(header[j] === undefined ? '' : header[j]).replace(/\s/g, '');
+          if (cell.indexOf(pats[p]) !== -1) return j;
+        }
+      }
+      return -1;
+    }
+    return {
+      code: ci(['약품코드', '보험코드', 'EDI', 'edi', '코드']),
+      name: ci(['약품명', '품명', '제품명', '상품명']),
+      maker: ci(['제조회사', '제조사', '제약사', '업체', '회사']),
+      price: ci(['조제단가', '단가', '약가']),
+      qty: ci(['조제량', '조제수량', '수량', '총수량']),
+      amt: ci(['조제금액', '금액', '총금액', '합계'])
+    };
+  }
+  MAP_FIELDS.forEach(function (f) { $(f.id).addEventListener('change', applyPharmMap); });
 
   $('fRate').addEventListener('change', function (e) {
     var f = e.target.files[0]; if (!f) return;
@@ -294,14 +404,16 @@
   }
 
   /* ---- 우측 제조회사 패널 (정산내역서 양식) ---- */
-  var makerState = { checked: {}, sort: 'amt', dir: -1, q: '' };
+  var makerState = { checked: {}, sort: 'amt', dir: -1, q: '', focus: -1, view: [] };
 
   function makerAggs() {
     var m = {};
     state.result.pharm.forEach(function (d) {
       var name = d.maker || '(제조사 미상)';
-      if (!m[name]) m[name] = { name: name, cnt: 0, qty: 0, amt: 0 };
+      if (!m[name]) m[name] = { name: name, cnt: 0, qty: 0, amt: 0, subCnt: 0, subAmt: 0, inc: 0 };
       m[name].cnt++; m[name].qty += d.qty; m[name].amt += d.amt;
+      if (d.candCount > 0) { m[name].subCnt++; m[name].subAmt += d.amt; }
+      m[name].inc += d.incentiveTotal || 0;
     });
     var arr = Object.keys(m).map(function (k) { return m[k]; });
     arr.sort(function (a, b) {
@@ -318,16 +430,20 @@
     var aggs = makerAggs();
     var list = $('makerList'); list.innerHTML = '';
     var q = makerState.q.toLowerCase();
-    aggs.forEach(function (a) {
-      if (q && a.name.toLowerCase().indexOf(q) === -1) return;
+    var view = aggs.filter(function (a) { return !q || a.name.toLowerCase().indexOf(q) !== -1; });
+    makerState.view = view;
+    if (makerState.focus >= view.length) makerState.focus = view.length - 1;
+    if (makerState.focus < 0 && view.length) makerState.focus = 0;
+    view.forEach(function (a, ri) {
       var on = !!makerState.checked[a.name];
       var div = document.createElement('div');
-      div.className = 'crow' + (on ? ' on' : '');
+      div.className = 'crow' + (on ? ' on' : '') + (ri === makerState.focus ? ' kfocus' : '');
       div.innerHTML = '<input type="checkbox"' + (on ? ' checked' : '') + '>'
         + '<div class="cname">' + esc(a.name) + '</div>'
         + '<div class="camt"><b>₩' + Math.round(a.amt).toLocaleString('ko-KR') + '</b>'
-        + '<span>' + a.cnt + '품목 · 조제량 ' + Math.round(a.qty).toLocaleString('ko-KR') + '</span></div>';
+        + '<span>' + a.cnt + '품목 · 대체 ' + a.subCnt + ' · 인센 ₩' + Math.round(a.inc).toLocaleString('ko-KR') + '</span></div>';
       div.onclick = function () {
+        makerState.focus = ri;
         makerState.checked[a.name] = !makerState.checked[a.name];
         renderMakers(); drawRows();
       };
@@ -336,14 +452,42 @@
     var sel = checkedMakers();
     $('makerSub').textContent = aggs.length + '곳' + (sel.length ? ' / 선택 ' + sel.length : '');
     var use = sel.length ? aggs.filter(function (a) { return makerState.checked[a.name]; }) : aggs;
-    var tC = 0, tQ = 0, tA = 0;
-    use.forEach(function (a) { tC += a.cnt; tQ += a.qty; tA += a.amt; });
+    var tC = 0, tQ = 0, tA = 0, tSC = 0, tSA = 0, tI = 0;
+    use.forEach(function (a) { tC += a.cnt; tQ += a.qty; tA += a.amt; tSC += a.subCnt; tSA += a.subAmt; tI += a.inc; });
+    var pfx = sel.length ? '선택' : '전체';
     $('makerSum').innerHTML =
-      '<div class="l"><span>' + (sel.length ? '선택' : '전체') + ' 품목수</span><b>' + tC.toLocaleString('ko-KR') + '</b></div>'
+      '<div class="l"><span>' + pfx + ' 품목수</span><b>' + tC.toLocaleString('ko-KR') + '</b></div>'
       + '<div class="l"><span>조제량 합계</span><b>' + Math.round(tQ).toLocaleString('ko-KR') + '</b></div>'
-      + '<div class="l" style="color:var(--blue)"><span>총 조제금액</span><b>₩' + Math.round(tA).toLocaleString('ko-KR') + '</b></div>';
-    $('makerPanel').style.display = 'block';
+      + '<div class="l" style="color:var(--blue)"><span>총 조제금액</span><b>₩' + Math.round(tA).toLocaleString('ko-KR') + '</b></div>'
+      + '<div class="l"><span>대체가능 품목</span><b>' + tSC.toLocaleString('ko-KR') + '품목 · ₩' + Math.round(tSA).toLocaleString('ko-KR') + '</b></div>'
+      + '<div class="l" style="color:var(--ok)"><span>전체 저가대체 시 인센티브</span><b>₩' + Math.round(tI).toLocaleString('ko-KR') + '</b></div>';
+    $('makerPanel').classList.add('show');
+    var f = list.querySelector('.kfocus');
+    if (f) f.scrollIntoView({ block: 'nearest' });
   }
+
+  /* ↑↓ = 포커스 이동, Space = 체크 토글 (정산내역서와 동일) */
+  document.addEventListener('keydown', function (e) {
+    if (!makerState.view.length || !$('makerPanel').classList.contains('show')) return;
+    var t = e.target && e.target.tagName;
+    if (t === 'INPUT' && e.target.type !== 'checkbox') return;
+    if (t === 'SELECT' || t === 'TEXTAREA') return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      makerState.focus = Math.min(makerState.view.length - 1, makerState.focus + 1);
+      renderMakers();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      makerState.focus = Math.max(0, makerState.focus - 1);
+      renderMakers();
+    } else if (e.key === ' ' || e.code === 'Space') {
+      var a = makerState.view[makerState.focus];
+      if (!a) return;
+      e.preventDefault();
+      makerState.checked[a.name] = !makerState.checked[a.name];
+      renderMakers(); drawRows();
+    }
+  });
   $('makerSearch').addEventListener('input', function () { makerState.q = this.value.trim(); renderMakers(); });
   $('makerSortSeg').addEventListener('click', function (e) {
     var b = e.target.closest('button'); if (!b) return;
@@ -540,25 +684,25 @@
     ws1['!cols'] = head1.map(function (h) { return { wch: Math.max(10, Math.min(34, h.length * 2 + 6)) }; });
     XLSX.utils.book_append_sheet(wb, ws1, '대체조제 가능목록');
 
-    var head2 = ['약품코드', '약품명', '제조회사', '조제단가', '조제량', '조제금액', '주성분코드(동일제형)', '주성분명', '요율표 내 대체후보 수', '상태'];
+    var head2 = ['약품코드', '약품명', '제조회사', '조제단가', '조제량', '조제금액', '주성분코드(동일제형)', '주성분명', '요율표 내 대체후보 수', '최저 대체약가', '전량 저가대체 시 인센티브', '상태'];
     var aoa2 = [head2];
     r.pharm.forEach(function (d) {
-      aoa2.push([d.code, d.name, d.maker, d.price, d.qty, d.amt, d.grp || '', d.ing || '', d.candCount, d.status]);
+      aoa2.push([d.code, d.name, d.maker, d.price, d.qty, d.amt, d.grp || '', d.ing || '', d.candCount, d.minCandPrice || '', d.incentiveTotal || '', d.status]);
     });
     var makerRows = makerAggs().slice().sort(function (a, b) { return b.amt - a.amt; });
-    var aoaM = [['제조회사', '품목수', '조제량 합계', '조제금액 합계']];
-    makerRows.forEach(function (a) { aoaM.push([a.name, a.cnt, a.qty, a.amt]); });
-    var tQ2 = 0, tA2 = 0, tC2 = 0;
-    makerRows.forEach(function (a) { tC2 += a.cnt; tQ2 += a.qty; tA2 += a.amt; });
-    aoaM.push(['합계', tC2, tQ2, tA2]);
+    var aoaM = [['제조회사', '품목수', '조제량 합계', '조제금액 합계', '대체가능 품목수', '대체가능 품목 금액', '전체 저가대체 시 인센티브']];
+    makerRows.forEach(function (a) { aoaM.push([a.name, a.cnt, a.qty, a.amt, a.subCnt, a.subAmt, a.inc]); });
+    var tQ2 = 0, tA2 = 0, tC2 = 0, tSC2 = 0, tSA2 = 0, tI2 = 0;
+    makerRows.forEach(function (a) { tC2 += a.cnt; tQ2 += a.qty; tA2 += a.amt; tSC2 += a.subCnt; tSA2 += a.subAmt; tI2 += a.inc; });
+    aoaM.push(['합계', tC2, tQ2, tA2, tSC2, tSA2, tI2]);
     var wsM = XLSX.utils.aoa_to_sheet(aoaM);
-    wsM['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: aoaM.length - 1, c: 3 } }) };
-    wsM['!cols'] = [{ wch: 24 }, { wch: 8 }, { wch: 12 }, { wch: 14 }];
+    wsM['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: aoaM.length - 1, c: 6 } }) };
+    wsM['!cols'] = [{ wch: 24 }, { wch: 8 }, { wch: 12 }, { wch: 14 }, { wch: 12 }, { wch: 15 }, { wch: 18 }];
     XLSX.utils.book_append_sheet(wb, wsM, '제조회사별 보유현황');
 
     var ws2 = XLSX.utils.aoa_to_sheet(aoa2);
     ws2['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: aoa2.length - 1, c: head2.length - 1 } }) };
-    ws2['!cols'] = [{ wch: 11 }, { wch: 36 }, { wch: 18 }, { wch: 9 }, { wch: 8 }, { wch: 11 }, { wch: 17 }, { wch: 30 }, { wch: 10 }, { wch: 22 }];
+    ws2['!cols'] = [{ wch: 11 }, { wch: 36 }, { wch: 18 }, { wch: 9 }, { wch: 8 }, { wch: 11 }, { wch: 17 }, { wch: 30 }, { wch: 10 }, { wch: 11 }, { wch: 16 }, { wch: 22 }];
     XLSX.utils.book_append_sheet(wb, ws2, '약국 품목현황');
 
     var notes = [

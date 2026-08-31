@@ -76,18 +76,34 @@ function buildMaster(rows) {
   return map;
 }
 
-/* 약국 조제내역: [{code,name,maker,price,qty,amt}] */
-function parsePharmacy(rows) {
+/* 약국 조제내역: 열 자동 추측. 반환값의 cols를 UI에서 바꿔 parsePharmacy에 다시 넘길 수 있음 */
+function detectPharmacy(rows) {
   var h = findHeaderRow(rows, ['약품코드', '약품명', '조제']);
   if (h < 0) h = findHeaderRow(rows, ['보험코드', '약품명']);
-  if (h < 0) throw new Error('약국 파일에서 헤더(약품코드/약품명)를 찾지 못했습니다.');
-  var header = rows[h];
-  var cCode = colIndex(header, ['약품코드', '보험코드', '코드']);
-  var cName = colIndex(header, ['약품명', '품명']);
-  var cMaker = colIndex(header, ['제조회사', '제약사', '업체']);
-  var cPrice = colIndex(header, ['조제단가', '단가']);
-  var cQty = colIndex(header, ['조제량', '수량']);
-  var cAmt = colIndex(header, ['조제금액', '금액']);
+  if (h < 0) h = findHeaderRow(rows, ['코드', '품명']);
+  if (h < 0) h = 0; /* 헤더를 못 찾으면 1행으로 두고 사용자가 매핑 */
+  var header = rows[h] || [];
+  return {
+    headerRow: h,
+    header: header,
+    cols: {
+      code: colIndex(header, ['약품코드', '보험코드', 'EDI', 'edi', '코드']),
+      name: colIndex(header, ['약품명', '품명', '제품명', '상품명']),
+      maker: colIndex(header, ['제조회사', '제조사', '제약사', '업체', '회사']),
+      price: colIndex(header, ['조제단가', '단가', '약가']),
+      qty: colIndex(header, ['조제량', '조제수량', '수량', '총수량']),
+      amt: colIndex(header, ['조제금액', '금액', '총금액', '합계'])
+    }
+  };
+}
+
+/* map: detectPharmacy 반환 형태({headerRow, cols}). 생략하면 자동 추측 */
+function parsePharmacy(rows, map) {
+  if (!map) map = detectPharmacy(rows);
+  var h = map.headerRow;
+  var cCode = map.cols.code, cName = map.cols.name, cMaker = map.cols.maker;
+  var cPrice = map.cols.price, cQty = map.cols.qty, cAmt = map.cols.amt;
+  if (cCode < 0 || cName < 0) throw new Error('약품코드(보험코드)와 약품명 열을 지정해주세요.');
   var out = [];
   for (var i = h + 1; i < rows.length; i++) {
     var r = rows[i] || [];
@@ -148,6 +164,7 @@ function buildMapping(pharm, rate, master) {
   /* 보유품목 각각을 별도 기준으로: (보유품목 × 그 성분의 요율표 행) 조합마다 한 행 */
   var outRows = [];
   var candCount = {}; /* 보유품목 code → 대체후보 수 */
+  var minCandPrice = {}; /* 보유품목 code → 대체후보 중 최저 약가 */
   for (var k = 0; k < rate.rows.length; k++) {
     var rr = rate.rows[k];
     var mhit = master[rr.code];
@@ -163,7 +180,12 @@ function buildMapping(pharm, rate, master) {
       var cmp = basePrice > 0 ? (diff > 0 ? '높음' : (diff < 0 ? '낮음' : '동일')) : '기준없음';
       /* 저가약 대체조제 장려금: 저가 대체 시 약가 차액의 30% */
       var incentive = (basePrice > 0 && diff < 0) ? Math.round(-diff * 30) / 100 : 0;
-      if (!own) candCount[held.code] = (candCount[held.code] || 0) + 1;
+      if (!own) {
+        candCount[held.code] = (candCount[held.code] || 0) + 1;
+        if (price > 0 && (!(held.code in minCandPrice) || price < minCandPrice[held.code])) {
+          minCandPrice[held.code] = price;
+        }
+      }
       outRows.push({
         grp: mhit.grp, ing: mhit.ing,
         kind: own ? '보유품목' : '대체가능',
@@ -180,6 +202,10 @@ function buildMapping(pharm, rate, master) {
     if (!dd.grp) dd.status = '약가파일 미등재(비급여 등)';
     else if (dd.candCount) dd.status = '대체후보 있음';
     else dd.status = '요율표에 동일성분 없음';
+    /* 전량 최저가 후보로 대체했을 때의 인센티브(차액 30%) × 조제량 */
+    dd.minCandPrice = minCandPrice[dd.code] || 0;
+    var perUnit = (dd.price > 0 && dd.minCandPrice > 0) ? (dd.price - dd.minCandPrice) * 0.3 : 0;
+    dd.incentiveTotal = perUnit > 0 ? Math.round(perUnit * dd.qty) : 0;
   }
   /* 정렬: 주성분명 → 보유품목명 → 자기 자신(보유품목) 우선 */
   outRows.sort(function (a, b) {
@@ -192,5 +218,5 @@ function buildMapping(pharm, rate, master) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { normCode: normCode, num: num, findHeaderRow: findHeaderRow, buildMaster: buildMaster, parsePharmacy: parsePharmacy, parseRate: parseRate, buildMapping: buildMapping };
+  module.exports = { normCode: normCode, num: num, findHeaderRow: findHeaderRow, buildMaster: buildMaster, detectPharmacy: detectPharmacy, parsePharmacy: parsePharmacy, parseRate: parseRate, buildMapping: buildMapping };
 }
