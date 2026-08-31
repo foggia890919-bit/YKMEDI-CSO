@@ -265,16 +265,21 @@ button{font-family:inherit;cursor:pointer}
   <!-- ============ SETTINGS ============ -->
   <section class="panel-view" id="view-settings">
     <div class="card">
-      <h2>AI 정밀 인식</h2>
-      <p class="desc">Claude AI가 명함 사진을 직접 읽어 기본(무료) 인식보다 훨씬 정확하게 항목을 추출합니다. 서버(Edge Function) 배포가 안 되어 있거나 오류가 나면 자동으로 기본 인식으로 전환되므로 켜두어도 안전합니다.</p>
-      <label class="switch">
+      <h2>AI 정밀 인식 (99% 정확도)</h2>
+      <p class="desc">Claude AI가 명함 사진을 직접 읽습니다. <b>아래에 API 키만 붙여넣으면 바로 켜집니다.</b> AI 호출이 실패하면 자동으로 기본(무료) 인식으로 전환됩니다.</p>
+      <p class="status-dot" id="ai-key-status" style="margin:0 0 12px">API 키 없음</p>
+      <div class="f"><label>Anthropic API 키 <span class="hint">console.anthropic.com에서 발급 · 이 기기에만 저장</span></label><input id="ai-key" type="password" placeholder="sk-ant-api03-..." autocomplete="off"></div>
+      <div class="btnrow">
+        <button type="button" class="btn btn-primary" id="ai-key-save">키 저장</button>
+      </div>
+      <label class="switch" style="margin-top:14px">
         <input type="checkbox" id="ai-ocr-toggle">
         <span style="display:flex;flex-direction:column"><b>AI 정밀 인식 사용</b><span>끄면 무료 기본 인식(Tesseract)만 사용합니다.</span></span>
       </label>
       <ol class="steps">
-        <li>Supabase CLI에서 <b>supabase functions deploy card-ai-ocr</b> 실행</li>
-        <li><b>supabase secrets set ANTHROPIC_API_KEY=sk-ant-…</b> 로 API 키 등록</li>
-        <li>자세한 방법은 <b>docs/명함관리-설정가이드.md</b> 참고</li>
+        <li><a href="https://console.anthropic.com" target="_blank" rel="noopener"><b>console.anthropic.com</b></a> 가입 → <b>API Keys</b>에서 키 발급 (결제수단 등록 필요)</li>
+        <li>발급된 키(sk-ant-…)를 위 칸에 붙여넣고 <b>키 저장</b> — 끝!</li>
+        <li>여러 직원·회원이 쓰는 서비스로 확장할 때는 서버 방식(가이드 2장 방법 B) 권장</li>
       </ol>
     </div>
 

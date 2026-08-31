@@ -145,7 +145,9 @@
   function saveSettings() {
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings)); } catch (e) {}
     if (sb) {
-      sb.from('configs').upsert({ key: 'cards_settings', value: state.settings, updated_at: new Date().toISOString() })
+      // API 키는 절대 서버(configs)에 올리지 않는다 — 이 기기 localStorage에만 보관
+      var pub = { sheetUrl: state.settings.sheetUrl || '', aiOcr: state.settings.aiOcr };
+      sb.from('configs').upsert({ key: 'cards_settings', value: pub, updated_at: new Date().toISOString() })
         .then(function () {}, function () {});
     }
   }
@@ -373,9 +375,103 @@
     });
   }
 
-  // AI 정밀 인식: Supabase Edge Function(card-ai-ocr) → Claude Vision
-  function runAiOcr(jobs) {
-    $('ocr-status').textContent = 'AI 정밀 인식 중... (수 초 소요)';
+  function aiFieldsToResult(f) {
+    return {
+      text: f.raw_text || '',
+      parsed: {
+        name: f.name || '', name_en: f.name_en || '', company: f.company || '',
+        department: f.department || '', title: f.title || '', mobile: f.mobile || '',
+        phone: f.phone || '', fax: f.fax || '', email: f.email || '',
+        website: f.website || '', address: f.address || '', country: f.country || ''
+      },
+      extraMemo: f.extra || '',
+      engine: 'ai'
+    };
+  }
+
+  var AI_PROMPT =
+    '위 명함 이미지에서 연락처 정보를 추출해줘. (사진이 회전되어 있어도 그대로 읽으면 돼) ' +
+    '읽을 수 없거나 명함에 없는 항목은 빈 문자열로 둬. ' +
+    '전화번호는 하이픈(-)으로 구분하고, 한국 번호의 국가번호 +82는 0으로 바꿔줘 (예: +82 31 215 8890 → 031-215-8890). ' +
+    '라벨 안내: T=대표전화(phone), M/HP=휴대폰(mobile), F=팩스(fax), E=이메일, H/W=홈페이지. ' +
+    "D(직통)번호는 phone이 비어 있으면 phone에, 아니면 extra에 '직통: 번호'로 적어줘. " +
+    '한글 면과 영문 면이 모두 있으면 병합하되 name은 한글, name_en은 로마자로 나눠 적어줘. ' +
+    '양면의 직함/부서가 서로 다르면 한글 면을 기준으로 하고, 다른 면의 직함은 extra에 적어줘. ' +
+    '뒷면·로고면에서 얻은 부가정보(직통·공장 전화, 부서 메일, 사업분야 등)는 extra에 정리해줘.';
+
+  var AI_FIELD_DESC = {
+    name: '사람 이름 — 한글·한자 등 현지 표기 우선, 없으면 로마자',
+    name_en: '로마자(영문) 이름 — name과 동일 표기면 빈 문자열',
+    company: '회사/기관명', department: '부서/팀', title: '직함/직급',
+    mobile: '휴대폰 번호, 010-0000-0000 형식', phone: '유선 전화번호, 02-000-0000 형식',
+    fax: '팩스 번호', email: '이메일 주소', website: '홈페이지 주소', address: '주소',
+    country: '국가 (예: 한국, 중국, 인도 — 명함 정보로 판단)',
+    extra: '명함의 부가 정보 — 추가 연락처, 공장/지점 전화, 인증마크 등 메모할 만한 내용',
+    raw_text: '명함에 보이는 전체 텍스트'
+  };
+  function aiSchema() {
+    var props = {}, req = [];
+    Object.keys(AI_FIELD_DESC).forEach(function (k) {
+      props[k] = { type: 'string', description: AI_FIELD_DESC[k] };
+      req.push(k);
+    });
+    return { type: 'object', properties: props, required: req, additionalProperties: false };
+  }
+
+  function buildAiContent(jobs) {
+    var content = [];
+    return Promise.all(jobs.map(function (job, i) {
+      return srcToBlob(job[1]).then(blobToBase64).then(function (b64) {
+        return { label: job[0], b64: b64, order: i };
+      });
+    })).then(function (imgs) {
+      imgs.sort(function (a, b) { return a.order - b.order; });
+      imgs.forEach(function (img) {
+        content.push({ type: 'text', text: '명함 ' + img.label + ':' });
+        content.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: img.b64 } });
+      });
+      content.push({ type: 'text', text: AI_PROMPT });
+      return content;
+    });
+  }
+
+  // AI 정밀 인식 A: 브라우저에서 Claude API 직접 호출 (설정 탭에 API 키 저장 시)
+  function runAiDirect(jobs) {
+    $('ocr-status').textContent = '✨ AI 정밀 인식 중... (수 초 소요)';
+    return buildAiContent(jobs).then(function (content) {
+      return fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': state.settings.apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-opus-5',
+          max_tokens: 2000,
+          output_config: { format: { type: 'json_schema', schema: aiSchema() }, effort: 'low' },
+          messages: [{ role: 'user', content: content }]
+        })
+      });
+    }).then(function (r) {
+      if (r.status === 401) throw new Error('API 키가 올바르지 않습니다. 설정 탭에서 확인하세요.');
+      if (r.status === 429) throw new Error('요청 한도 초과 — 잠시 후 다시 시도하세요.');
+      return r.json().then(function (j) {
+        if (!r.ok) throw new Error((j.error && j.error.message) || ('API 오류 ' + r.status));
+        return j;
+      });
+    }).then(function (j) {
+      if (j.stop_reason === 'refusal') throw new Error('AI가 명함을 읽지 못했습니다.');
+      var txt = '';
+      (j.content || []).forEach(function (b) { if (b.type === 'text') txt += b.text; });
+      return aiFieldsToResult(JSON.parse(txt));
+    });
+  }
+
+  // AI 정밀 인식 B: Supabase Edge Function(card-ai-ocr) 경유 (회원 서비스용)
+  function runAiEdge(jobs) {
+    $('ocr-status').textContent = '✨ AI 정밀 인식 중... (수 초 소요)';
     var payload = {};
     return Promise.all(jobs.map(function (job) {
       return srcToBlob(job[1]).then(blobToBase64).then(function (b64) {
@@ -387,18 +483,7 @@
       if (res.error) throw new Error(res.error.message || 'AI 인식 서버 오류');
       var d = res.data;
       if (!d || !d.ok || !d.fields) throw new Error((d && d.error) || 'AI 인식 실패');
-      var f = d.fields;
-      return {
-        text: f.raw_text || '',
-        parsed: {
-          name: f.name || '', name_en: f.name_en || '', company: f.company || '',
-          department: f.department || '', title: f.title || '', mobile: f.mobile || '',
-          phone: f.phone || '', fax: f.fax || '', email: f.email || '',
-          website: f.website || '', address: f.address || '', country: f.country || ''
-        },
-        extraMemo: f.extra || '',
-        engine: 'ai'
-      };
+      return aiFieldsToResult(d.fields);
     });
   }
 
@@ -412,10 +497,15 @@
     ocrRunning = true;
     $('ocr-btn').disabled = true;
     var stEl = $('ocr-status');
-    var useAi = !!sb && state.settings.aiOcr !== false;
+    // 키 저장 시 브라우저 직접 호출 우선, 없으면 Edge Function, 모두 불가면 무료 인식
+    var aiPath = null;
+    if (state.settings.aiOcr !== false) {
+      if (state.settings.apiKey) aiPath = runAiDirect;
+      else if (sb) aiPath = runAiEdge;
+    }
 
-    var run = useAi
-      ? runAiOcr(jobs).catch(function (err) {
+    var run = aiPath
+      ? aiPath(jobs).catch(function (err) {
           stEl.textContent = 'AI 인식 불가 — 기본 인식으로 전환합니다. (' + (err.message || err) + ')';
           return runTesseract(jobs);
         })
@@ -815,17 +905,46 @@
     $('sheet-url').value = state.settings.sheetUrl || '';
   }
 
-  /* ---------- AI 정밀 인식 토글 ---------- */
+  /* ---------- AI 정밀 인식 설정 (토글 + API 키) ---------- */
   var aiToggle = $('ai-ocr-toggle');
   function renderAiToggle() {
     if (!aiToggle) return;
-    aiToggle.disabled = !sb;
-    aiToggle.checked = !!sb && state.settings.aiOcr !== false;
+    var available = !!sb || !!state.settings.apiKey;
+    aiToggle.disabled = !available;
+    aiToggle.checked = available && state.settings.aiOcr !== false;
+    var keyEl = $('ai-key');
+    if (keyEl) {
+      var k = state.settings.apiKey || '';
+      keyEl.value = '';
+      keyEl.placeholder = k ? '저장됨: ' + k.slice(0, 10) + '…' + k.slice(-4) : 'sk-ant-api03-...';
+    }
+    var st = $('ai-key-status');
+    if (st) {
+      if (state.settings.apiKey) { st.textContent = 'AI 인식 사용 가능 — 이 기기에서 바로 호출됩니다.'; st.classList.add('on'); }
+      else { st.textContent = 'API 키 없음 — 키를 붙여넣으면 즉시 AI 인식이 켜집니다.'; st.classList.remove('on'); }
+    }
   }
   if (aiToggle) aiToggle.addEventListener('change', function () {
     state.settings.aiOcr = aiToggle.checked;
     saveSettings();
     toast(aiToggle.checked ? 'AI 정밀 인식을 사용합니다.' : '기본 인식(무료)만 사용합니다.');
+  });
+  var aiKeySave = $('ai-key-save');
+  if (aiKeySave) aiKeySave.addEventListener('click', function () {
+    var v = $('ai-key').value.trim();
+    if (!v) {
+      if (state.settings.apiKey && confirm('저장된 API 키를 삭제할까요?')) {
+        state.settings.apiKey = '';
+        saveSettings(); renderAiToggle();
+        toast('API 키를 삭제했습니다.');
+      } else toast('API 키를 입력해 주세요.');
+      return;
+    }
+    if (v.indexOf('sk-ant') !== 0 && !confirm('일반적인 Anthropic API 키(sk-ant-…) 형식이 아닙니다. 그래도 저장할까요?')) return;
+    state.settings.apiKey = v;
+    if (state.settings.aiOcr === undefined) state.settings.aiOcr = true;
+    saveSettings(); renderAiToggle();
+    toast('API 키 저장 완료 — 이제 AI 정밀 인식이 동작합니다!');
   });
 
   $('sheet-save').addEventListener('click', function () {
