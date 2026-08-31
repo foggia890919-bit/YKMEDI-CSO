@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>대체조제 매핑 도구</title>
+<style>
+  :root {
+    --blue: #305496; --blue-dark: #24406f; --bg: #f4f6fa; --line: #dde3ee;
+    --own: #fff2cc; --ok: #1a7f37; --warn: #b35900; --err: #b42318;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', sans-serif; background: var(--bg); color: #1c2333; }
+  header { background: var(--blue); color: #fff; padding: 18px 24px; }
+  header h1 { margin: 0; font-size: 20px; }
+  header p { margin: 6px 0 0; font-size: 13px; opacity: .85; }
+  main { max-width: 1280px; margin: 0 auto; padding: 20px 24px 60px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+  .card h2 { margin: 0 0 4px; font-size: 15px; color: var(--blue); }
+  .card .hint { font-size: 12px; color: #667; margin: 0 0 10px; }
+  .card input[type=file] { width: 100%; font-size: 13px; }
+  .card select { width: 100%; margin-top: 8px; padding: 6px; font-size: 13px; border: 1px solid var(--line); border-radius: 6px; }
+  .card .stat { margin-top: 10px; font-size: 12.5px; }
+  .stat.ok { color: var(--ok); } .stat.err { color: var(--err); }
+  .actions { margin: 18px 0; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  button { border: 0; border-radius: 8px; padding: 11px 22px; font-size: 14.5px; font-weight: 700; cursor: pointer; font-family: inherit; }
+  #btnRun { background: var(--blue); color: #fff; }
+  #btnRun:hover { background: var(--blue-dark); }
+  #btnRun:disabled { background: #a9b4c9; cursor: not-allowed; }
+  #btnDown { background: var(--ok); color: #fff; display: none; }
+  .summary { display: none; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  .summary .nums { display: flex; gap: 26px; flex-wrap: wrap; }
+  .summary .n { font-size: 13px; color: #556; }
+  .summary .n b { display: block; font-size: 22px; color: var(--blue); }
+  .filters { display: none; gap: 10px; margin: 0 0 10px; flex-wrap: wrap; }
+  .filters input, .filters select { padding: 8px 10px; font-size: 13px; border: 1px solid var(--line); border-radius: 8px; font-family: inherit; }
+  .filters input { min-width: 260px; }
+  .tablewrap { display: none; background: #fff; border: 1px solid var(--line); border-radius: 10px; overflow: auto; max-height: 62vh; }
+  table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+  th { position: sticky; top: 0; background: var(--blue); color: #fff; padding: 8px 10px; text-align: left; white-space: nowrap; font-weight: 600; }
+  td { padding: 6px 10px; border-bottom: 1px solid #eef1f7; white-space: nowrap; }
+  tr.own td { background: var(--own); }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11.5px; font-weight: 700; }
+  .badge.own { background: #e3a008; color: #fff; }
+  .badge.sub { background: #dbe7ff; color: var(--blue); }
+  .note { font-size: 12px; color: #667; margin-top: 14px; line-height: 1.6; }
+  #msg { font-size: 13px; }
+  #msg.err { color: var(--err); font-weight: 700; }
+</style>
+</head>
+<body>
+<header>
+  <h1>💊 대체조제 매핑 도구</h1>
+  <p>약국 조제내역 + 요율표 + 건강보험 약가파일(주성분코드) 3개를 올리면, 주성분코드_동일제형 기준으로 대체조제 가능 품목을 요율표에 매핑해 엑셀로 내려줍니다. 모든 처리는 브라우저 안에서만 이루어지며 파일이 서버로 전송되지 않습니다.</p>
+</header>
+<main>
+  <div class="cards">
+    <div class="card">
+      <h2>① 약국 조제내역</h2>
+      <p class="hint">.xls/.xlsx — 약품코드(보험코드)·약품명·조제량·조제금액 열 포함</p>
+      <input type="file" id="fPharm" accept=".xls,.xlsx,.csv">
+      <div class="stat" id="sPharm"></div>
+    </div>
+    <div class="card">
+      <h2>② 요율표</h2>
+      <p class="hint">.xlsx — 성분명·품목명·보험코드 열 포함 (시트 선택 가능)</p>
+      <input type="file" id="fRate" accept=".xls,.xlsx">
+      <select id="rateSheet" style="display:none"></select>
+      <div class="stat" id="sRate"></div>
+    </div>
+    <div class="card">
+      <h2>③ 약가마스터 (건강보험 약가파일)</h2>
+      <p class="hint">.xlsx — 주성분코드_동일제형·주성분명·제품코드 열 포함</p>
+      <input type="file" id="fMaster" accept=".xls,.xlsx">
+      <div class="stat" id="sMaster"></div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button id="btnRun" disabled>매핑 실행</button>
+    <button id="btnDown">📥 결과 엑셀 다운로드</button>
+    <span id="msg"></span>
+  </div>
+
+  <div class="summary" id="summary">
+    <div class="nums">
+      <div class="n"><b id="nPharm">0</b>약국 품목</div>
+      <div class="n"><b id="nMatched">0</b>약가파일 매칭</div>
+      <div class="n"><b id="nGroups">0</b>동일제형 그룹</div>
+      <div class="n"><b id="nRows">0</b>요율표 대체가능 행</div>
+      <div class="n"><b id="nOwn">0</b>보유품목 행</div>
+    </div>
+  </div>
+
+  <div class="filters" id="filters" style="display:none">
+    <input type="text" id="q" placeholder="검색: 성분명·품목명·제약사·약국약품명…">
+    <select id="fKind">
+      <option value="">구분 전체</option>
+      <option value="보유품목">보유품목만</option>
+      <option value="대체가능">대체가능만</option>
+    </select>
+    <select id="fIng"><option value="">주성분 전체</option></select>
+  </div>
+  <div class="tablewrap" id="tablewrap">
+    <table id="tbl"><thead></thead><tbody></tbody></table>
+  </div>
+
+  <p class="note">
+    매칭 기준: 건강보험 약가파일의 <b>주성분코드_동일제형</b>이 같으면 동일성분·동일함량·동일제형으로 보아 대체조제 가능 후보로 분류합니다.<br>
+    ① 약국 약품코드 → 약가파일 제품코드로 주성분코드 확보 → ② 요율표 보험코드도 같은 방식으로 매칭 → 코드가 같은 행만 추출.<br>
+    ⚠️ 실제 대체조제 시 생동성 인정품목 여부(요율표의 생동/생산 열)와 심평원 고시를 최종 확인하세요. 화면에는 최대 2,000행까지 표시되며 전체 결과는 엑셀 다운로드에 포함됩니다.
+  </p>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="app.js"></script>
+<script>
+(function () {
+  var state = { pharm: null, rateWb: null, master: null, result: null, rateParsed: null };
+  var $ = function (id) { return document.getElementById(id); };
+
+  function readWb(file, cb) {
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      try { cb(null, XLSX.read(new Uint8Array(e.target.result), { type: 'array' })); }
+      catch (err) { cb(err); }
+    };
+    reader.onerror = function () { cb(new Error('파일을 읽을 수 없습니다.')); };
+    reader.readAsArrayBuffer(file);
+  }
+  function sheetRows(wb, name) {
+    return XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: false, defval: '' });
+  }
+  function setStat(id, text, ok) {
+    var el = $(id); el.textContent = text; el.className = 'stat ' + (ok ? 'ok' : 'err');
+  }
+  function ready() {
+    $('btnRun').disabled = !(state.pharm && state.rateWb && state.master);
+  }
+
+  $('fPharm').addEventListener('change', function (e) {
+    var f = e.target.files[0]; if (!f) return;
+    setStat('sPharm', '읽는 중…', true);
+    readWb(f, function (err, wb) {
+      if (err) { setStat('sPharm', '읽기 실패: ' + err.message, false); return; }
+      try {
+        state.pharm = parsePharmacy(sheetRows(wb, wb.SheetNames[0]));
+        setStat('sPharm', '✓ ' + state.pharm.length + '개 품목 인식', true);
+      } catch (e2) { state.pharm = null; setStat('sPharm', e2.message, false); }
+      ready();
+    });
+  });
+
+  $('fRate').addEventListener('change', function (e) {
+    var f = e.target.files[0]; if (!f) return;
+    setStat('sRate', '읽는 중…', true);
+    readWb(f, function (err, wb) {
+      if (err) { setStat('sRate', '읽기 실패: ' + err.message, false); return; }
+      state.rateWb = wb;
+      var sel = $('rateSheet'); sel.innerHTML = ''; sel.style.display = wb.SheetNames.length > 1 ? '' : 'none';
+      wb.SheetNames.forEach(function (n) {
+        var o = document.createElement('option'); o.value = n; o.textContent = '시트: ' + n; sel.appendChild(o);
+      });
+      setStat('sRate', '✓ 시트 ' + wb.SheetNames.length + '개 (첫 시트 기본 사용)', true);
+      ready();
+    });
+  });
+
+  $('fMaster').addEventListener('change', function (e) {
+    var f = e.target.files[0]; if (!f) return;
+    setStat('sMaster', '읽는 중… (2만 행 이상이면 수 초 걸립니다)', true);
+    readWb(f, function (err, wb) {
+      if (err) { setStat('sMaster', '읽기 실패: ' + err.message, false); return; }
+      try {
+        state.master = buildMaster(sheetRows(wb, wb.SheetNames[0]));
+        setStat('sMaster', '✓ 제품코드 ' + Object.keys(state.master).length + '건 로드', true);
+      } catch (e2) { state.master = null; setStat('sMaster', e2.message, false); }
+      ready();
+    });
+  });
+
+  $('btnRun').addEventListener('click', function () {
+    var msg = $('msg'); msg.className = ''; msg.textContent = '매핑 중…';
+    try {
+      var sheetName = $('rateSheet').style.display === 'none' ? state.rateWb.SheetNames[0] : $('rateSheet').value;
+      state.rateParsed = parseRate(sheetRows(state.rateWb, sheetName));
+      state.result = buildMapping(state.pharm, state.rateParsed, state.master);
+      renderResult();
+      msg.textContent = '완료';
+    } catch (e2) { msg.className = 'err'; msg.textContent = e2.message; }
+  });
+
+  function renderResult() {
+    var r = state.result, matched = 0, groups = {};
+    r.pharm.forEach(function (d) { if (d.grp) { matched++; groups[d.grp] = 1; } });
+    $('nPharm').textContent = r.pharm.length;
+    $('nMatched').textContent = matched;
+    $('nGroups').textContent = Object.keys(groups).length;
+    $('nRows').textContent = r.outRows.length;
+    $('nOwn').textContent = r.outRows.filter(function (x) { return x.kind === '보유품목'; }).length;
+    $('summary').style.display = 'block';
+    $('filters').style.display = 'flex';
+    $('tablewrap').style.display = 'block';
+    $('btnDown').style.display = '';
+
+    var ingSel = $('fIng'); ingSel.innerHTML = '<option value="">주성분 전체</option>';
+    var seen = {};
+    r.outRows.forEach(function (x) {
+      if (!seen[x.ing]) { seen[x.ing] = 1;
+        var o = document.createElement('option'); o.value = x.ing; o.textContent = x.ing; ingSel.appendChild(o); }
+    });
+
+    var head = ['주성분명', '구분', '약국 보유약품'].concat(state.rateParsed.header);
+    $('tbl').querySelector('thead').innerHTML = '<tr>' + head.map(function (h) { return '<th>' + esc(h) + '</th>'; }).join('') + '</tr>';
+    drawRows();
+  }
+
+  function esc(s) { return String(s === undefined || s === null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+
+  function drawRows() {
+    var r = state.result; if (!r) return;
+    var q = $('q').value.trim().toLowerCase();
+    var kind = $('fKind').value, ing = $('fIng').value;
+    var tb = $('tbl').querySelector('tbody'), html = [], shown = 0;
+    for (var i = 0; i < r.outRows.length && shown < 2000; i++) {
+      var x = r.outRows[i];
+      if (kind && x.kind !== kind) continue;
+      if (ing && x.ing !== ing) continue;
+      if (q) {
+        var hay = (x.ing + ' ' + x.pNames + ' ' + x.cells.join(' ')).toLowerCase();
+        if (hay.indexOf(q) === -1) continue;
+      }
+      shown++;
+      var badge = x.kind === '보유품목' ? '<span class="badge own">보유품목</span>' : '<span class="badge sub">대체가능</span>';
+      var tds = '<td>' + esc(x.ing) + '</td><td>' + badge + '</td><td>' + esc(x.pNames) + '</td>';
+      for (var j = 0; j < state.rateParsed.header.length; j++) tds += '<td>' + esc(x.cells[j]) + '</td>';
+      html.push('<tr class="' + (x.kind === '보유품목' ? 'own' : '') + '">' + tds + '</tr>');
+    }
+    tb.innerHTML = html.join('');
+  }
+  ['q', 'fKind', 'fIng'].forEach(function (id) { $(id).addEventListener('input', drawRows); });
+
+  $('btnDown').addEventListener('click', function () {
+    var r = state.result; if (!r) return;
+    var wb = XLSX.utils.book_new();
+
+    var head1 = ['주성분코드(동일제형)', '주성분명', '구분', '약국 보유약품', '약국 조제량(계)', '약국 조제금액(계)'].concat(state.rateParsed.header);
+    var aoa1 = [head1];
+    r.outRows.forEach(function (x) {
+      var row = [x.grp, x.ing, x.kind, x.pNames, x.pQty, x.pAmt];
+      for (var j = 0; j < state.rateParsed.header.length; j++) row.push(x.cells[j] === undefined ? '' : x.cells[j]);
+      aoa1.push(row);
+    });
+    var ws1 = XLSX.utils.aoa_to_sheet(aoa1);
+    ws1['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: aoa1.length - 1, c: head1.length - 1 } }) };
+    ws1['!cols'] = head1.map(function (h) { return { wch: Math.max(10, Math.min(34, h.length * 2 + 6)) }; });
+    XLSX.utils.book_append_sheet(wb, ws1, '대체조제 가능목록');
+
+    var head2 = ['약품코드', '약품명', '제조회사', '조제단가', '조제량', '조제금액', '주성분코드(동일제형)', '주성분명', '요율표 내 대체후보 수', '상태'];
+    var aoa2 = [head2];
+    r.pharm.forEach(function (d) {
+      aoa2.push([d.code, d.name, d.maker, d.price, d.qty, d.amt, d.grp || '', d.ing || '', d.candCount, d.status]);
+    });
+    var ws2 = XLSX.utils.aoa_to_sheet(aoa2);
+    ws2['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: aoa2.length - 1, c: head2.length - 1 } }) };
+    ws2['!cols'] = [{ wch: 11 }, { wch: 36 }, { wch: 18 }, { wch: 9 }, { wch: 8 }, { wch: 11 }, { wch: 17 }, { wch: 30 }, { wch: 10 }, { wch: 22 }];
+    XLSX.utils.book_append_sheet(wb, ws2, '약국 품목현황');
+
+    var notes = [
+      ['대체조제 매핑 결과 (생성일: ' + new Date().toISOString().slice(0, 10) + ')'],
+      [''],
+      ['매칭 기준: 건강보험 약가파일의 "주성분코드_동일제형"이 같으면 동일성분·동일함량·동일제형 → 대체조제 가능 품목으로 분류'],
+      ['  1) 약국 약품코드(보험코드) → 약가파일 제품코드 매칭 → 주성분코드_동일제형 확보'],
+      ['  2) 요율표 보험코드 → 약가파일 매칭 → 주성분코드_동일제형이 약국 보유 성분과 같은 행만 추출'],
+      ['"구분" 열: 보유품목 = 약국이 현재 쓰는 그 제품이 요율표에도 있음 / 대체가능 = 동일성분 대체조제 후보'],
+      ['주의: 실제 대체조제 시 생동성 인정품목 여부(생동/생산 열), 저함량 배수 조제 등은 심평원 고시 기준으로 최종 확인 필요.']
+    ];
+    var ws3 = XLSX.utils.aoa_to_sheet(notes);
+    ws3['!cols'] = [{ wch: 110 }];
+    XLSX.utils.book_append_sheet(wb, ws3, '설명');
+
+    XLSX.writeFile(wb, '대체조제_매핑결과.xlsx');
+  });
+})();
+</script>
+</body>
+</html>
