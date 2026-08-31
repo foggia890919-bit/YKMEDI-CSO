@@ -153,10 +153,11 @@
     if (!sb) return Promise.resolve();
     return sb.from('configs').select('value').eq('key', 'cards_settings').maybeSingle()
       .then(function (res) {
-        if (!res.error && res.data && res.data.value && res.data.value.sheetUrl && !state.settings.sheetUrl) {
-          state.settings.sheetUrl = res.data.value.sheetUrl;
-          try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings)); } catch (e) {}
-        }
+        if (res.error || !res.data || !res.data.value) return;
+        var remote = res.data.value;
+        if (remote.sheetUrl && !state.settings.sheetUrl) state.settings.sheetUrl = remote.sheetUrl;
+        if (state.settings.aiOcr === undefined && remote.aiOcr !== undefined) state.settings.aiOcr = remote.aiOcr;
+        try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings)); } catch (e) {}
       }).catch(function () {});
   }
 
@@ -257,16 +258,17 @@
   viewer.addEventListener('click', function () { viewer.classList.remove('show'); });
 
   /* =========================================================
-     OCR (Tesseract.js kor+eng)
+     OCR — AI 정밀 인식(Claude Vision, Edge Function) 우선,
+     실패 시 Tesseract.js(kor+eng) 폴백
      ========================================================= */
   var ocrWorker = null;
   var ocrRunning = false;
   var ocrProgressHandler = null;
 
-  function updateOcrButton() {
+  function updateOcrButton(keepStatus) {
     var has = !!(state.shots.front.url || state.shots.back.url);
     $('ocr-btn').disabled = !has || ocrRunning;
-    if (!ocrRunning) {
+    if (!ocrRunning && !keepStatus) {
       $('ocr-status').textContent = has
         ? '준비 완료 — 버튼을 누르면 글자를 인식합니다.'
         : '명함 사진을 먼저 등록해 주세요.';
@@ -277,7 +279,126 @@
     if (ocrWorker) return Promise.resolve(ocrWorker);
     return Tesseract.createWorker('kor+eng', 1, {
       logger: function (m) { if (ocrProgressHandler) ocrProgressHandler(m); }
-    }).then(function (w) { ocrWorker = w; return w; });
+    }).then(function (w) {
+      return w.setParameters({ preserve_interword_spaces: '1' })
+        .then(function () { ocrWorker = w; return w; });
+    });
+  }
+
+  function srcToBlob(src) {
+    if (src instanceof Blob) return Promise.resolve(src);
+    return fetch(src).then(function (r) {
+      if (!r.ok) throw new Error('이미지 로드 실패');
+      return r.blob();
+    });
+  }
+  function blobToBase64(blob) {
+    return new Promise(function (res, rej) {
+      var r = new FileReader();
+      r.onload = function () { res(String(r.result).split(',')[1]); };
+      r.onerror = function () { rej(r.error); };
+      r.readAsDataURL(blob);
+    });
+  }
+
+  // Tesseract 전처리: 업스케일 + 흑백 + 대비 스트레칭 (인식률 향상)
+  function preprocessForOcr(blob) {
+    return new Promise(function (res, rej) {
+      var url = URL.createObjectURL(blob);
+      var img = new Image();
+      img.onload = function () {
+        var TARGET = 2200;
+        var w = img.naturalWidth, h = img.naturalHeight;
+        var scale = Math.min(2, Math.max(1, TARGET / Math.max(w, h)));
+        var cw = Math.round(w * scale), ch = Math.round(h * scale);
+        var cv = document.createElement('canvas');
+        cv.width = cw; cv.height = ch;
+        var ctx = cv.getContext('2d');
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, cw, ch);
+        URL.revokeObjectURL(url);
+        try {
+          var id = ctx.getImageData(0, 0, cw, ch), d = id.data;
+          var hist = new Uint32Array(256), i, l;
+          for (i = 0; i < d.length; i += 4) {
+            l = (d[i] * 299 + d[i + 1] * 587 + d[i + 2] * 114) / 1000 | 0;
+            d[i] = l; hist[l]++;
+          }
+          // 1% / 99% 지점으로 대비 스트레칭
+          var total = cw * ch, cut = total / 100, acc = 0, lo = 0, hi = 255;
+          for (i = 0; i < 256; i++) { acc += hist[i]; if (acc > cut) { lo = i; break; } }
+          acc = 0;
+          for (i = 255; i >= 0; i--) { acc += hist[i]; if (acc > cut) { hi = i; break; } }
+          var range = Math.max(1, hi - lo);
+          for (i = 0; i < d.length; i += 4) {
+            l = Math.max(0, Math.min(255, (d[i] - lo) * 255 / range));
+            d[i] = d[i + 1] = d[i + 2] = l;
+          }
+          ctx.putImageData(id, 0, 0);
+        } catch (e) { /* 전처리 실패 시 원본 그대로 인식 */ }
+        res(cv);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); rej(new Error('이미지를 읽을 수 없습니다')); };
+      img.src = url;
+    });
+  }
+
+  // 기본(무료) 인식: Tesseract → 휴리스틱 파싱
+  function runTesseract(jobs) {
+    var stEl = $('ocr-status');
+    var bar = $('ocr-bar'), fill = bar.querySelector('i');
+    bar.style.display = 'block'; fill.style.width = '2%';
+    stEl.textContent = '인식 엔진 준비 중... (첫 실행은 시간이 걸립니다)';
+    var texts = [];
+    var chain = Promise.resolve();
+    jobs.forEach(function (job, idx) {
+      chain = chain.then(function () {
+        ocrProgressHandler = function (m) {
+          if (m.status === 'recognizing text') {
+            fill.style.width = Math.round((idx + m.progress) / jobs.length * 100) + '%';
+            stEl.textContent = job[0] + ' 인식 중... ' + Math.round(m.progress * 100) + '%';
+          }
+        };
+        return Promise.all([getWorker(), srcToBlob(job[1]).then(preprocessForOcr)])
+          .then(function (arr) {
+            stEl.textContent = job[0] + ' 인식 중...';
+            return arr[0].recognize(arr[1]);
+          })
+          .then(function (res) { texts.push(res && res.data ? res.data.text : ''); });
+      });
+    });
+    return chain.then(function () {
+      var full = texts.join('\n');
+      return { text: full, parsed: parseCardText(full), engine: 'tesseract' };
+    });
+  }
+
+  // AI 정밀 인식: Supabase Edge Function(card-ai-ocr) → Claude Vision
+  function runAiOcr(jobs) {
+    $('ocr-status').textContent = 'AI 정밀 인식 중... (수 초 소요)';
+    var payload = {};
+    return Promise.all(jobs.map(function (job) {
+      return srcToBlob(job[1]).then(blobToBase64).then(function (b64) {
+        payload[job[0] === '앞면' ? 'front' : 'back'] = b64;
+      });
+    })).then(function () {
+      return sb.functions.invoke('card-ai-ocr', { body: payload });
+    }).then(function (res) {
+      if (res.error) throw new Error(res.error.message || 'AI 인식 서버 오류');
+      var d = res.data;
+      if (!d || !d.ok || !d.fields) throw new Error((d && d.error) || 'AI 인식 실패');
+      var f = d.fields;
+      return {
+        text: f.raw_text || '',
+        parsed: {
+          name: f.name || '', company: f.company || '', department: f.department || '',
+          title: f.title || '', mobile: f.mobile || '', phone: f.phone || '',
+          fax: f.fax || '', email: f.email || '', website: f.website || '',
+          address: f.address || ''
+        },
+        engine: 'ai'
+      };
+    });
   }
 
   function runOcr() {
@@ -289,48 +410,28 @@
 
     ocrRunning = true;
     $('ocr-btn').disabled = true;
-    var bar = $('ocr-bar'), fill = bar.querySelector('i');
-    bar.style.display = 'block'; fill.style.width = '2%';
     var stEl = $('ocr-status');
-    stEl.textContent = '인식 엔진 준비 중... (첫 실행은 시간이 걸립니다)';
+    var useAi = !!sb && state.settings.aiOcr !== false;
 
-    var done = 0, texts = [];
-    function setProgress(p) { fill.style.width = Math.round(p * 100) + '%'; }
+    var run = useAi
+      ? runAiOcr(jobs).catch(function (err) {
+          stEl.textContent = 'AI 인식 불가 — 기본 인식으로 전환합니다. (' + (err.message || err) + ')';
+          return runTesseract(jobs);
+        })
+      : runTesseract(jobs);
 
-    function step() {
-      if (done >= jobs.length) {
-        ocrRunning = false;
-        bar.style.display = 'none';
-        var full = texts.join('\n');
-        state.ocrText = full;
-        var parsed = parseCardText(full);
-        var filled = applyParsed(parsed);
-        stEl.textContent = '인식 완료 — 자동으로 채운 내용을 꼭 확인해 주세요.';
-        updateOcrButton();
-        toast(filled ? '자동인식 완료! 내용을 확인해 주세요.' : '글자를 인식했지만 항목을 찾지 못했습니다. 직접 입력해 주세요.');
-        return;
-      }
-      var label = jobs[done][0], src = jobs[done][1];
-      ocrProgressHandler = function (m) {
-        if (m.status === 'recognizing text') {
-          setProgress((done + m.progress) / jobs.length);
-          stEl.textContent = label + ' 인식 중... ' + Math.round(m.progress * 100) + '%';
-        }
-      };
-      getWorker().then(function (w) {
-        stEl.textContent = label + ' 인식 중...';
-        return w.recognize(src);
-      }).then(function (res) {
-        texts.push(res && res.data ? res.data.text : '');
-        done++; step();
-      }).catch(function (err) {
-        ocrRunning = false;
-        bar.style.display = 'none';
-        stEl.textContent = '인식 실패: ' + (err.message || err);
-        updateOcrButton();
-      });
-    }
-    step();
+    run.then(function (r) {
+      state.ocrText = r.text;
+      var filled = applyParsed(r.parsed);
+      stEl.textContent = (r.engine === 'ai' ? '✨ AI 정밀 인식 완료' : '인식 완료') + ' — 자동으로 채운 내용을 꼭 확인해 주세요.';
+      toast(filled ? '자동인식 완료! 내용을 확인해 주세요.' : '글자를 인식했지만 항목을 찾지 못했습니다. 직접 입력해 주세요.');
+    }).catch(function (err) {
+      stEl.textContent = '인식 실패: ' + (err.message || err);
+    }).then(function () {
+      ocrRunning = false;
+      $('ocr-bar').style.display = 'none';
+      updateOcrButton(true);
+    });
   }
 
   /* =========================================================
@@ -694,6 +795,19 @@
     $('sheet-url').value = state.settings.sheetUrl || '';
   }
 
+  /* ---------- AI 정밀 인식 토글 ---------- */
+  var aiToggle = $('ai-ocr-toggle');
+  function renderAiToggle() {
+    if (!aiToggle) return;
+    aiToggle.disabled = !sb;
+    aiToggle.checked = !!sb && state.settings.aiOcr !== false;
+  }
+  if (aiToggle) aiToggle.addEventListener('change', function () {
+    state.settings.aiOcr = aiToggle.checked;
+    saveSettings();
+    toast(aiToggle.checked ? 'AI 정밀 인식을 사용합니다.' : '기본 인식(무료)만 사용합니다.');
+  });
+
   $('sheet-save').addEventListener('click', function () {
     var url = $('sheet-url').value.trim();
     if (url && !/^https:\/\/script\.google\.com\/.+\/exec/.test(url)) {
@@ -815,8 +929,9 @@
     $('user-who').textContent = (user && user.email) || '';
     $('logout-btn').style.display = user && user.email !== '(로컬 모드)' ? '' : 'none';
     $('c-met-date').value = todayStr();
-    pullSettings().then(function () { renderSheetStatus(); });
+    pullSettings().then(function () { renderSheetStatus(); renderAiToggle(); });
     renderSheetStatus();
+    renderAiToggle();
     loadCards();
   }
   function showLogin() {

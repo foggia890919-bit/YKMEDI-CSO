@@ -114,6 +114,16 @@ button{font-family:inherit;cursor:pointer}
 .steps{margin:10px 0 0;padding-left:18px;color:var(--muted);font-size:13px;line-height:1.8}
 .steps b{color:var(--ink)}
 
+/* switch */
+.switch{display:flex;align-items:center;gap:12px;padding:14px 16px;border:1.5px solid var(--line);border-radius:12px;background:#f8fafc;margin-bottom:14px}
+.switch input{width:44px;height:24px;appearance:none;background:#cdd7e3;border-radius:999px;position:relative;transition:.18s;cursor:pointer;flex:none}
+.switch input:checked{background:var(--wine)}
+.switch input:disabled{opacity:.5;cursor:not-allowed}
+.switch input::after{content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.18s}
+.switch input:checked::after{left:22px}
+.switch b{font-size:14.5px}
+.switch span{color:var(--muted);font-size:12.5px}
+
 /* image viewer */
 .viewer{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:60;display:none;align-items:center;justify-content:center;padding:20px}
 .viewer.show{display:flex}
@@ -253,6 +263,20 @@ button{font-family:inherit;cursor:pointer}
   <!-- ============ SETTINGS ============ -->
   <section class="panel-view" id="view-settings">
     <div class="card">
+      <h2>AI 정밀 인식</h2>
+      <p class="desc">Claude AI가 명함 사진을 직접 읽어 기본(무료) 인식보다 훨씬 정확하게 항목을 추출합니다. 서버(Edge Function) 배포가 안 되어 있거나 오류가 나면 자동으로 기본 인식으로 전환되므로 켜두어도 안전합니다.</p>
+      <label class="switch">
+        <input type="checkbox" id="ai-ocr-toggle">
+        <span style="display:flex;flex-direction:column"><b>AI 정밀 인식 사용</b><span>끄면 무료 기본 인식(Tesseract)만 사용합니다.</span></span>
+      </label>
+      <ol class="steps">
+        <li>Supabase CLI에서 <b>supabase functions deploy card-ai-ocr</b> 실행</li>
+        <li><b>supabase secrets set ANTHROPIC_API_KEY=sk-ant-…</b> 로 API 키 등록</li>
+        <li>자세한 방법은 <b>docs/명함관리-설정가이드.md</b> 참고</li>
+      </ol>
+    </div>
+
+    <div class="card">
       <h2>구글시트 주소록 실시간 연동</h2>
       <p class="desc">명함을 저장·수정·삭제할 때마다 연결된 구글시트 주소록에 자동으로 반영됩니다.</p>
       <p class="status-dot" id="sheet-status" style="margin:0 0 12px">연동 안 됨</p>
@@ -371,8 +395,10 @@ function syncAll(sh, cards) {
 <!-- ===== Supabase table SQL (복사용) ===== -->
 <script type="text/plain" id="sql-code">
 -- 명함관리 테이블 (Supabase SQL Editor에서 1회 실행)
+-- 계정(user_id)별로 명함이 분리 저장됩니다 — 여러 회원이 각자 자기 명함만 봅니다.
 create table if not exists public.business_cards (
   id uuid primary key,
+  user_id uuid not null default auth.uid(),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   name text, company text, department text, title text,
@@ -381,18 +407,20 @@ create table if not exists public.business_cards (
   met_event text, met_date text, memo text,
   front_url text, back_url text, ocr_text text
 );
+create index if not exists business_cards_user_idx
+  on public.business_cards (user_id, created_at desc);
 
 alter table public.business_cards enable row level security;
 
--- 로그인(관리자) 계정만 읽기/쓰기 가능
-create policy "cards auth select" on public.business_cards
-  for select to authenticated using (true);
-create policy "cards auth insert" on public.business_cards
-  for insert to authenticated with check (true);
-create policy "cards auth update" on public.business_cards
-  for update to authenticated using (true);
-create policy "cards auth delete" on public.business_cards
-  for delete to authenticated using (true);
+-- 로그인한 사용자는 자기 명함만 읽기/쓰기 가능
+create policy "cards own select" on public.business_cards
+  for select to authenticated using (user_id = auth.uid());
+create policy "cards own insert" on public.business_cards
+  for insert to authenticated with check (user_id = auth.uid());
+create policy "cards own update" on public.business_cards
+  for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy "cards own delete" on public.business_cards
+  for delete to authenticated using (user_id = auth.uid());
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
