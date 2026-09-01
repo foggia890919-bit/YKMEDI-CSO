@@ -143,6 +143,7 @@
       <h2>③ 약가마스터 (건강보험 약가파일)</h2>
       <p class="hint">.xlsx — 주성분코드_동일제형·주성분명·제품코드 열 포함</p>
       <input type="file" id="fMaster" accept=".xls,.xlsx">
+      <button class="sbtn" id="btnCloudMaster" style="margin-top:8px">☁️ 약가파일 자동 불러오기</button>
       <div class="stat" id="sMaster"></div>
     </div>
   </div>
@@ -411,6 +412,22 @@
           ready();
         }
       });
+    });
+  });
+
+  /* 약가마스터 자동 불러오기: 매달 자동 갱신되는 /master-common.json 사용 */
+  $('btnCloudMaster').addEventListener('click', function () {
+    setStat('sMaster', '약가파일 불러오는 중…', true);
+    fetch('/master-common.json').then(function (res) {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.json();
+    }).then(function (j) {
+      state.master = buildMasterSlim(j.rows);
+      var label = j.source ? String(j.source).slice(0, 24) : '';
+      setStat('sMaster', '✓ 제품코드 ' + j.rows.length.toLocaleString() + '건 로드 (' + label + ')', true);
+      ready();
+    }).catch(function (err) {
+      setStat('sMaster', '자동 불러오기 실패: ' + err.message + ' — 파일을 직접 업로드해주세요.', false);
     });
   });
 

@@ -76,6 +76,15 @@ function buildMaster(rows) {
   return map;
 }
 
+/* 슬림 약가마스터([[제품코드, 주성분코드_동일제형, 주성분명], ...])를 맵으로 복원 */
+function buildMasterSlim(rows) {
+  var map = {};
+  for (var i = 0; i < rows.length; i++) {
+    map[rows[i][0]] = { grp: rows[i][1], ing: rows[i][2] };
+  }
+  return map;
+}
+
 /* 약국 조제내역: 열 자동 추측. 반환값의 cols를 UI에서 바꿔 parsePharmacy에 다시 넘길 수 있음 */
 function detectPharmacy(rows) {
   var h = findHeaderRow(rows, ['약품코드', '약품명', '조제']);
@@ -389,5 +398,5 @@ function buildMapping(pharm, rate, master) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { normCode: normCode, num: num, findHeaderRow: findHeaderRow, buildMaster: buildMaster, detectPharmacy: detectPharmacy, parsePharmacy: parsePharmacy, parseRate: parseRate, mergeRates: mergeRates, buildMapping: buildMapping };
+  module.exports = { normCode: normCode, num: num, findHeaderRow: findHeaderRow, buildMaster: buildMaster, buildMasterSlim: buildMasterSlim, detectPharmacy: detectPharmacy, parsePharmacy: parsePharmacy, parseRate: parseRate, mergeRates: mergeRates, buildMapping: buildMapping, classifyRateRow: classifyRateRow };
 }
