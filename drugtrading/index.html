@@ -16,6 +16,14 @@
   header p { margin: 6px 0 0; font-size: 13px; opacity: .85; }
   main { max-width: 1280px; margin: 0 auto; padding: 20px 24px 60px; }
   .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+  /* 프로젝트(병원 단위) 바 */
+  .projbar { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; margin-bottom: 14px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .projbar .lbl { font-size: 13px; font-weight: 800; color: var(--blue); margin-right: 4px; }
+  .projbar select, .projbar input { padding: 7px 10px; font-size: 13px; border: 1px solid var(--line); border-radius: 8px; font-family: inherit; }
+  .projbar input.wide { min-width: 180px; }
+  .projbar .pbtn { border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 7px 12px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+  .projbar .pbtn.primary { background: var(--blue); color: #fff; border-color: var(--blue); }
+  .projbar .pstat { font-size: 12px; color: var(--ok); }
   .card { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
   .card h2 { margin: 0 0 4px; font-size: 15px; color: var(--blue); }
   .card .hint { font-size: 12px; color: #667; margin: 0 0 10px; }
@@ -114,6 +122,20 @@
   <p>약국 조제내역 + 요율표 + 건강보험 약가파일(주성분코드) 3개를 올리면, 주성분코드_동일제형 기준으로 대체조제 가능 품목을 요율표에 매핑해 엑셀로 내려줍니다. 모든 처리는 브라우저 안에서만 이루어지며 파일이 서버로 전송되지 않습니다.</p>
 </header>
 <main>
+  <div class="projbar">
+    <span class="lbl">📁 프로젝트</span>
+    <select id="projSel"><option value="">— 저장된 프로젝트 —</option></select>
+    <input id="projName" class="wide" placeholder="병원(거래처)명 *">
+    <input id="projBiz" placeholder="사업자번호 (선택)">
+    <input id="projMemo" class="wide" placeholder="메모 (선택)">
+    <button class="pbtn primary" id="projSave">저장</button>
+    <button class="pbtn" id="projNew">새로</button>
+    <button class="pbtn" id="projDel">삭제</button>
+    <button class="pbtn" id="projExport">내보내기</button>
+    <button class="pbtn" id="projImportBtn">가져오기</button>
+    <input type="file" id="projImport" accept=".json" style="display:none">
+    <span class="pstat" id="projStat"></span>
+  </div>
   <div class="cards">
     <div class="card">
       <h2>① 약국 조제내역</h2>
@@ -268,6 +290,7 @@
     readWb(f, function (err, wb) {
       if (err) { setStat('sPharm', '읽기 실패: ' + err.message, false); return; }
       state.pharmRows = sheetRows(wb, wb.SheetNames[0]);
+      state.pharmFileName = f.name;
       var det = detectPharmacy(state.pharmRows);
       buildPharmMapUI(det.headerRow, det.cols);
       applyPharmMap();
@@ -671,21 +694,115 @@
     };
   }
 
-  /* 필터링요청 — 정산내역서와 같은 /api/availability 접수 */
+  /* 필터링요청 — 병원(거래처) 기준. 프로젝트 바의 병원정보를 사용해 /api/availability로 접수 */
   function openFilterReq(comp) {
-    var name = ($('pharmName').value || '').trim();
-    if (!name) { alert('먼저 패널 상단에 약국(거래처)명을 입력해주세요.'); $('pharmName').focus(); return; }
-    try { localStorage.setItem('dt_pharm_name', name); } catch (e) {}
-    if (!confirm('필터링요청을 접수할까요?\n· 거래처: ' + name + '\n· 제약사: ' + comp)) return;
+    var name = ($('projName').value || '').trim();
+    var biz = ($('projBiz').value || '').trim();
+    if (!name) { alert('필터링은 병원(거래처) 기준입니다.\n상단 프로젝트 바에 병원(거래처)명을 먼저 입력·저장해주세요.'); $('projName').focus(); return; }
+    if (!confirm('필터링요청을 접수할까요?\n· 병원(거래처): ' + name + (biz ? '\n· 사업자번호: ' + biz : '') + '\n· 제약사: ' + comp)) return;
     fetch('/api/availability', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ category: '필터링', name: name, bizNo: '', vendor: comp, note: '대체조제 스위칭 검토(대체조제 매핑 도구)' })
+      body: JSON.stringify({ category: '필터링', name: name, bizNo: biz, vendor: comp, note: '대체조제 스위칭 검토(대체조제 매핑 도구)' })
     }).then(function (r) { return r.json().catch(function () { return {}; }); })
       .then(function (d) {
-        if (d && d.ok) alert('✅ 필터링요청 접수됨\n· 거래처: ' + name + '\n· 제약사: ' + comp);
+        if (d && d.ok) alert('✅ 필터링요청 접수됨\n· 병원(거래처): ' + name + '\n· 제약사: ' + comp);
         else alert('요청 실패: ' + ((d && d.error) || '영업포털(yk-marketing)에 로그인된 상태에서만 접수됩니다.'));
       }).catch(function () { alert('요청 실패: 영업포털(yk-marketing) 사이트에서 열었을 때만 접수할 수 있습니다.'); });
   }
+
+  /* ---- 프로젝트(병원 단위) 저장/불러오기 ---- */
+  function loadProjects() {
+    try { return JSON.parse(localStorage.getItem('dt_projects') || '{}'); } catch (e) { return {}; }
+  }
+  function persistProjects(p) {
+    try { localStorage.setItem('dt_projects', JSON.stringify(p)); return true; }
+    catch (e) { alert('저장 공간이 부족합니다. 오래된 프로젝트를 삭제하거나 내보내기 후 정리해주세요.'); return false; }
+  }
+  function refreshProjSel(selected) {
+    var sel = $('projSel'); sel.innerHTML = '<option value="">— 저장된 프로젝트 —</option>';
+    var p = loadProjects();
+    Object.keys(p).sort().forEach(function (k) {
+      var o = document.createElement('option'); o.value = k;
+      o.textContent = k + (p[k].savedAt ? ' (' + String(p[k].savedAt).slice(5, 16).replace('T', ' ') + ')' : '');
+      if (k === selected) o.selected = true;
+      sel.appendChild(o);
+    });
+  }
+  function currentProjectData() {
+    return {
+      hospital: { name: ($('projName').value || '').trim(), biz: ($('projBiz').value || '').trim(), memo: ($('projMemo').value || '').trim() },
+      pharmRows: state.pharmRows || null,
+      pharmMap: state.pharmRows ? currentPharmMap() : null,
+      pharmFileName: state.pharmFileName || '',
+      checks: { own: makerState.checked, sw: makerState.swChecked },
+      savedAt: new Date().toISOString()
+    };
+  }
+  function projStatMsg(t) { $('projStat').textContent = t; setTimeout(function () { if ($('projStat').textContent === t) $('projStat').textContent = ''; }, 4000); }
+  $('projSave').addEventListener('click', function () {
+    var name = ($('projName').value || '').trim();
+    if (!name) { alert('병원(거래처)명을 입력해주세요 — 프로젝트 이름으로 사용됩니다.'); $('projName').focus(); return; }
+    var p = loadProjects();
+    p[name] = currentProjectData();
+    if (persistProjects(p)) { refreshProjSel(name); projStatMsg('✓ 저장됨: ' + name); }
+  });
+  $('projSel').addEventListener('change', function () {
+    var name = this.value; if (!name) return;
+    var proj = loadProjects()[name]; if (!proj) return;
+    $('projName').value = proj.hospital.name || name;
+    $('projBiz').value = proj.hospital.biz || '';
+    $('projMemo').value = proj.hospital.memo || '';
+    makerState.checked = (proj.checks && proj.checks.own) || {};
+    makerState.swChecked = (proj.checks && proj.checks.sw) || {};
+    if (proj.pharmRows && proj.pharmRows.length) {
+      state.pharmRows = proj.pharmRows;
+      state.pharmFileName = proj.pharmFileName || '';
+      var map = proj.pharmMap || detectPharmacy(state.pharmRows);
+      buildPharmMapUI(map.headerRow, map.cols);
+      $('mHead').value = String(map.headerRow);
+      applyPharmMap();
+      setStat('sPharm', '✓ 프로젝트에서 복원: ' + (state.pharm ? state.pharm.length + '개 품목' : '') + (proj.pharmFileName ? ' (' + proj.pharmFileName + ')' : ''), true);
+    }
+    projStatMsg('✓ 불러옴: ' + name);
+    ready();
+    if (state.result) { state.heldComp = null; renderMakers(); drawRows(); }
+  });
+  $('projNew').addEventListener('click', function () {
+    $('projSel').value = ''; $('projName').value = ''; $('projBiz').value = ''; $('projMemo').value = '';
+    makerState.checked = {}; makerState.swChecked = {};
+    projStatMsg('새 프로젝트 — 병원명 입력 후 저장');
+  });
+  $('projDel').addEventListener('click', function () {
+    var name = $('projSel').value; if (!name) { alert('삭제할 프로젝트를 먼저 선택해주세요.'); return; }
+    if (!confirm('프로젝트 "' + name + '"를 삭제할까요?')) return;
+    var p = loadProjects(); delete p[name]; persistProjects(p);
+    refreshProjSel(''); projStatMsg('삭제됨: ' + name);
+  });
+  $('projExport').addEventListener('click', function () {
+    var p = loadProjects();
+    if (!Object.keys(p).length) { alert('내보낼 프로젝트가 없습니다.'); return; }
+    var blob = new Blob([JSON.stringify(p)], { type: 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = '대체조제_프로젝트_' + new Date().toISOString().slice(0, 10) + '.json';
+    a.click();
+  });
+  $('projImportBtn').addEventListener('click', function () { $('projImport').click(); });
+  $('projImport').addEventListener('change', function (e) {
+    var f = e.target.files[0]; if (!f) return;
+    var reader = new FileReader();
+    reader.onload = function (ev) {
+      try {
+        var imported = JSON.parse(ev.target.result);
+        var p = loadProjects();
+        var n = 0;
+        for (var k in imported) { p[k] = imported[k]; n++; }
+        if (persistProjects(p)) { refreshProjSel(''); projStatMsg('✓ ' + n + '개 프로젝트 가져옴'); }
+      } catch (err) { alert('가져오기 실패: 올바른 프로젝트 JSON 파일이 아닙니다.'); }
+    };
+    reader.readAsText(f);
+  });
+  refreshProjSel('');
 
   function makerAggs() {
     var m = {};
@@ -718,7 +835,7 @@
 
   function renderComboList() {
     $('makerTitle').textContent = '🏆 최적 조합';
-    $('pharmNameRow').style.display = '';
+    $('pharmNameRow').style.display = 'none';
     $('comboRow').style.display = 'flex';
     var K = parseInt($('comboK').value, 10) || 5;
     var r = bestCombo(K);
@@ -792,7 +909,7 @@
 
   function renderSwitchList() {
     $('makerTitle').textContent = '🔄 스위칭 제약사';
-    $('pharmNameRow').style.display = '';
+    $('pharmNameRow').style.display = 'none';
     $('comboRow').style.display = 'none';
     var aggs = switchAggs();
     var list = $('makerList'); list.innerHTML = '';
