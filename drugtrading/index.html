@@ -203,6 +203,8 @@
       <button id="viewItems" class="on">📋 품목별 요약</button>
       <button id="viewCands">전체 후보</button>
     </div>
+    <label class="chk" style="font-weight:700"><input type="checkbox" id="cMatched"><span class="dot" style="background:var(--blue)"></span>매칭 품목만 (1차 필터)</label>
+    <label class="chk" style="font-weight:700"><input type="checkbox" id="cBestOnly" checked><span class="dot" style="background:var(--ok)"></span>최유리 후보만 (해제 시 후보 전부 나열)</label>
     <input type="text" id="q" placeholder="검색: 성분명·품목명·제약사·약국약품명…">
     <select id="fKind">
       <option value="">구분 전체</option>
@@ -607,7 +609,7 @@
   function heldCompData() {
     var ownSel = checkedMakers().slice().sort().join('|') + '#' + Object.keys(state.excluded).sort().join(',');
     if (state.heldComp && state.heldCompKey === ownSel) return state.heldComp;
-    var anyOwn = ownSel.length > 0;
+    var anyOwn = checkedMakers().length > 0;
     var mcol = state.makerCol;
     var m = {};
     state.result.outRows.forEach(function (x) {
@@ -1151,6 +1153,36 @@
     });
     return best;
   }
+  /* 품목별 전체 후보 목록(중복 나열용) — 스위칭 체크·제외와 같은 범위, 합산이익 내림차순 */
+  function buildCandLists() {
+    var swSel = Object.keys(makerState.swChecked).some(function (k) { return makerState.swChecked[k]; });
+    var mcol = state.makerCol;
+    var lists = {};
+    state.result.outRows.forEach(function (x) {
+      if (x.kind !== '대체가능' || x.status !== '정상') return;
+      if (swSel) {
+        var comp = mcol >= 0 ? String(x.cells[mcol] === undefined ? '' : x.cells[mcol]).trim() : '(제약사 미상)';
+        if (!makerState.swChecked[comp || '(제약사 미상)']) return;
+      }
+      (lists[x.pCode] = lists[x.pCode] || []).push(x);
+    });
+    for (var k in lists) lists[k].sort(function (a, b) { return (b.profTotal + b.incTotal) - (a.profTotal + a.incTotal); });
+    return lists;
+  }
+  /* 후보 나열 모드에서 (보유품목 it × 후보 x) 한 행 생성 — itemRow와 같은 모양 */
+  function candRow(it, x) {
+    var mcol = state.makerCol;
+    return {
+      code: it.code, exc: it.exc, istatus: it.exc ? '제외' : '매칭',
+      name: it.name, maker: it.maker, qty: it.qty, price: it.price, amt: it.amt,
+      bestName: state.prodCol >= 0 ? String(x.cells[state.prodCol] === undefined ? '' : x.cells[state.prodCol]) : '',
+      bestComp: mcol >= 0 ? String(x.cells[mcol] === undefined ? '' : x.cells[mcol]).trim() : '',
+      bestPct: x.pct, bestPrice: x.price, bdiff: x.price - it.price,
+      profTotal: it.exc ? 0 : x.profTotal,
+      incTotal: it.exc ? 0 : x.incTotal,
+      cand: it.cand
+    };
+  }
   function itemRow(d, best) {
     var b = best[d.code] || null;
     var mcol = state.makerCol;
@@ -1292,7 +1324,16 @@
     return rows;
   }
 
+  /* 스위칭 제약사를 체크하면 자동으로 1차 필터(매칭 품목만) 적용 — 사용자가 직접 만지면 그 선택 우선 */
+  var matchedTouched = false;
+  function autoMatchedFilter() {
+    if (matchedTouched) return;
+    var any = Object.keys(makerState.swChecked).some(function (k) { return makerState.swChecked[k]; });
+    $('cMatched').checked = any;
+  }
+
   function drawRows() {
+    autoMatchedFilter();
     if (state.view === 'items') { drawItems(); return; }
     $('tblFoot').innerHTML = '';
     drawCands();
@@ -1306,6 +1347,8 @@
     var best = buildBestMap();
     var items = r.pharm.map(function (d) { return itemRow(d, best); });
     if (anyOwn) items = items.filter(function (it) { return makerState.checked[it.maker || '(제조사 미상)']; });
+    /* 1차 필터: 매칭(선택 스위칭 제약사 기준) 품목만 남김 — 제외 체크한 매칭 품목은 되살릴 수 있게 표시 유지 */
+    if ($('cMatched').checked) items = items.filter(function (it) { return it.istatus === '매칭' || (it.exc && best[it.code]); });
     if (q) {
       items = items.filter(function (it) {
         return (it.name + ' ' + it.maker + ' ' + it.bestName + ' ' + it.bestComp).toLowerCase().indexOf(q) !== -1;
@@ -1322,12 +1365,32 @@
       }
       return (va - vb) * dir;
     });
+    /* 후보 나열 모드: 품목당 후보를 전부 중복 나열 (첫 행 = 최유리 ★) */
+    var expand = !$('cBestOnly').checked;
+    var rows2 = items;
+    if (expand) {
+      var lists = buildCandLists();
+      rows2 = [];
+      items.forEach(function (it) {
+        var l = lists[it.code] || [];
+        if (!l.length) { rows2.push(it); return; }
+        l.forEach(function (x, i) {
+          var cr = candRow(it, x);
+          cr._first = (i === 0);
+          cr._star = (i === 0);
+          rows2.push(cr);
+        });
+      });
+    }
+    var CAP = 3000, over = rows2.length > CAP;
+    if (over) rows2 = rows2.slice(0, CAP);
     var html = [];
-    items.forEach(function (it) {
+    rows2.forEach(function (it) {
       var badge = it.istatus === '매칭' ? '<span class="badge ok2">매칭</span>'
         : it.istatus === '제외' ? '<span class="badge">제외</span>'
         : '<span class="badge miss">' + esc(it.istatus) + '</span>';
       var diffCls = it.bdiff > 0 ? 'num pos' : (it.bdiff < 0 ? 'num neg' : 'num');
+      var star = it._star ? '★ ' : '';
       html.push('<tr class="' + (it.exc ? 'excl' : '') + '" data-code="' + it.code + '">'
         + '<td class="exc-cell" style="text-align:center"><input type="checkbox" class="excChk" data-code="' + it.code + '"' + (it.exc ? ' checked' : '') + ' title="대체조제 제외"></td>'
         + '<td>' + badge + '</td>'
@@ -1336,7 +1399,7 @@
         + '<td class="num">' + fmt(it.qty) + '</td>'
         + '<td class="num">' + fmt(it.price) + '</td>'
         + '<td class="num">' + fmt(it.amt) + '</td>'
-        + '<td title="' + esc(it.bestName) + '">' + esc(it.bestName) + '</td>'
+        + '<td title="' + esc(it.bestName) + '">' + star + esc(it.bestName) + '</td>'
         + '<td>' + esc(it.bestComp) + '</td>'
         + '<td class="num">' + (it.bestPct === null ? '' : fmt(it.bestPct)) + '</td>'
         + '<td class="num">' + (it.bestPrice === null ? '' : fmt(it.bestPrice)) + '</td>'
@@ -1356,15 +1419,17 @@
         renderMakers(); drawRows();
       });
     });
-    /* 합계 (제외 품목 빼고) */
+    /* 합계 (제외 품목 빼고) — 후보 나열 모드에서도 품목당 최유리 1개 기준으로 집계 */
     var tAmt = 0, mAmt = 0, mCnt = 0, tProf = 0, tInc = 0, active = 0;
     items.forEach(function (it) {
       if (it.exc) return;
       active++; tAmt += it.amt;
       if (it.istatus === '매칭') { mCnt++; mAmt += it.amt; tProf += it.profTotal; tInc += it.incTotal; }
     });
+    var footLabel = '합계 (' + active + '품목, 제외 반영' + (expand ? ', 최유리 기준' : '') + ')'
+      + (over ? ' · 표시 ' + CAP + '행 초과분 생략(엑셀에는 전체 포함)' : '');
     $('tblFoot').innerHTML = '<tr>'
-      + '<td colspan="6">합계 (' + active + '품목, 제외 반영)</td>'
+      + '<td colspan="6">' + footLabel + '</td>'
       + '<td class="num">' + fmt(tAmt) + '</td>'
       + '<td colspan="5">매칭 ' + mCnt + '품목 · 처방 ₩' + fmt(mAmt) + '</td>'
       + '<td class="num">' + fmt(tProf) + '</td>'
@@ -1430,7 +1495,8 @@
     }
     tb.innerHTML = html.join('');
   }
-  ['q', 'fKind', 'fIng', 'cLow', 'cSame', 'cHigh', 'cExc'].forEach(function (id) { $(id).addEventListener('input', drawRows); });
+  $('cMatched').addEventListener('input', function () { matchedTouched = true; });
+  ['q', 'fKind', 'fIng', 'cLow', 'cSame', 'cHigh', 'cExc', 'cMatched', 'cBestOnly'].forEach(function (id) { $(id).addEventListener('input', drawRows); });
   $('viewItems').addEventListener('click', function () {
     state.view = 'items';
     this.classList.add('on'); $('viewCands').classList.remove('on');
@@ -1447,23 +1513,40 @@
     var r = state.result; if (!r) return;
     var wb = XLSX.utils.book_new();
 
-    /* 최종 결과물: 품목별 요약 — 조제내역 + 최적 스위칭 품목 + 정산·인센티브 */
+    /* 최종 결과물: 품목별 요약 — 화면 모드 그대로 (1차 필터·후보 나열/최유리) */
     var best0 = buildBestMap();
     var items0 = r.pharm.map(function (d) { return itemRow(d, best0); });
+    if ($('cMatched').checked) items0 = items0.filter(function (it) { return it.istatus === '매칭' || (it.exc && best0[it.code]); });
+    var expand0 = !$('cBestOnly').checked;
     var headI = ITEM_COLS.filter(function (c) { return c.key !== 'exc'; }).map(function (c) { return c.label; });
     headI.unshift('제외여부');
+    if (expand0) headI.push('최유리');
     var aoaI = [headI];
-    items0.forEach(function (it) {
-      aoaI.push([it.exc ? '제외' : '', it.istatus, it.name, it.maker, it.qty, it.price, it.amt,
+    var pushRow = function (it, star) {
+      var row = [it.exc ? '제외' : '', it.istatus, it.name, it.maker, it.qty, it.price, it.amt,
         it.bestName, it.bestComp, it.bestPct === null ? '' : it.bestPct, it.bestPrice === null ? '' : it.bestPrice,
-        it.bdiff === null ? '' : it.bdiff, it.profTotal || '', it.incTotal || '', it.cand]);
-    });
+        it.bdiff === null ? '' : it.bdiff, it.profTotal || '', it.incTotal || '', it.cand];
+      if (expand0) row.push(star ? '★' : '');
+      aoaI.push(row);
+    };
+    if (expand0) {
+      var lists0 = buildCandLists();
+      items0.forEach(function (it) {
+        var l = lists0[it.code] || [];
+        if (!l.length) { pushRow(it, false); return; }
+        l.forEach(function (x, i) { pushRow(candRow(it, x), i === 0); });
+      });
+    } else {
+      items0.forEach(function (it) { pushRow(it, false); });
+    }
     var tP = 0, tI = 0, tA = 0;
     items0.forEach(function (it) { if (!it.exc) { tA += it.amt; tP += it.profTotal; tI += it.incTotal; } });
-    aoaI.push(['', '합계(제외 반영)', '', '', '', '', tA, '', '', '', '', '', tP, tI, '']);
+    var totRow = ['', '합계(제외 반영' + (expand0 ? ', 최유리 기준' : '') + ')', '', '', '', '', tA, '', '', '', '', '', tP, tI, ''];
+    if (expand0) totRow.push('');
+    aoaI.push(totRow);
     var wsI = XLSX.utils.aoa_to_sheet(aoaI);
     wsI['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: aoaI.length - 1, c: headI.length - 1 } }) };
-    wsI['!cols'] = [{ wch: 8 }, { wch: 8 }, { wch: 36 }, { wch: 16 }, { wch: 8 }, { wch: 9 }, { wch: 11 }, { wch: 28 }, { wch: 14 }, { wch: 8 }, { wch: 9 }, { wch: 8 }, { wch: 11 }, { wch: 11 }, { wch: 7 }];
+    wsI['!cols'] = [{ wch: 8 }, { wch: 8 }, { wch: 36 }, { wch: 16 }, { wch: 8 }, { wch: 9 }, { wch: 11 }, { wch: 28 }, { wch: 14 }, { wch: 8 }, { wch: 9 }, { wch: 8 }, { wch: 11 }, { wch: 11 }, { wch: 7 }, { wch: 7 }];
     XLSX.utils.book_append_sheet(wb, wsI, '품목별 요약(최종)');
 
     var head1 =['주성분코드(동일제형)', '주성분명', '구분', '품목상태', '약국 보유약품', '보유 제조회사', '조제량', '조제금액',
