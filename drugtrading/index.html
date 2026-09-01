@@ -237,9 +237,9 @@
       <div class="ptools">
         <div class="row" id="pharmNameRow" style="display:none"><input type="search" id="pharmName" placeholder="약국(거래처)명 — 필터링요청에 기재됩니다"></div>
         <div class="row" id="comboRow" style="display:none">
-          <span class="mini">주력 개수</span>
-          <input type="number" id="comboK" min="1" max="99" value="5" style="margin-top:0; width:58px; padding:4px 8px; font-size:12px; border:1px solid var(--line); border-radius:6px; font-family:inherit">
-          <label class="chk" style="margin:0; font-size:12px" title="정산금 상단은 그대로 두고, 커버 안 된 품목만 보완 제약사를 추가해 전부 커버"><input type="checkbox" id="comboCover">전품목 커버(빈 품목 보완)</label>
+          <label class="chk" style="margin:0; font-size:12px" title="정산금 기준으로 가장 유리한 제약사 N곳 조합"><input type="checkbox" id="comboModeOpt" checked>제약사 최적화</label>
+          <input type="number" id="comboK" min="1" max="99" value="5" title="제약사 개수" style="margin-top:0; width:58px; padding:4px 8px; font-size:12px; border:1px solid var(--line); border-radius:6px; font-family:inherit">
+          <label class="chk" style="margin:0; font-size:12px" title="품목마다 약가가 동일하거나 낮은 후보 중 정산금이 가장 높은 1개만 남겨 제안서를 만듭니다"><input type="checkbox" id="comboModeFull">품목 전체 커버(제안서)</label>
           <span class="mini">최소 조제금액</span>
           <input type="number" id="comboMin" min="0" step="10000" value="0" placeholder="0" title="조제금액이 이보다 적은 미비한 품목은 조합 계산에서 제외" style="margin-top:0; width:78px; padding:4px 8px; font-size:12px; border:1px solid var(--line); border-radius:6px; font-family:inherit">
           <button id="comboApply" title="이 조합의 제약사들을 스위칭 체크에 넣어 품목별 요약에 반영 — 품목마다 조합 내 최유리 제약사만 남습니다" style="margin-top:0; padding:4px 10px; font-size:12px; border:1px solid var(--blue); background:var(--blue); color:#fff; border-radius:6px; cursor:pointer">표에 적용</button>
@@ -762,7 +762,10 @@
       }).catch(function () { alert('요청 실패: 영업포털(yk-marketing) 사이트에서 열었을 때만 접수할 수 있습니다.'); });
   }
 
-  /* ---- 프로젝트(병원 단위) 저장/불러오기 ---- */
+  /* ---- 프로젝트(병원 단위) 저장/불러오기 ----
+     사이트(로그인)에서는 구글드라이브 공유 저장(/api/subprojects) — 어느 계정으로 들어와도
+     드롭다운에서 거래처를 골라 이어서 작업. 실패/오프라인이면 이 브라우저(localStorage)에 저장 */
+  var cloudProj = { on: false, list: [] };
   function loadProjects() {
     try { return JSON.parse(localStorage.getItem('dt_projects') || '{}'); } catch (e) { return {}; }
   }
@@ -772,6 +775,15 @@
   }
   function refreshProjSel(selected) {
     var sel = $('projSel'); sel.innerHTML = '<option value="">— 저장된 프로젝트 —</option>';
+    if (cloudProj.on) {
+      cloudProj.list.forEach(function (it) {
+        var o = document.createElement('option'); o.value = 'cloud:' + it.id;
+        o.textContent = '☁ ' + it.name + (it.updatedAt ? ' (' + String(it.updatedAt).slice(5, 16).replace('T', ' ') + ')' : '');
+        if (it.name === selected) o.selected = true;
+        sel.appendChild(o);
+      });
+      return;
+    }
     var p = loadProjects();
     Object.keys(p).sort().forEach(function (k) {
       var o = document.createElement('option'); o.value = k;
@@ -779,6 +791,15 @@
       if (k === selected) o.selected = true;
       sel.appendChild(o);
     });
+  }
+  function refreshCloudList(selected) {
+    return fetch('/api/subprojects').then(function (r) { return r.json(); }).then(function (d) {
+      if (d && d.ok && d.list) {
+        cloudProj.on = true;
+        cloudProj.list = d.list.slice().sort(function (a, b) { return a.name.localeCompare(b.name, 'ko'); });
+        refreshProjSel(selected || '');
+      }
+    }).catch(function () {});
   }
   function currentProjectData() {
     return {
@@ -788,26 +809,26 @@
       pharmFileName: state.pharmFileName || '',
       checks: { own: makerState.checked, sw: makerState.swChecked },
       excluded: state.excluded,
+      view: { proposal: !!state.proposalMode, comboMin: $('comboMin').value, matched: $('cMatched').checked, bestOnly: $('cBestOnly').checked, sortKey: itemsSort.key, sortAsc: itemsSort.asc },
       savedAt: new Date().toISOString()
     };
   }
-  function projStatMsg(t) { $('projStat').textContent = t; setTimeout(function () { if ($('projStat').textContent === t) $('projStat').textContent = ''; }, 4000); }
-  $('projSave').addEventListener('click', function () {
-    var name = ($('projName').value || '').trim();
-    if (!name) { alert('병원(거래처)명을 입력해주세요 — 프로젝트 이름으로 사용됩니다.'); $('projName').focus(); return; }
-    var p = loadProjects();
-    p[name] = currentProjectData();
-    if (persistProjects(p)) { refreshProjSel(name); projStatMsg('✓ 저장됨: ' + name); }
-  });
-  $('projSel').addEventListener('change', function () {
-    var name = this.value; if (!name) return;
-    var proj = loadProjects()[name]; if (!proj) return;
-    $('projName').value = proj.hospital.name || name;
-    $('projBiz').value = proj.hospital.biz || '';
-    $('projMemo').value = proj.hospital.memo || '';
+  function applyProject(proj, name) {
+    $('projName').value = (proj.hospital && proj.hospital.name) || name || '';
+    $('projBiz').value = (proj.hospital && proj.hospital.biz) || '';
+    $('projMemo').value = (proj.hospital && proj.hospital.memo) || '';
     makerState.checked = (proj.checks && proj.checks.own) || {};
     makerState.swChecked = (proj.checks && proj.checks.sw) || {};
     state.excluded = proj.excluded || {};
+    if (proj.view) {
+      state.proposalMode = !!proj.view.proposal;
+      if (proj.view.comboMin !== undefined) $('comboMin').value = proj.view.comboMin;
+      matchedTouched = true;
+      $('cMatched').checked = !!proj.view.matched;
+      $('cBestOnly').checked = proj.view.bestOnly !== false;
+      if (proj.view.sortKey) itemsSort = { key: proj.view.sortKey, asc: !!proj.view.sortAsc };
+      if (state.proposalMode) { $('comboModeFull').checked = true; $('comboModeOpt').checked = false; }
+    }
     if (proj.pharmRows && proj.pharmRows.length) {
       state.pharmRows = proj.pharmRows;
       state.pharmFileName = proj.pharmFileName || '';
@@ -817,20 +838,81 @@
       applyPharmMap();
       setStat('sPharm', '✓ 프로젝트에서 복원: ' + (state.pharm ? state.pharm.length + '개 품목' : '') + (proj.pharmFileName ? ' (' + proj.pharmFileName + ')' : ''), true);
     }
-    projStatMsg('✓ 불러옴: ' + name);
+    projStatMsg('✓ 불러옴: ' + (name || '') + (proj.savedBy ? ' — 저장: ' + proj.savedBy : ''));
     ready();
-    if (state.result) { state.heldComp = null; renderMakers(); drawRows(); }
+    if (state.result) { state.heldComp = null; buildHead(); renderMakers(); drawRows(); }
+    /* 바로 이어서 작업: 요율표·약가파일이 비어 있으면 클라우드에서 자동으로 불러오고, 준비되면 매핑 자동 실행 */
+    if (state.pharm) {
+      if (!(state.rateWb || state.rateMerged)) $('btnCloudRate').click();
+      if (!state.master) $('btnCloudMaster').click();
+      var tries = 0;
+      var t = setInterval(function () {
+        tries++;
+        if (state.pharm && (state.rateWb || state.rateMerged) && state.master) {
+          clearInterval(t); ready();
+          if (!state.result) $('btnRun').click();
+        } else if (tries > 120) clearInterval(t); /* 60초 내 준비 안 되면 수동 진행 */
+      }, 500);
+    }
+  }
+  function projStatMsg(t) { $('projStat').textContent = t; setTimeout(function () { if ($('projStat').textContent === t) $('projStat').textContent = ''; }, 6000); }
+  $('projSave').addEventListener('click', function () {
+    var name = ($('projName').value || '').trim();
+    if (!name) {
+      name = (prompt('병원(거래처)명을 입력해주세요 — 프로젝트 이름으로 저장됩니다.') || '').trim();
+      if (!name) { $('projName').focus(); return; }
+      $('projName').value = name;
+    }
+    var data = currentProjectData();
+    /* 로컬 백업은 항상 */
+    var p = loadProjects(); p[name] = data; persistProjects(p);
+    projStatMsg('저장 중…');
+    fetch('/api/subprojects', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name, data: data })
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      if (d && d.ok) { refreshCloudList(name).then(function () { projStatMsg('☁ 드라이브에 저장됨: ' + name + ' — 어느 계정에서나 불러올 수 있습니다'); }); }
+      else { refreshProjSel(name); projStatMsg('✓ 이 브라우저에 저장됨: ' + name + (d && d.error ? ' (드라이브 저장 실패: ' + d.error + ')' : '')); }
+    }).catch(function () { refreshProjSel(name); projStatMsg('✓ 이 브라우저에 저장됨: ' + name + ' (오프라인 — 사이트에서 열면 드라이브에 저장됩니다)'); });
+  });
+  $('projSel').addEventListener('change', function () {
+    var v = this.value; if (!v) return;
+    if (v.indexOf('cloud:') === 0) {
+      var id = v.slice(6);
+      projStatMsg('불러오는 중…');
+      fetch('/api/subprojects?id=' + encodeURIComponent(id)).then(function (r) { return r.json(); }).then(function (d) {
+        if (d && d.ok && d.data) {
+          var it = null;
+          cloudProj.list.forEach(function (x) { if (x.id === id) it = x; });
+          applyProject(d.data, it ? it.name : '');
+        } else projStatMsg('불러오기 실패: ' + ((d && d.error) || '알 수 없는 오류'));
+      }).catch(function () { projStatMsg('불러오기 실패: 네트워크 오류'); });
+      return;
+    }
+    var proj = loadProjects()[v]; if (!proj) return;
+    applyProject(proj, v);
   });
   $('projNew').addEventListener('click', function () {
     $('projSel').value = ''; $('projName').value = ''; $('projBiz').value = ''; $('projMemo').value = '';
-    makerState.checked = {}; makerState.swChecked = {}; state.excluded = {};
+    makerState.checked = {}; makerState.swChecked = {}; state.excluded = {}; state.proposalMode = false;
     projStatMsg('새 프로젝트 — 병원명 입력 후 저장');
   });
   $('projDel').addEventListener('click', function () {
-    var name = $('projSel').value; if (!name) { alert('삭제할 프로젝트를 먼저 선택해주세요.'); return; }
-    if (!confirm('프로젝트 "' + name + '"를 삭제할까요?')) return;
-    var p = loadProjects(); delete p[name]; persistProjects(p);
-    refreshProjSel(''); projStatMsg('삭제됨: ' + name);
+    var v = $('projSel').value; if (!v) { alert('삭제할 프로젝트를 먼저 선택해주세요.'); return; }
+    if (v.indexOf('cloud:') === 0) {
+      var id = v.slice(6), nm = '';
+      cloudProj.list.forEach(function (x) { if (x.id === id) nm = x.name; });
+      if (!confirm('드라이브 프로젝트 "' + nm + '"를 삭제할까요? (모든 계정에서 사라집니다)')) return;
+      fetch('/api/subprojects?id=' + encodeURIComponent(id), { method: 'DELETE' })
+        .then(function (r) { return r.json(); }).then(function (d) {
+          if (d && d.ok) { refreshCloudList('').then(function () { projStatMsg('삭제됨: ' + nm); }); }
+          else projStatMsg('삭제 실패: ' + ((d && d.error) || ''));
+        }).catch(function () { projStatMsg('삭제 실패: 네트워크 오류'); });
+      return;
+    }
+    if (!confirm('프로젝트 "' + v + '"를 삭제할까요?')) return;
+    var p = loadProjects(); delete p[v]; persistProjects(p);
+    refreshProjSel(''); projStatMsg('삭제됨: ' + v);
   });
   $('projExport').addEventListener('click', function () {
     var p = loadProjects();
@@ -857,6 +939,7 @@
     reader.readAsText(f);
   });
   refreshProjSel('');
+  refreshCloudList(''); /* 사이트(로그인)에서 열리면 드라이브 프로젝트 목록으로 전환 */
 
   function makerAggs() {
     var m = {};
@@ -892,24 +975,54 @@
     $('makerTitle').textContent = '🏆 최적 조합';
     $('pharmNameRow').style.display = 'none';
     $('comboRow').style.display = 'flex';
-    var K = Math.max(1, parseInt($('comboK').value, 10) || 5);
-    var fillAll = $('comboCover').checked;
+    var full = $('comboModeFull').checked;
     var minAmt = Math.max(0, parseInt($('comboMin').value, 10) || 0);
-    var r = bestCombo(K, fillAll, minAmt);
-    makerState.lastCombo = r.list.map(function (a) { return a.name; });
-    var extra = r.list.length - r.mainCount;
-    $('comboModeLbl').textContent = (fillAll
-      ? ('정산 주력 ' + r.mainCount + '곳 + 보완 ' + extra + '곳')
-      : '정산금 최대 기준')
-      + (r.droppedSmall ? ' · 소액 ' + r.droppedSmall + '품목 제외' : '');
     var list = $('makerList'); list.innerHTML = '';
     makerState.view = [];
-    r.list.forEach(function (a, ri) {
+    var rows, sub, sum, lbl;
+    if (full) {
+      /* 품목 전체 커버(제안서): 품목마다 약가 동일·낮음 후보 중 정산금 최고 1개 → 회사별 집계 */
+      var best = proposalBest();
+      var mcol = state.makerCol;
+      var m = {}, covered = 0, coveredAmt = 0, tP = 0, tI = 0, total = 0, dropped = 0;
+      state.result.pharm.forEach(function (d) {
+        if (state.excluded[d.code]) return;
+        if (minAmt > 0 && d.amt < minAmt) { dropped++; return; }
+        total++;
+        var b = best[d.code];
+        if (!b) return;
+        covered++; coveredAmt += d.amt; tP += b.profTotal; tI += b.incTotal;
+        var comp = mcol >= 0 ? String(b.cells[mcol] === undefined ? '' : b.cells[mcol]).trim() : '';
+        if (!comp) comp = '(제약사 미상)';
+        var a = m[comp] || (m[comp] = { name: comp, cnt: 0, amt: 0, prof: 0, inc: 0 });
+        a.cnt++; a.amt += d.amt; a.prof += b.profTotal; a.inc += b.incTotal;
+      });
+      rows = Object.keys(m).map(function (k) { return m[k]; }).sort(function (a, b) { return b.prof - a.prof; });
+      makerState.lastCombo = null;
+      sub = rows.length + '개 제약사 · 커버 ' + covered + '/' + total + '품목' + ownFilterLabel();
+      lbl = '약가 동일·낮음 후보 중 정산금 최고 1개' + (dropped ? ' · 소액 ' + dropped + '품목 제외' : '');
+      sum = '<div class="l" style="color:var(--blue)"><span>제안서 예상 정산액(월)</span><b>₩' + Math.round(tP).toLocaleString('ko-KR') + '</b></div>'
+        + '<div class="l"><span>커버 처방금액</span><b>₩' + Math.round(coveredAmt).toLocaleString('ko-KR') + '</b></div>'
+        + '<div class="l" style="color:var(--ok)"><span>저가대체 인센티브</span><b>₩' + Math.round(tI).toLocaleString('ko-KR') + '</b></div>'
+        + '<div class="l"><span>약가 동일·낮음 후보 없는 품목</span><b>' + (total - covered).toLocaleString('ko-KR') + '품목</b></div>';
+    } else {
+      var K = Math.max(1, parseInt($('comboK').value, 10) || 5);
+      var r = bestCombo(K, false, minAmt);
+      rows = r.list;
+      makerState.lastCombo = r.list.map(function (a) { return a.name; });
+      sub = r.list.length + '개 조합 · 커버 ' + r.covered + '/' + r.totalHelds + '품목' + ownFilterLabel();
+      lbl = '정산금 최대 기준' + (r.droppedSmall ? ' · 소액 ' + r.droppedSmall + '품목 제외' : '');
+      sum = '<div class="l" style="color:var(--blue)"><span>조합 예상 정산액(월)</span><b>₩' + Math.round(r.totalProf).toLocaleString('ko-KR') + '</b></div>'
+        + '<div class="l"><span>커버 처방금액</span><b>₩' + Math.round(r.coveredAmt).toLocaleString('ko-KR') + '</b></div>'
+        + '<div class="l" style="color:var(--ok)"><span>저가대체 인센티브</span><b>₩' + Math.round(r.totalInc).toLocaleString('ko-KR') + '</b></div>'
+        + '<div class="l"><span>조합 밖 품목</span><b>' + (r.totalHelds - r.covered).toLocaleString('ko-KR') + '품목</b></div>';
+    }
+    $('comboModeLbl').textContent = lbl;
+    rows.forEach(function (a, ri) {
       var div = document.createElement('div');
       div.className = 'crow sw';
-      var mark = ri >= r.mainCount ? ' <span style="font-size:10px;color:var(--warn);font-weight:700">보완</span>' : '';
       div.innerHTML = '<span class="rank">' + (ri + 1) + '</span>'
-        + '<div class="cname" title="' + esc(a.name) + '">' + esc(a.name) + mark + '</div>'
+        + '<div class="cname" title="' + esc(a.name) + '">' + esc(a.name) + '</div>'
         + '<button class="filtreq" title="이 제약사 필터링요청 접수">필터링요청</button>'
         + '<div class="cinfo"><b>정산 ₩' + Math.round(a.prof).toLocaleString('ko-KR') + '</b> · 담당 ' + a.cnt + '품목'
         + ' · 처방 ₩' + Math.round(a.amt).toLocaleString('ko-KR')
@@ -917,18 +1030,15 @@
       div.onclick = function (e) {
         if (e.target.closest('.filtreq')) { openFilterReq(a.name); return; }
         /* 클릭 시 그 회사 기준으로 표 필터 (스위칭 체크와 연동) */
+        state.proposalMode = false;
         makerState.swChecked = {};
         makerState.swChecked[a.name] = true;
         drawRows();
       };
       list.appendChild(div);
     });
-    $('makerSub').textContent = r.list.length + '개 조합 · 커버 ' + r.covered + '/' + r.totalHelds + '품목' + ownFilterLabel();
-    $('makerSum').innerHTML =
-      '<div class="l" style="color:var(--blue)"><span>조합 예상 정산액(월)</span><b>₩' + Math.round(r.totalProf).toLocaleString('ko-KR') + '</b></div>'
-      + '<div class="l"><span>커버 처방금액</span><b>₩' + Math.round(r.coveredAmt).toLocaleString('ko-KR') + '</b></div>'
-      + '<div class="l" style="color:var(--ok)"><span>저가대체 인센티브</span><b>₩' + Math.round(r.totalInc).toLocaleString('ko-KR') + '</b></div>'
-      + '<div class="l"><span>조합 밖 품목</span><b>' + (r.totalHelds - r.covered).toLocaleString('ko-KR') + '품목</b></div>';
+    $('makerSub').textContent = sub;
+    $('makerSum').innerHTML = sum;
   }
 
   function renderOwnList() {
@@ -996,6 +1106,7 @@
       div.onclick = function (e) {
         if (e.target.closest('.filtreq')) { openFilterReq(a.name); return; }
         makerState.focus = ri;
+        state.proposalMode = false;
         makerState.swChecked[a.name] = !makerState.swChecked[a.name];
         renderMakers(); drawRows();
       };
@@ -1040,6 +1151,7 @@
       if (!a) return;
       e.preventDefault();
       var set = currentChecked();
+      if (makerState.tab === 'switch') state.proposalMode = false;
       set[a.name] = !set[a.name];
       renderMakers(); drawRows();
     }
@@ -1062,15 +1174,44 @@
   });
   $('comboK').addEventListener('change', renderMakers);
   $('comboK').addEventListener('input', renderMakers);
-  $('comboCover').addEventListener('change', renderMakers);
   $('comboMin').addEventListener('input', renderMakers);
+  /* 두 모드는 배타 선택 */
+  $('comboModeOpt').addEventListener('change', function () {
+    if (this.checked) $('comboModeFull').checked = false; else $('comboModeFull').checked = true;
+    renderMakers();
+  });
+  $('comboModeFull').addEventListener('change', function () {
+    if (this.checked) $('comboModeOpt').checked = false; else $('comboModeOpt').checked = true;
+    renderMakers();
+  });
   $('comboApply').addEventListener('click', function () {
-    var names = makerState.lastCombo || [];
-    if (!names.length) return;
-    makerState.swChecked = {};
-    names.forEach(function (n) { makerState.swChecked[n] = true; });
-    renderMakers(); drawRows();
-    alert('조합 ' + names.length + '개 제약사를 표에 적용했습니다.\n품목별 요약에 매칭 품목만(1차 필터) + 품목당 최유리 제약사 1곳이 표시됩니다.');
+    var minAmt = Math.max(0, parseInt($('comboMin').value, 10) || 0);
+    if ($('comboModeFull').checked) {
+      /* 제안서 모드: 약가 동일·낮음 후보 중 정산금 최고 1개, 정산금 높은 순 정렬 */
+      state.proposalMode = true;
+      makerState.swChecked = {};
+      var excCnt = 0;
+      if (minAmt > 0) {
+        state.result.pharm.forEach(function (d) {
+          if (d.amt < minAmt && !state.excluded[d.code]) { state.excluded[d.code] = true; excCnt++; }
+        });
+        state.heldComp = null;
+      }
+      matchedTouched = true; $('cMatched').checked = true;
+      itemsSort = { key: 'profTotal', asc: false };
+      buildHead(); renderMakers(); drawRows();
+      alert('제안서 기준을 표에 적용했습니다.\n· 약가 동일·낮음 후보 중 정산금 최고 1개만 표시\n· 정산금 높은 순 정렬'
+        + (excCnt ? '\n· 소액(조제금액 ' + minAmt.toLocaleString('ko-KR') + '원 미만) ' + excCnt + '품목 제외 처리' : '')
+        + '\n이 상태로 엑셀 다운로드하면 제안서 시트가 됩니다.');
+    } else {
+      var names = makerState.lastCombo || [];
+      if (!names.length) return;
+      state.proposalMode = false;
+      makerState.swChecked = {};
+      names.forEach(function (n) { makerState.swChecked[n] = true; });
+      renderMakers(); drawRows();
+      alert('조합 ' + names.length + '개 제약사를 표에 적용했습니다.\n품목별 요약에 매칭 품목만(1차 필터) + 품목당 최유리 제약사 1곳이 표시됩니다.');
+    }
   });
   $('pharmName').addEventListener('change', function () {
     try { localStorage.setItem('dt_pharm_name', this.value.trim()); } catch (e) {}
@@ -1090,11 +1231,12 @@
   });
   $('makerAll').addEventListener('click', function () {
     var set = currentChecked();
+    if (makerState.tab !== 'own') state.proposalMode = false;
     (makerState.tab === 'own' ? makerAggs() : switchAggs()).forEach(function (a) { set[a.name] = true; });
     renderMakers(); drawRows();
   });
   $('makerNone').addEventListener('click', function () {
-    if (makerState.tab === 'own') makerState.checked = {}; else makerState.swChecked = {};
+    if (makerState.tab === 'own') makerState.checked = {}; else { makerState.swChecked = {}; state.proposalMode = false; }
     renderMakers(); drawRows();
   });
 
@@ -1188,7 +1330,19 @@
     { key: 'incTotal', label: '인센티브(월)' },
     { key: 'cand', label: '후보수' }
   ];
+  /* 제안서 모드: 품목마다 약가가 보유단가와 동일하거나 낮은 후보 중 정산금 최고 1개 */
+  function proposalBest() {
+    var best = {};
+    state.result.outRows.forEach(function (x) {
+      if (x.kind !== '대체가능' || x.status !== '정상') return;
+      if (x.diff > 0) return; /* 약가 상승 후보는 제안서에서 제외 */
+      var cur = best[x.pCode];
+      if (!cur || x.profTotal > cur.profTotal || (x.profTotal === cur.profTotal && x.incTotal > cur.incTotal)) best[x.pCode] = x;
+    });
+    return best;
+  }
   function buildBestMap() {
+    if (state.proposalMode) return proposalBest();
     var swSel = Object.keys(makerState.swChecked).some(function (k) { return makerState.swChecked[k]; });
     var mcol = state.makerCol;
     var best = {};
@@ -1211,6 +1365,7 @@
     var lists = {};
     state.result.outRows.forEach(function (x) {
       if (x.kind !== '대체가능' || x.status !== '정상') return;
+      if (state.proposalMode && x.diff > 0) return;
       if (swSel) {
         var comp = mcol >= 0 ? String(x.cells[mcol] === undefined ? '' : x.cells[mcol]).trim() : '(제약사 미상)';
         if (!makerState.swChecked[comp || '(제약사 미상)']) return;
@@ -1477,7 +1632,7 @@
       active++; tAmt += it.amt;
       if (it.istatus === '매칭') { mCnt++; mAmt += it.amt; tProf += it.profTotal; tInc += it.incTotal; }
     });
-    var footLabel = '합계 (' + active + '품목, 제외 반영' + (expand ? ', 최유리 기준' : '') + ')'
+    var footLabel = '합계 (' + active + '품목, 제외 반영' + (state.proposalMode ? ', 제안서 기준: 약가 동일·낮음' : '') + (expand ? ', 최유리 기준' : '') + ')'
       + (over ? ' · 표시 ' + CAP + '행 초과분 생략(엑셀에는 전체 포함)' : '');
     $('tblFoot').innerHTML = '<tr>'
       + '<td colspan="6">' + footLabel + '</td>'
