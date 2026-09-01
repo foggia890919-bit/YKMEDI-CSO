@@ -61,11 +61,12 @@
   /* 결과 영역: 좌측 표 + 우측 제조회사 패널 (정산내역서 양식) */
   .split { display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap; }
   .lcol { flex: 1; min-width: 0; }
-  .rpanel { display: none; width: 300px; flex: none; background: #fff; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; position: sticky; top: 12px; max-height: calc(100vh - 24px); flex-direction: column; }
+  .rpanel { display: none; width: 340px; flex: none; background: #fff; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; position: sticky; top: 12px; max-height: calc(100vh - 24px); flex-direction: column; }
   .rpanel.show { display: flex; }
   .crow.kfocus { box-shadow: inset 0 0 0 2px var(--blue); background: #e7f0ff; border-radius: 6px; }
-  .rpanel .panel-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); font-weight: 800; font-size: 14px; }
-  .rpanel .panel-head .sub { font-size: 11.5px; color: #667; font-weight: 600; margin-left: auto; }
+  .rpanel .panel-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); font-weight: 800; font-size: 13.5px; flex-wrap: wrap; }
+  .rpanel .panel-head #makerTitle { white-space: nowrap; }
+  .rpanel .panel-head .sub { font-size: 11px; color: #667; font-weight: 600; margin-left: auto; text-align: right; }
   .ptools { padding: 8px 12px; display: flex; flex-direction: column; gap: 8px; border-bottom: 1px solid var(--line); }
   .ptools .row { display: flex; gap: 6px; align-items: center; }
   .ptools input[type=search] { flex: 1; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-size: 12px; font-family: inherit; }
@@ -99,14 +100,24 @@
   .crow.sw .cinfo { grid-column: 2 / 4; grid-row: 2; font-size: 11px; color: #556; font-variant-numeric: tabular-nums; }
   .crow.sw .cinfo b { color: #1c2333; font-size: 12px; }
   .crow .rank { grid-row: 1 / 3; align-self: center; width: 22px; text-align: center; font-weight: 800; color: var(--blue); font-size: 13px; }
-  table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
-  th { position: sticky; top: 0; background: var(--blue); color: #fff; padding: 8px 10px; text-align: left; white-space: nowrap; font-weight: 600; cursor: pointer; }
+  table { border-collapse: collapse; table-layout: fixed; width: max-content; min-width: 100%; font-size: 12.5px; }
+  th { position: sticky; top: 0; background: var(--blue); color: #fff; padding: 8px 10px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; cursor: pointer; }
   th:hover { background: var(--blue-dark); }
   th .arrow { font-size: 10px; opacity: .9; margin-left: 3px; }
+  th .rz { position: absolute; right: 0; top: 0; bottom: 0; width: 7px; cursor: col-resize; }
+  th .rz:hover { background: rgba(255,255,255,.35); }
   td.num { text-align: right; font-variant-numeric: tabular-nums; }
   td.pos { color: var(--err); font-weight: 700; }
   td.neg { color: var(--ok); font-weight: 700; }
-  td { padding: 6px 10px; border-bottom: 1px solid #eef1f7; white-space: nowrap; }
+  td { padding: 6px 10px; border-bottom: 1px solid #eef1f7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  tr.excl td { opacity: .45; text-decoration: line-through; }
+  tr.excl td.exc-cell { opacity: 1; text-decoration: none; }
+  .badge.miss { background: #fde8e8; color: var(--err); }
+  .badge.ok2 { background: #e2f5e9; color: var(--ok); }
+  tfoot td { position: sticky; bottom: 0; background: #eef2ff; font-weight: 800; border-top: 2px solid #c7d2fe; }
+  .viewseg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .viewseg button { border: 0; border-radius: 0; background: #fff; padding: 8px 14px; font-size: 13px; font-weight: 700; color: #667; cursor: pointer; }
+  .viewseg button.on { background: var(--blue); color: #fff; }
   tr.own td { background: var(--own); }
   .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11.5px; font-weight: 700; }
   .badge.own { background: #e3a008; color: #fff; }
@@ -188,6 +199,10 @@
   </div>
 
   <div class="filters" id="filters" style="display:none">
+    <div class="viewseg">
+      <button id="viewItems" class="on">📋 품목별 요약</button>
+      <button id="viewCands">전체 후보</button>
+    </div>
     <input type="text" id="q" placeholder="검색: 성분명·품목명·제약사·약국약품명…">
     <select id="fKind">
       <option value="">구분 전체</option>
@@ -207,7 +222,7 @@
   <div class="split">
     <div class="lcol">
       <div class="tablewrap" id="tablewrap">
-        <table id="tbl"><thead></thead><tbody></tbody></table>
+        <table id="tbl"><colgroup id="tblCols"></colgroup><thead></thead><tbody></tbody><tfoot id="tblFoot"></tfoot></table>
       </div>
     </div>
     <aside class="rpanel" id="makerPanel">
@@ -560,8 +575,11 @@
     initColVis();
     buildColPanel();
     state.makerCol = rateMakerCol();
+    state.prodCol = -1;
+    for (var pc = 0; pc < state.rateParsed.header.length; pc++) {
+      if (matchGroup(state.rateParsed.header[pc]) === 3) { state.prodCol = pc; break; }
+    }
     state.heldComp = null;
-    makerState.swChecked = {};
     try { $('pharmName').value = localStorage.getItem('dt_pharm_name') || ''; } catch (e) {}
     buildHead();
     renderMakers();
@@ -587,13 +605,14 @@
      보유 제조회사 탭에서 체크한 회사가 있으면 그 회사들의 보유품목만 대상으로 계산 —
      "바꾸고 싶은 제조회사만 골라서 스위칭 매칭"하는 흐름. */
   function heldCompData() {
-    var ownSel = checkedMakers().slice().sort().join('|');
+    var ownSel = checkedMakers().slice().sort().join('|') + '#' + Object.keys(state.excluded).sort().join(',');
     if (state.heldComp && state.heldCompKey === ownSel) return state.heldComp;
     var anyOwn = ownSel.length > 0;
     var mcol = state.makerCol;
     var m = {};
     state.result.outRows.forEach(function (x) {
       if (x.kind !== '대체가능' || x.status !== '정상') return;
+      if (state.excluded[x.pCode]) return;
       if (anyOwn && !makerState.checked[x.pMaker || '(제조사 미상)']) return;
       var comp = mcol >= 0 ? String(x.cells[mcol] === undefined ? '' : x.cells[mcol]).trim() : '';
       if (!comp) comp = '(제약사 미상)';
@@ -735,6 +754,7 @@
       pharmMap: state.pharmRows ? currentPharmMap() : null,
       pharmFileName: state.pharmFileName || '',
       checks: { own: makerState.checked, sw: makerState.swChecked },
+      excluded: state.excluded,
       savedAt: new Date().toISOString()
     };
   }
@@ -754,6 +774,7 @@
     $('projMemo').value = proj.hospital.memo || '';
     makerState.checked = (proj.checks && proj.checks.own) || {};
     makerState.swChecked = (proj.checks && proj.checks.sw) || {};
+    state.excluded = proj.excluded || {};
     if (proj.pharmRows && proj.pharmRows.length) {
       state.pharmRows = proj.pharmRows;
       state.pharmFileName = proj.pharmFileName || '';
@@ -769,7 +790,7 @@
   });
   $('projNew').addEventListener('click', function () {
     $('projSel').value = ''; $('projName').value = ''; $('projBiz').value = ''; $('projMemo').value = '';
-    makerState.checked = {}; makerState.swChecked = {};
+    makerState.checked = {}; makerState.swChecked = {}; state.excluded = {};
     projStatMsg('새 프로젝트 — 병원명 입력 후 저장');
   });
   $('projDel').addEventListener('click', function () {
@@ -807,6 +828,7 @@
   function makerAggs() {
     var m = {};
     state.result.pharm.forEach(function (d) {
+      if (state.excluded[d.code]) return;
       var name = d.maker || '(제조사 미상)';
       if (!m[name]) m[name] = { name: name, cnt: 0, qty: 0, amt: 0, subCnt: 0, subAmt: 0, inc: 0 };
       m[name].cnt++; m[name].qty += d.qty; m[name].amt += d.amt;
@@ -881,14 +903,15 @@
     view.forEach(function (a, ri) {
       var on = !!makerState.checked[a.name];
       var div = document.createElement('div');
-      div.className = 'crow' + (on ? ' on' : '') + (ri === makerState.focus ? ' kfocus' : '');
+      div.className = 'crow sw' + (on ? ' on' : '') + (ri === makerState.focus ? ' kfocus' : '');
       div.innerHTML = '<input type="checkbox"' + (on ? ' checked' : '') + '>'
-        + '<div class="cname">' + esc(a.name) + '</div>'
-        + '<div class="camt"><b>₩' + Math.round(a.amt).toLocaleString('ko-KR') + '</b>'
-        + '<span>' + a.cnt + '품목 · 대체 ' + a.subCnt + ' · 인센 ₩' + Math.round(a.inc).toLocaleString('ko-KR') + '</span></div>';
+        + '<div class="cname" title="' + esc(a.name) + '">' + esc(a.name) + '</div>'
+        + '<span></span>'
+        + '<div class="cinfo"><b>₩' + Math.round(a.amt).toLocaleString('ko-KR') + '</b> · ' + a.cnt + '품목 · 대체 ' + a.subCnt + ' · 인센 ₩' + Math.round(a.inc).toLocaleString('ko-KR') + '</div>';
       div.onclick = function () {
         makerState.focus = ri;
         makerState.checked[a.name] = !makerState.checked[a.name];
+        state.heldComp = null;
         renderMakers(); drawRows();
       };
       list.appendChild(div);
@@ -1043,6 +1066,111 @@
   }
 
   var sortState = { key: null, idx: -1, asc: true, str: false };
+  var itemsSort = { key: 'amt', asc: false };
+  state.view = 'items';
+  state.excluded = {}; /* 대체조제 제외 품목: code → true */
+
+  /* ── 컬럼 폭 (드래그 조절, 저장) ── */
+  var colWidths = (function () { try { return JSON.parse(localStorage.getItem('dt_colw') || '{}'); } catch (e) { return {}; } })();
+  function saveColWidths() { try { localStorage.setItem('dt_colw', JSON.stringify(colWidths)); } catch (e) {} }
+  function defaultWidth(label) {
+    var n = String(label);
+    if (/보유약품|스위칭 품목/.test(n)) return 250;
+    if (/품목명|약품명/.test(n)) return 200;
+    if (/특이사항|메모/.test(n)) return 200;
+    if (/성분|주성분/.test(n)) return 180;
+    if (/제조회사|제약사|업체/.test(n)) return 130;
+    if (/오리지날|대조약/.test(n)) return 130;
+    if (/출처|생동/.test(n)) return 100;
+    if (/보험코드|코드/.test(n) && n.length > 3) return 100;
+    return 88;
+  }
+  function buildColgroup(cols) {
+    var cg = $('tblCols'); cg.innerHTML = '';
+    cols.forEach(function (c) {
+      var col = document.createElement('col');
+      col.style.width = (colWidths[c.id] || defaultWidth(c.label)) + 'px';
+      col.dataset.cid = c.id;
+      cg.appendChild(col);
+    });
+  }
+  function attachResizers(thead, cols) {
+    thead.querySelectorAll('th').forEach(function (th, i) {
+      var rz = document.createElement('span');
+      rz.className = 'rz';
+      rz.addEventListener('mousedown', function (e) {
+        e.preventDefault(); e.stopPropagation();
+        var col = $('tblCols').children[i];
+        var startX = e.clientX, startW = col.getBoundingClientRect().width;
+        function mv(ev) { col.style.width = Math.max(44, startW + ev.clientX - startX) + 'px'; }
+        function up(ev) {
+          document.removeEventListener('mousemove', mv);
+          document.removeEventListener('mouseup', up);
+          colWidths[cols[i].id] = Math.round(Math.max(44, startW + ev.clientX - startX));
+          saveColWidths();
+        }
+        document.addEventListener('mousemove', mv);
+        document.addEventListener('mouseup', up);
+      });
+      rz.addEventListener('click', function (e) { e.stopPropagation(); });
+      th.appendChild(rz);
+    });
+  }
+
+  /* ── 품목별 요약: 품목당 최적 대체품(정산액 최대, 스위칭 체크 반영) ── */
+  var ITEM_COLS = [
+    { key: 'exc', label: '제외', w: 46 },
+    { key: 'istatus', label: '상태', str: true },
+    { key: 'name', label: '약국 약품명', str: true },
+    { key: 'maker', label: '제조회사', str: true },
+    { key: 'qty', label: '조제량' },
+    { key: 'price', label: '조제단가' },
+    { key: 'amt', label: '조제금액' },
+    { key: 'bestName', label: '스위칭 품목(최적)', str: true },
+    { key: 'bestComp', label: '스위칭 제약사', str: true },
+    { key: 'bestPct', label: '요율(%)' },
+    { key: 'bestPrice', label: '대체약가' },
+    { key: 'bdiff', label: '차액' },
+    { key: 'profTotal', label: '정산액(월)' },
+    { key: 'incTotal', label: '인센티브(월)' },
+    { key: 'cand', label: '후보수' }
+  ];
+  function buildBestMap() {
+    var swSel = Object.keys(makerState.swChecked).some(function (k) { return makerState.swChecked[k]; });
+    var mcol = state.makerCol;
+    var best = {};
+    state.result.outRows.forEach(function (x) {
+      if (x.kind !== '대체가능' || x.status !== '정상') return;
+      if (swSel) {
+        var comp = mcol >= 0 ? String(x.cells[mcol] === undefined ? '' : x.cells[mcol]).trim() : '(제약사 미상)';
+        if (!makerState.swChecked[comp || '(제약사 미상)']) return;
+      }
+      /* 하나의 대체품이 정산+인센티브를 모두 주므로 합산 이익이 최대인 후보 선택 */
+      var cur = best[x.pCode];
+      if (!cur || (x.profTotal + x.incTotal) > (cur.profTotal + cur.incTotal)) best[x.pCode] = x;
+    });
+    return best;
+  }
+  function itemRow(d, best) {
+    var b = best[d.code] || null;
+    var mcol = state.makerCol;
+    var istatus;
+    if (state.excluded[d.code]) istatus = '제외';
+    else if (!d.grp) istatus = '미등재';
+    else if (!b) istatus = '후보없음';
+    else istatus = '매칭';
+    return {
+      code: d.code, exc: !!state.excluded[d.code], istatus: istatus,
+      name: d.name, maker: d.maker, qty: d.qty, price: d.price, amt: d.amt,
+      bestName: b && state.prodCol >= 0 ? String(b.cells[state.prodCol] === undefined ? '' : b.cells[state.prodCol]) : '',
+      bestComp: b && mcol >= 0 ? String(b.cells[mcol] === undefined ? '' : b.cells[mcol]).trim() : '',
+      bestPct: b ? b.pct : null, bestPrice: b ? b.price : null,
+      bdiff: b ? b.price - d.price : null,
+      profTotal: b && !state.excluded[d.code] ? b.profTotal : 0,
+      incTotal: b && !state.excluded[d.code] ? b.incTotal : 0,
+      cand: d.candCount || 0
+    };
+  }
 
   /* 열 표시/숨김 — 기본으로 중복·부가 열은 숨김 */
   var colVis = { front: {}, rate: {} };
@@ -1086,18 +1214,44 @@
   }
 
   function buildHead() {
+    var thead = $('tbl').querySelector('thead');
+    var cols = [];
+    if (state.view === 'items') {
+      ITEM_COLS.forEach(function (c) {
+        cols.push({ id: 'i:' + c.key, label: c.label, key: c.key, str: !!c.str, fixedW: c.w });
+      });
+      buildColgroup(cols.map(function (c) { return { id: c.id, label: c.fixedW ? '' : c.label }; }));
+      if (cols[0].fixedW && !colWidths[cols[0].id]) $('tblCols').children[0].style.width = cols[0].fixedW + 'px';
+      thead.innerHTML = '<tr>' + cols.map(function (c) {
+        var arrow = itemsSort.key === c.key ? '<span class="arrow">' + (itemsSort.asc ? '▲' : '▼') + '</span>' : '';
+        return '<th data-ikey="' + c.key + '" data-str="' + (c.str ? 1 : 0) + '">' + esc(c.label) + arrow + '</th>';
+      }).join('') + '</tr>';
+      thead.querySelectorAll('th').forEach(function (th) {
+        th.addEventListener('click', function () {
+          var k = th.getAttribute('data-ikey');
+          if (k === 'exc') return;
+          if (itemsSort.key === k) itemsSort.asc = !itemsSort.asc;
+          else { itemsSort.key = k; itemsSort.asc = th.getAttribute('data-str') === '1'; }
+          buildHead(); drawRows();
+        });
+      });
+      attachResizers(thead, cols);
+      return;
+    }
     var ths = [];
     frontCols().forEach(function (c) {
       if (!colVis.front[c.key]) return;
+      cols.push({ id: 'f:' + c.key, label: c.label });
       var arrow = sortState.key === c.key ? '<span class="arrow">' + (sortState.asc ? '▲' : '▼') + '</span>' : '';
       ths.push('<th data-key="' + c.key + '" data-str="' + (c.str ? 1 : 0) + '">' + esc(c.label) + arrow + '</th>');
     });
     state.rateParsed.header.forEach(function (h, j) {
       if (!colVis.rate[String(j)]) return;
+      cols.push({ id: 'r:' + j, label: h });
       var arrow = (sortState.key === null && sortState.idx === j) ? '<span class="arrow">' + (sortState.asc ? '▲' : '▼') + '</span>' : '';
       ths.push('<th data-idx="' + j + '">' + esc(h) + arrow + '</th>');
     });
-    var thead = $('tbl').querySelector('thead');
+    buildColgroup(cols);
     thead.innerHTML = '<tr>' + ths.join('') + '</tr>';
     thead.querySelectorAll('th').forEach(function (th) {
       th.addEventListener('click', function () {
@@ -1113,6 +1267,7 @@
         buildHead(); drawRows();
       });
     });
+    attachResizers(thead, cols);
   }
 
   function esc(s) { return String(s === undefined || s === null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
@@ -1138,6 +1293,86 @@
   }
 
   function drawRows() {
+    if (state.view === 'items') { drawItems(); return; }
+    $('tblFoot').innerHTML = '';
+    drawCands();
+  }
+
+  /* 품목별 요약: 조제내역 1품목 = 1행 + 최적 스위칭 품목 + 정산·인센티브 (최종 결과물) */
+  function drawItems() {
+    var r = state.result; if (!r) return;
+    var q = $('q').value.trim().toLowerCase();
+    var anyOwn = checkedMakers().length > 0;
+    var best = buildBestMap();
+    var items = r.pharm.map(function (d) { return itemRow(d, best); });
+    if (anyOwn) items = items.filter(function (it) { return makerState.checked[it.maker || '(제조사 미상)']; });
+    if (q) {
+      items = items.filter(function (it) {
+        return (it.name + ' ' + it.maker + ' ' + it.bestName + ' ' + it.bestComp).toLowerCase().indexOf(q) !== -1;
+      });
+    }
+    var k = itemsSort.key, dir = itemsSort.asc ? 1 : -1;
+    items.sort(function (a, b) {
+      var va = a[k], vb = b[k];
+      if (va === null || va === undefined) va = -Infinity;
+      if (vb === null || vb === undefined) vb = -Infinity;
+      if (typeof va === 'string' || typeof vb === 'string') {
+        va = String(va); vb = String(vb);
+        return va < vb ? -dir : (va > vb ? dir : 0);
+      }
+      return (va - vb) * dir;
+    });
+    var html = [];
+    items.forEach(function (it) {
+      var badge = it.istatus === '매칭' ? '<span class="badge ok2">매칭</span>'
+        : it.istatus === '제외' ? '<span class="badge">제외</span>'
+        : '<span class="badge miss">' + esc(it.istatus) + '</span>';
+      var diffCls = it.bdiff > 0 ? 'num pos' : (it.bdiff < 0 ? 'num neg' : 'num');
+      html.push('<tr class="' + (it.exc ? 'excl' : '') + '" data-code="' + it.code + '">'
+        + '<td class="exc-cell" style="text-align:center"><input type="checkbox" class="excChk" data-code="' + it.code + '"' + (it.exc ? ' checked' : '') + ' title="대체조제 제외"></td>'
+        + '<td>' + badge + '</td>'
+        + '<td title="' + esc(it.name) + '">' + esc(it.name) + '</td>'
+        + '<td>' + esc(it.maker) + '</td>'
+        + '<td class="num">' + fmt(it.qty) + '</td>'
+        + '<td class="num">' + fmt(it.price) + '</td>'
+        + '<td class="num">' + fmt(it.amt) + '</td>'
+        + '<td title="' + esc(it.bestName) + '">' + esc(it.bestName) + '</td>'
+        + '<td>' + esc(it.bestComp) + '</td>'
+        + '<td class="num">' + (it.bestPct === null ? '' : fmt(it.bestPct)) + '</td>'
+        + '<td class="num">' + (it.bestPrice === null ? '' : fmt(it.bestPrice)) + '</td>'
+        + '<td class="' + diffCls + '">' + (it.bdiff === null ? '' : (it.bdiff > 0 ? '+' : '') + fmt(it.bdiff)) + '</td>'
+        + '<td class="num" style="font-weight:700">' + (it.profTotal ? fmt(it.profTotal) : '') + '</td>'
+        + '<td class="num neg">' + (it.incTotal ? fmt(it.incTotal) : '') + '</td>'
+        + '<td class="num">' + it.cand + '</td>'
+        + '</tr>');
+    });
+    var tb = $('tbl').querySelector('tbody');
+    tb.innerHTML = html.join('');
+    tb.querySelectorAll('.excChk').forEach(function (cb) {
+      cb.addEventListener('change', function () {
+        var code = this.getAttribute('data-code');
+        if (this.checked) state.excluded[code] = true; else delete state.excluded[code];
+        state.heldComp = null;
+        renderMakers(); drawRows();
+      });
+    });
+    /* 합계 (제외 품목 빼고) */
+    var tAmt = 0, mAmt = 0, mCnt = 0, tProf = 0, tInc = 0, active = 0;
+    items.forEach(function (it) {
+      if (it.exc) return;
+      active++; tAmt += it.amt;
+      if (it.istatus === '매칭') { mCnt++; mAmt += it.amt; tProf += it.profTotal; tInc += it.incTotal; }
+    });
+    $('tblFoot').innerHTML = '<tr>'
+      + '<td colspan="6">합계 (' + active + '품목, 제외 반영)</td>'
+      + '<td class="num">' + fmt(tAmt) + '</td>'
+      + '<td colspan="5">매칭 ' + mCnt + '품목 · 처방 ₩' + fmt(mAmt) + '</td>'
+      + '<td class="num">' + fmt(tProf) + '</td>'
+      + '<td class="num" style="color:var(--ok)">' + fmt(tInc) + '</td>'
+      + '<td></td></tr>';
+  }
+
+  function drawCands() {
     var r = state.result; if (!r) return;
     var q = $('q').value.trim().toLowerCase();
     var kind = $('fKind').value, ing = $('fIng').value;
@@ -1152,6 +1387,7 @@
       var x = rows[i];
       if (kind && x.kind !== kind) continue;
       if (ing && x.ing !== ing) continue;
+      if (state.excluded[x.pCode]) continue;
       if (!showExc && x.status !== '정상') continue;
       if (x.cmp === '낮음' && !showLow) continue;
       if (x.cmp === '동일' && !showSame) continue;
@@ -1195,12 +1431,42 @@
     tb.innerHTML = html.join('');
   }
   ['q', 'fKind', 'fIng', 'cLow', 'cSame', 'cHigh', 'cExc'].forEach(function (id) { $(id).addEventListener('input', drawRows); });
+  $('viewItems').addEventListener('click', function () {
+    state.view = 'items';
+    this.classList.add('on'); $('viewCands').classList.remove('on');
+    buildHead(); drawRows();
+  });
+  $('viewCands').addEventListener('click', function () {
+    state.view = 'cands';
+    this.classList.add('on'); $('viewItems').classList.remove('on');
+    $('tblFoot').innerHTML = '';
+    buildHead(); drawRows();
+  });
 
   $('btnDown').addEventListener('click', function () {
     var r = state.result; if (!r) return;
     var wb = XLSX.utils.book_new();
 
-    var head1 = ['주성분코드(동일제형)', '주성분명', '구분', '품목상태', '약국 보유약품', '보유 제조회사', '조제량', '조제금액',
+    /* 최종 결과물: 품목별 요약 — 조제내역 + 최적 스위칭 품목 + 정산·인센티브 */
+    var best0 = buildBestMap();
+    var items0 = r.pharm.map(function (d) { return itemRow(d, best0); });
+    var headI = ITEM_COLS.filter(function (c) { return c.key !== 'exc'; }).map(function (c) { return c.label; });
+    headI.unshift('제외여부');
+    var aoaI = [headI];
+    items0.forEach(function (it) {
+      aoaI.push([it.exc ? '제외' : '', it.istatus, it.name, it.maker, it.qty, it.price, it.amt,
+        it.bestName, it.bestComp, it.bestPct === null ? '' : it.bestPct, it.bestPrice === null ? '' : it.bestPrice,
+        it.bdiff === null ? '' : it.bdiff, it.profTotal || '', it.incTotal || '', it.cand]);
+    });
+    var tP = 0, tI = 0, tA = 0;
+    items0.forEach(function (it) { if (!it.exc) { tA += it.amt; tP += it.profTotal; tI += it.incTotal; } });
+    aoaI.push(['', '합계(제외 반영)', '', '', '', '', tA, '', '', '', '', '', tP, tI, '']);
+    var wsI = XLSX.utils.aoa_to_sheet(aoaI);
+    wsI['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: aoaI.length - 1, c: headI.length - 1 } }) };
+    wsI['!cols'] = [{ wch: 8 }, { wch: 8 }, { wch: 36 }, { wch: 16 }, { wch: 8 }, { wch: 9 }, { wch: 11 }, { wch: 28 }, { wch: 14 }, { wch: 8 }, { wch: 9 }, { wch: 8 }, { wch: 11 }, { wch: 11 }, { wch: 7 }];
+    XLSX.utils.book_append_sheet(wb, wsI, '품목별 요약(최종)');
+
+    var head1 =['주성분코드(동일제형)', '주성분명', '구분', '품목상태', '약국 보유약품', '보유 제조회사', '조제량', '조제금액',
       '보유단가', '약가비교', '차액(약가-보유단가)', '요율(%)', '정당이익(약가×요율)', '저가 인센티브(정당)'].concat(state.rateParsed.header);
     var aoa1 = [head1];
     sortedRows().forEach(function (x) {

@@ -367,7 +367,7 @@ function buildMapping(pharm, rate, master) {
         grp: mhit.grp, ing: mhit.ing,
         kind: own ? '보유품목' : '대체가능',
         status: status,
-        pName: held.name, pMaker: held.maker, pQty: held.qty, pAmt: held.amt,
+        pCode: held.code, pName: held.name, pMaker: held.maker, pQty: held.qty, pAmt: held.amt,
         price: price, basePrice: basePrice, diff: diff, cmp: cmp,
         pct: pct, profit: normal ? Math.round(price * pct) / 100 : 0, incentive: incentive,
         incTotal: incentive > 0 ? Math.round(incentive * held.qty) : 0,
