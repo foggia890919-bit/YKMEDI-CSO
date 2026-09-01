@@ -238,13 +238,9 @@
         <div class="row" id="pharmNameRow" style="display:none"><input type="search" id="pharmName" placeholder="약국(거래처)명 — 필터링요청에 기재됩니다"></div>
         <div class="row" id="comboRow" style="display:none">
           <span class="mini">조합 개수</span>
-          <select id="comboK" style="margin-top:0; width:auto; padding:4px 8px; font-size:12px">
-            <option value="3">3개</option>
-            <option value="5" selected>5개</option>
-            <option value="7">7개</option>
-            <option value="10">10개</option>
-          </select>
-          <span class="mini" style="flex:1; text-align:right">정산금(약가×요율×조제량) 최대 기준</span>
+          <input type="number" id="comboK" min="1" max="99" value="5" style="margin-top:0; width:58px; padding:4px 8px; font-size:12px; border:1px solid var(--line); border-radius:6px; font-family:inherit">
+          <label class="chk" style="margin:0; font-size:12px"><input type="checkbox" id="comboCover">품목 커버 우선</label>
+          <span class="mini" id="comboModeLbl" style="flex:1; text-align:right">정산금 최대 기준</span>
         </div>
         <div class="row"><input type="search" id="makerSearch" placeholder="제약사 검색…"></div>
         <div class="row">
@@ -662,33 +658,42 @@
   }
 
   /* 최적 조합: K개 제약사를 골라 품목별 최고 정산금 합이 최대가 되도록 (그리디) */
-  function bestCombo(K) {
+  function bestCombo(K, coverFirst) {
     var hc = heldCompData();
     var helds = Object.keys(hc);
     var comps = {};
     helds.forEach(function (h) { for (var c in hc[h].comps) comps[c] = 1; });
     var compList = Object.keys(comps);
-    var chosen = [], currentBest = {}; /* held → prof */
+    var chosen = [], currentBest = {}, coveredSet = {}, coverSteps = 0; /* held → prof / 커버 여부 */
     helds.forEach(function (h) { currentBest[h] = 0; });
     for (var step = 0; step < K && chosen.length < compList.length; step++) {
-      var bestComp = null, bestGain = 0;
+      var bestComp = null, bestGain = 0, bestCover = 0;
       compList.forEach(function (c) {
         if (chosen.indexOf(c) !== -1) return;
-        var gain = 0;
+        var gain = 0, cov = 0;
         helds.forEach(function (h) {
           var e = hc[h].comps[c];
-          if (e && e.prof > currentBest[h]) gain += e.prof - currentBest[h];
+          if (!e) return;
+          if (!coveredSet[h]) cov++;
+          if (e.prof > currentBest[h]) gain += e.prof - currentBest[h];
         });
-        if (gain > bestGain) { bestGain = gain; bestComp = c; }
+        /* 커버 우선: 새로 커버하는 품목 수 최대 → 동수면 정산금 증가분 최대 */
+        var better = coverFirst
+          ? (cov > bestCover || (cov === bestCover && gain > bestGain))
+          : (gain > bestGain);
+        if (better) { bestGain = gain; bestCover = cov; bestComp = c; }
       });
       if (!bestComp) break;
       chosen.push(bestComp);
+      if (bestCover > 0) coverSteps = chosen.length; /* 커버가 마지막으로 늘어난 시점의 회사 수 */
       helds.forEach(function (h) {
         var e = hc[h].comps[bestComp];
-        if (e && e.prof > currentBest[h]) currentBest[h] = e.prof;
+        if (!e) return;
+        coveredSet[h] = true;
+        if (e.prof > currentBest[h]) currentBest[h] = e.prof;
       });
     }
-    /* 최종 배정: 품목마다 조합 내 정산금 최고 회사 담당 */
+    /* 최종 배정: 품목마다 조합 내 정산금 최고 회사 담당 (정산 0이어도 후보가 있으면 커버) */
     var perComp = {};
     chosen.forEach(function (c) { perComp[c] = { name: c, cnt: 0, prof: 0, amt: 0, inc: 0 }; });
     var covered = 0, coveredAmt = 0, totalProf = 0, totalInc = 0;
@@ -696,7 +701,7 @@
       var bestC = null, bestP = 0, bestI = 0;
       chosen.forEach(function (c) {
         var e = hc[h].comps[c];
-        if (e && e.prof > bestP) { bestP = e.prof; bestC = c; }
+        if (e && (bestC === null || e.prof > bestP)) { bestP = e.prof; bestC = c; }
       });
       var maxInc = 0;
       chosen.forEach(function (c) {
@@ -711,7 +716,7 @@
     return {
       list: chosen.map(function (c) { return perComp[c]; }),
       covered: covered, coveredAmt: coveredAmt, totalProf: totalProf, totalInc: totalInc,
-      totalHelds: helds.length
+      totalHelds: helds.length, coverSteps: coverSteps
     };
   }
 
@@ -861,8 +866,13 @@
     $('makerTitle').textContent = '🏆 최적 조합';
     $('pharmNameRow').style.display = 'none';
     $('comboRow').style.display = 'flex';
-    var K = parseInt($('comboK').value, 10) || 5;
-    var r = bestCombo(K);
+    var K = Math.max(1, parseInt($('comboK').value, 10) || 5);
+    var coverFirst = $('comboCover').checked;
+    var r = bestCombo(K, coverFirst);
+    var full = coverFirst ? bestCombo(9999, true) : null; /* 커버 가능한 품목을 전부 덮는 최소(그리디) 회사 수 */
+    $('comboModeLbl').textContent = coverFirst
+      ? ('커버 수 최대 기준 · 전부 커버엔 최소 ' + full.coverSteps + '곳')
+      : '정산금 최대 기준';
     var list = $('makerList'); list.innerHTML = '';
     makerState.view = [];
     r.list.forEach(function (a, ri) {
@@ -1021,6 +1031,8 @@
     renderMakers();
   });
   $('comboK').addEventListener('change', renderMakers);
+  $('comboK').addEventListener('input', renderMakers);
+  $('comboCover').addEventListener('change', renderMakers);
   $('pharmName').addEventListener('change', function () {
     try { localStorage.setItem('dt_pharm_name', this.value.trim()); } catch (e) {}
   });
