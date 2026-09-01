@@ -237,9 +237,12 @@
       <div class="ptools">
         <div class="row" id="pharmNameRow" style="display:none"><input type="search" id="pharmName" placeholder="약국(거래처)명 — 필터링요청에 기재됩니다"></div>
         <div class="row" id="comboRow" style="display:none">
-          <span class="mini">조합 개수</span>
+          <span class="mini">주력 개수</span>
           <input type="number" id="comboK" min="1" max="99" value="5" style="margin-top:0; width:58px; padding:4px 8px; font-size:12px; border:1px solid var(--line); border-radius:6px; font-family:inherit">
-          <label class="chk" style="margin:0; font-size:12px"><input type="checkbox" id="comboCover">품목 커버 우선</label>
+          <label class="chk" style="margin:0; font-size:12px" title="정산금 상단은 그대로 두고, 커버 안 된 품목만 보완 제약사를 추가해 전부 커버"><input type="checkbox" id="comboCover">전품목 커버(빈 품목 보완)</label>
+          <span class="mini">최소 조제금액</span>
+          <input type="number" id="comboMin" min="0" step="10000" value="0" placeholder="0" title="조제금액이 이보다 적은 미비한 품목은 조합 계산에서 제외" style="margin-top:0; width:78px; padding:4px 8px; font-size:12px; border:1px solid var(--line); border-radius:6px; font-family:inherit">
+          <button id="comboApply" title="이 조합의 제약사들을 스위칭 체크에 넣어 품목별 요약에 반영 — 품목마다 조합 내 최유리 제약사만 남습니다" style="margin-top:0; padding:4px 10px; font-size:12px; border:1px solid var(--blue); background:var(--blue); color:#fff; border-radius:6px; cursor:pointer">표에 적용</button>
           <span class="mini" id="comboModeLbl" style="flex:1; text-align:right">정산금 최대 기준</span>
         </div>
         <div class="row"><input type="search" id="makerSearch" placeholder="제약사 검색…"></div>
@@ -657,41 +660,64 @@
     return arr;
   }
 
-  /* 최적 조합: K개 제약사를 골라 품목별 최고 정산금 합이 최대가 되도록 (그리디) */
-  function bestCombo(K, coverFirst) {
+  /* 최적 조합: 정산금 기준 주력 K곳(그리디) + [전품목 커버] 빈 품목은 보완 제약사 추가.
+     최종적으로 품목마다 조합 안에서 정산금이 가장 유리한 회사 1곳만 담당.
+     minAmt: 조제금액이 이보다 적은 미비한 품목은 계산에서 제외(약국 혼선 방지) */
+  function bestCombo(K, fillAll, minAmt) {
     var hc = heldCompData();
-    var helds = Object.keys(hc);
+    var allHelds = Object.keys(hc);
+    var helds = allHelds.filter(function (h) { return !(minAmt > 0) || hc[h].amt >= minAmt; });
     var comps = {};
     helds.forEach(function (h) { for (var c in hc[h].comps) comps[c] = 1; });
     var compList = Object.keys(comps);
-    var chosen = [], currentBest = {}, coveredSet = {}, coverSteps = 0; /* held → prof / 커버 여부 */
+    var chosen = [], currentBest = {}, coveredSet = {}; /* held → prof / 커버 여부 */
     helds.forEach(function (h) { currentBest[h] = 0; });
+    /* 1단계: 정산금 증가분 최대 그리디로 주력 K곳 */
     for (var step = 0; step < K && chosen.length < compList.length; step++) {
-      var bestComp = null, bestGain = 0, bestCover = 0;
+      var bestComp = null, bestGain = 0;
       compList.forEach(function (c) {
         if (chosen.indexOf(c) !== -1) return;
-        var gain = 0, cov = 0;
+        var gain = 0;
         helds.forEach(function (h) {
           var e = hc[h].comps[c];
-          if (!e) return;
-          if (!coveredSet[h]) cov++;
-          if (e.prof > currentBest[h]) gain += e.prof - currentBest[h];
+          if (e && e.prof > currentBest[h]) gain += e.prof - currentBest[h];
         });
-        /* 커버 우선: 새로 커버하는 품목 수 최대 → 동수면 정산금 증가분 최대 */
-        var better = coverFirst
-          ? (cov > bestCover || (cov === bestCover && gain > bestGain))
-          : (gain > bestGain);
-        if (better) { bestGain = gain; bestCover = cov; bestComp = c; }
+        if (gain > bestGain) { bestGain = gain; bestComp = c; }
       });
       if (!bestComp) break;
       chosen.push(bestComp);
-      if (bestCover > 0) coverSteps = chosen.length; /* 커버가 마지막으로 늘어난 시점의 회사 수 */
       helds.forEach(function (h) {
         var e = hc[h].comps[bestComp];
         if (!e) return;
         coveredSet[h] = true;
         if (e.prof > currentBest[h]) currentBest[h] = e.prof;
       });
+    }
+    var mainCount = chosen.length;
+    /* 2단계(전품목 커버): 아직 빈 품목을 가장 많이 채우는 회사부터 보완 추가 (동수면 정산금) */
+    if (fillAll) {
+      while (chosen.length < compList.length) {
+        var fComp = null, fCov = 0, fGain = 0;
+        compList.forEach(function (c) {
+          if (chosen.indexOf(c) !== -1) return;
+          var cov = 0, gain = 0;
+          helds.forEach(function (h) {
+            var e = hc[h].comps[c];
+            if (!e) return;
+            if (!coveredSet[h]) cov++;
+            if (e.prof > currentBest[h]) gain += e.prof - currentBest[h];
+          });
+          if (cov > fCov || (cov === fCov && cov > 0 && gain > fGain)) { fCov = cov; fGain = gain; fComp = c; }
+        });
+        if (!fComp || fCov === 0) break; /* 더 채울 빈 품목 없음 */
+        chosen.push(fComp);
+        helds.forEach(function (h) {
+          var e = hc[h].comps[fComp];
+          if (!e) return;
+          coveredSet[h] = true;
+          if (e.prof > currentBest[h]) currentBest[h] = e.prof;
+        });
+      }
     }
     /* 최종 배정: 품목마다 조합 내 정산금 최고 회사 담당 (정산 0이어도 후보가 있으면 커버) */
     var perComp = {};
@@ -716,7 +742,7 @@
     return {
       list: chosen.map(function (c) { return perComp[c]; }),
       covered: covered, coveredAmt: coveredAmt, totalProf: totalProf, totalInc: totalInc,
-      totalHelds: helds.length, coverSteps: coverSteps
+      totalHelds: helds.length, mainCount: mainCount, droppedSmall: allHelds.length - helds.length
     };
   }
 
@@ -867,19 +893,23 @@
     $('pharmNameRow').style.display = 'none';
     $('comboRow').style.display = 'flex';
     var K = Math.max(1, parseInt($('comboK').value, 10) || 5);
-    var coverFirst = $('comboCover').checked;
-    var r = bestCombo(K, coverFirst);
-    var full = coverFirst ? bestCombo(9999, true) : null; /* 커버 가능한 품목을 전부 덮는 최소(그리디) 회사 수 */
-    $('comboModeLbl').textContent = coverFirst
-      ? ('커버 수 최대 기준 · 전부 커버엔 최소 ' + full.coverSteps + '곳')
-      : '정산금 최대 기준';
+    var fillAll = $('comboCover').checked;
+    var minAmt = Math.max(0, parseInt($('comboMin').value, 10) || 0);
+    var r = bestCombo(K, fillAll, minAmt);
+    makerState.lastCombo = r.list.map(function (a) { return a.name; });
+    var extra = r.list.length - r.mainCount;
+    $('comboModeLbl').textContent = (fillAll
+      ? ('정산 주력 ' + r.mainCount + '곳 + 보완 ' + extra + '곳')
+      : '정산금 최대 기준')
+      + (r.droppedSmall ? ' · 소액 ' + r.droppedSmall + '품목 제외' : '');
     var list = $('makerList'); list.innerHTML = '';
     makerState.view = [];
     r.list.forEach(function (a, ri) {
       var div = document.createElement('div');
       div.className = 'crow sw';
+      var mark = ri >= r.mainCount ? ' <span style="font-size:10px;color:var(--warn);font-weight:700">보완</span>' : '';
       div.innerHTML = '<span class="rank">' + (ri + 1) + '</span>'
-        + '<div class="cname" title="' + esc(a.name) + '">' + esc(a.name) + '</div>'
+        + '<div class="cname" title="' + esc(a.name) + '">' + esc(a.name) + mark + '</div>'
         + '<button class="filtreq" title="이 제약사 필터링요청 접수">필터링요청</button>'
         + '<div class="cinfo"><b>정산 ₩' + Math.round(a.prof).toLocaleString('ko-KR') + '</b> · 담당 ' + a.cnt + '품목'
         + ' · 처방 ₩' + Math.round(a.amt).toLocaleString('ko-KR')
@@ -893,7 +923,7 @@
       };
       list.appendChild(div);
     });
-    $('makerSub').textContent = K + '개 조합 · 커버 ' + r.covered + '/' + r.totalHelds + '품목' + ownFilterLabel();
+    $('makerSub').textContent = r.list.length + '개 조합 · 커버 ' + r.covered + '/' + r.totalHelds + '품목' + ownFilterLabel();
     $('makerSum').innerHTML =
       '<div class="l" style="color:var(--blue)"><span>조합 예상 정산액(월)</span><b>₩' + Math.round(r.totalProf).toLocaleString('ko-KR') + '</b></div>'
       + '<div class="l"><span>커버 처방금액</span><b>₩' + Math.round(r.coveredAmt).toLocaleString('ko-KR') + '</b></div>'
@@ -1033,6 +1063,15 @@
   $('comboK').addEventListener('change', renderMakers);
   $('comboK').addEventListener('input', renderMakers);
   $('comboCover').addEventListener('change', renderMakers);
+  $('comboMin').addEventListener('input', renderMakers);
+  $('comboApply').addEventListener('click', function () {
+    var names = makerState.lastCombo || [];
+    if (!names.length) return;
+    makerState.swChecked = {};
+    names.forEach(function (n) { makerState.swChecked[n] = true; });
+    renderMakers(); drawRows();
+    alert('조합 ' + names.length + '개 제약사를 표에 적용했습니다.\n품목별 요약에 매칭 품목만(1차 필터) + 품목당 최유리 제약사 1곳이 표시됩니다.');
+  });
   $('pharmName').addEventListener('change', function () {
     try { localStorage.setItem('dt_pharm_name', this.value.trim()); } catch (e) {}
   });
