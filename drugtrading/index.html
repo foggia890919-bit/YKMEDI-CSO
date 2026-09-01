@@ -240,8 +240,6 @@
           <label class="chk" style="margin:0; font-size:12px" title="정산금 기준으로 가장 유리한 제약사 N곳 조합"><input type="checkbox" id="comboModeOpt" checked>제약사 최적화</label>
           <input type="number" id="comboK" min="1" max="99" value="5" title="제약사 개수" style="margin-top:0; width:58px; padding:4px 8px; font-size:12px; border:1px solid var(--line); border-radius:6px; font-family:inherit">
           <label class="chk" style="margin:0; font-size:12px" title="품목마다 약가가 동일하거나 낮은 후보 중 정산금이 가장 높은 1개만 남겨 제안서를 만듭니다"><input type="checkbox" id="comboModeFull">품목 전체 커버(제안서)</label>
-          <span class="mini">최소 조제금액</span>
-          <input type="number" id="comboMin" min="0" step="10000" value="0" placeholder="0" title="조제금액이 이보다 적은 미비한 품목은 조합 계산에서 제외" style="margin-top:0; width:78px; padding:4px 8px; font-size:12px; border:1px solid var(--line); border-radius:6px; font-family:inherit">
           <button id="comboApply" title="이 조합의 제약사들을 스위칭 체크에 넣어 품목별 요약에 반영 — 품목마다 조합 내 최유리 제약사만 남습니다" style="margin-top:0; padding:4px 10px; font-size:12px; border:1px solid var(--blue); background:var(--blue); color:#fff; border-radius:6px; cursor:pointer">표에 적용</button>
           <span class="mini" id="comboModeLbl" style="flex:1; text-align:right">정산금 최대 기준</span>
         </div>
@@ -661,12 +659,10 @@
   }
 
   /* 최적 조합: 정산금 기준 주력 K곳(그리디) + [전품목 커버] 빈 품목은 보완 제약사 추가.
-     최종적으로 품목마다 조합 안에서 정산금이 가장 유리한 회사 1곳만 담당.
-     minAmt: 조제금액이 이보다 적은 미비한 품목은 계산에서 제외(약국 혼선 방지) */
-  function bestCombo(K, fillAll, minAmt) {
+     최종적으로 품목마다 조합 안에서 정산금이 가장 유리한 회사 1곳만 담당. */
+  function bestCombo(K, fillAll) {
     var hc = heldCompData();
-    var allHelds = Object.keys(hc);
-    var helds = allHelds.filter(function (h) { return !(minAmt > 0) || hc[h].amt >= minAmt; });
+    var helds = Object.keys(hc);
     var comps = {};
     helds.forEach(function (h) { for (var c in hc[h].comps) comps[c] = 1; });
     var compList = Object.keys(comps);
@@ -742,7 +738,7 @@
     return {
       list: chosen.map(function (c) { return perComp[c]; }),
       covered: covered, coveredAmt: coveredAmt, totalProf: totalProf, totalInc: totalInc,
-      totalHelds: helds.length, mainCount: mainCount, droppedSmall: allHelds.length - helds.length
+      totalHelds: helds.length, mainCount: mainCount
     };
   }
 
@@ -809,7 +805,7 @@
       pharmFileName: state.pharmFileName || '',
       checks: { own: makerState.checked, sw: makerState.swChecked },
       excluded: state.excluded,
-      view: { proposal: !!state.proposalMode, comboMin: $('comboMin').value, matched: $('cMatched').checked, bestOnly: $('cBestOnly').checked, sortKey: itemsSort.key, sortAsc: itemsSort.asc },
+      view: { proposal: !!state.proposalMode, matched: $('cMatched').checked, bestOnly: $('cBestOnly').checked, sortKey: itemsSort.key, sortAsc: itemsSort.asc },
       savedAt: new Date().toISOString()
     };
   }
@@ -822,7 +818,6 @@
     state.excluded = proj.excluded || {};
     if (proj.view) {
       state.proposalMode = !!proj.view.proposal;
-      if (proj.view.comboMin !== undefined) $('comboMin').value = proj.view.comboMin;
       matchedTouched = true;
       $('cMatched').checked = !!proj.view.matched;
       $('cBestOnly').checked = proj.view.bestOnly !== false;
@@ -976,7 +971,6 @@
     $('pharmNameRow').style.display = 'none';
     $('comboRow').style.display = 'flex';
     var full = $('comboModeFull').checked;
-    var minAmt = Math.max(0, parseInt($('comboMin').value, 10) || 0);
     var list = $('makerList'); list.innerHTML = '';
     makerState.view = [];
     var rows, sub, sum, lbl;
@@ -984,10 +978,9 @@
       /* 품목 전체 커버(제안서): 품목마다 약가 동일·낮음 후보 중 정산금 최고 1개 → 회사별 집계 */
       var best = proposalBest();
       var mcol = state.makerCol;
-      var m = {}, covered = 0, coveredAmt = 0, tP = 0, tI = 0, total = 0, dropped = 0;
+      var m = {}, covered = 0, coveredAmt = 0, tP = 0, tI = 0, total = 0;
       state.result.pharm.forEach(function (d) {
         if (state.excluded[d.code]) return;
-        if (minAmt > 0 && d.amt < minAmt) { dropped++; return; }
         total++;
         var b = best[d.code];
         if (!b) return;
@@ -1000,18 +993,18 @@
       rows = Object.keys(m).map(function (k) { return m[k]; }).sort(function (a, b) { return b.prof - a.prof; });
       makerState.lastCombo = null;
       sub = rows.length + '개 제약사 · 커버 ' + covered + '/' + total + '품목' + ownFilterLabel();
-      lbl = '약가 동일·낮음 후보 중 정산금 최고 1개' + (dropped ? ' · 소액 ' + dropped + '품목 제외' : '');
+      lbl = '약가 동일·낮음 후보 중 정산금 최고 1개';
       sum = '<div class="l" style="color:var(--blue)"><span>제안서 예상 정산액(월)</span><b>₩' + Math.round(tP).toLocaleString('ko-KR') + '</b></div>'
         + '<div class="l"><span>커버 처방금액</span><b>₩' + Math.round(coveredAmt).toLocaleString('ko-KR') + '</b></div>'
         + '<div class="l" style="color:var(--ok)"><span>저가대체 인센티브</span><b>₩' + Math.round(tI).toLocaleString('ko-KR') + '</b></div>'
         + '<div class="l"><span>약가 동일·낮음 후보 없는 품목</span><b>' + (total - covered).toLocaleString('ko-KR') + '품목</b></div>';
     } else {
       var K = Math.max(1, parseInt($('comboK').value, 10) || 5);
-      var r = bestCombo(K, false, minAmt);
+      var r = bestCombo(K, false);
       rows = r.list;
       makerState.lastCombo = r.list.map(function (a) { return a.name; });
       sub = r.list.length + '개 조합 · 커버 ' + r.covered + '/' + r.totalHelds + '품목' + ownFilterLabel();
-      lbl = '정산금 최대 기준' + (r.droppedSmall ? ' · 소액 ' + r.droppedSmall + '품목 제외' : '');
+      lbl = '정산금 최대 기준';
       sum = '<div class="l" style="color:var(--blue)"><span>조합 예상 정산액(월)</span><b>₩' + Math.round(r.totalProf).toLocaleString('ko-KR') + '</b></div>'
         + '<div class="l"><span>커버 처방금액</span><b>₩' + Math.round(r.coveredAmt).toLocaleString('ko-KR') + '</b></div>'
         + '<div class="l" style="color:var(--ok)"><span>저가대체 인센티브</span><b>₩' + Math.round(r.totalInc).toLocaleString('ko-KR') + '</b></div>'
@@ -1174,7 +1167,6 @@
   });
   $('comboK').addEventListener('change', renderMakers);
   $('comboK').addEventListener('input', renderMakers);
-  $('comboMin').addEventListener('input', renderMakers);
   /* 두 모드는 배타 선택 */
   $('comboModeOpt').addEventListener('change', function () {
     if (this.checked) $('comboModeFull').checked = false; else $('comboModeFull').checked = true;
@@ -1185,24 +1177,14 @@
     renderMakers();
   });
   $('comboApply').addEventListener('click', function () {
-    var minAmt = Math.max(0, parseInt($('comboMin').value, 10) || 0);
     if ($('comboModeFull').checked) {
       /* 제안서 모드: 약가 동일·낮음 후보 중 정산금 최고 1개, 정산금 높은 순 정렬 */
       state.proposalMode = true;
       makerState.swChecked = {};
-      var excCnt = 0;
-      if (minAmt > 0) {
-        state.result.pharm.forEach(function (d) {
-          if (d.amt < minAmt && !state.excluded[d.code]) { state.excluded[d.code] = true; excCnt++; }
-        });
-        state.heldComp = null;
-      }
       matchedTouched = true; $('cMatched').checked = true;
       itemsSort = { key: 'profTotal', asc: false };
       buildHead(); renderMakers(); drawRows();
-      alert('제안서 기준을 표에 적용했습니다.\n· 약가 동일·낮음 후보 중 정산금 최고 1개만 표시\n· 정산금 높은 순 정렬'
-        + (excCnt ? '\n· 소액(조제금액 ' + minAmt.toLocaleString('ko-KR') + '원 미만) ' + excCnt + '품목 제외 처리' : '')
-        + '\n이 상태로 엑셀 다운로드하면 제안서 시트가 됩니다.');
+      alert('제안서 기준을 표에 적용했습니다.\n· 약가 동일·낮음 후보 중 정산금 최고 1개만 표시\n· 정산금 높은 순 정렬\n이 상태로 엑셀 다운로드하면 제안서 시트가 됩니다.');
     } else {
       var names = makerState.lastCombo || [];
       if (!names.length) return;
