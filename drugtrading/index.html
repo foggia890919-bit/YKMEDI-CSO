@@ -205,6 +205,8 @@
     </div>
     <label class="chk" style="font-weight:700"><input type="checkbox" id="cMatched"><span class="dot" style="background:var(--blue)"></span>매칭 품목만 (1차 필터)</label>
     <label class="chk" style="font-weight:700"><input type="checkbox" id="cBestOnly" checked><span class="dot" style="background:var(--ok)"></span>최유리 후보만 (해제 시 후보 전부 나열)</label>
+    <label class="chk" style="font-weight:700" title="지금 조제 중인 제품이 요율표에 이미 있으면(=CSO 제품) 흡수율 이슈가 있어 스위칭 대상에서 뺍니다"><input type="checkbox" id="cCso"><span class="dot" style="background:var(--err)"></span>요율표 등재 제품(CSO) 제외</label>
+    <label class="chk" title="조제금액 큰 순으로 누적 처방이 이 금액에 닿을 때까지의 품목만 대상 (비우면 전체)"><span>상위 매출 누적</span><input type="number" id="amtCap" min="0" step="1000000" placeholder="전체" style="width:110px; padding:6px 8px; font-size:13px; border:1px solid var(--line); border-radius:8px; font-family:inherit; margin:0 4px"><span>원까지</span></label>
     <input type="text" id="q" placeholder="검색: 성분명·품목명·제약사·약국약품명…">
     <select id="fKind">
       <option value="">구분 전체</option>
@@ -603,15 +605,47 @@
   /* (보유품목 × 후보 제약사)별 최적치: 정산금(약가×요율×조제량)·인센티브·조제금액.
      보유 제조회사 탭에서 체크한 회사가 있으면 그 회사들의 보유품목만 대상으로 계산 —
      "바꾸고 싶은 제조회사만 골라서 스위칭 매칭"하는 흐름. */
+  /* ── 대상 범위(스코프): 제외 체크 + 요율표 등재 제품(CSO) 제외 + 상위 매출 누적 한도 ── */
+  function refreshScope() {
+    if (!state.result) return;
+    if (state.csoSrc !== state.rateParsed) {
+      state.csoSet = {};
+      (state.rateParsed ? state.rateParsed.rows : []).forEach(function (x) { if (x.code) state.csoSet[x.code] = true; });
+      state.csoSrc = state.rateParsed;
+    }
+    var cso = $('cCso').checked, cap = parseInt($('amtCap').value, 10) || 0;
+    var key = (cso ? '1' : '0') + ':' + cap + ':' + Object.keys(state.excluded).sort().join(',');
+    if (state.scopeKey === key && state.capOut) return;
+    state.scopeKey = key;
+    state.capOut = {};
+    if (cap > 0) {
+      var list = state.result.pharm.filter(function (d) { return !state.excluded[d.code] && !(cso && state.csoSet[d.code]); })
+        .slice().sort(function (a, b) { return b.amt - a.amt; });
+      var cum = 0;
+      list.forEach(function (d) { if (cum >= cap) state.capOut[d.code] = true; else cum += d.amt; });
+    }
+    state.heldComp = null;
+  }
+  function isCso(code) { return !!($('cCso').checked && state.csoSet && state.csoSet[code]); }
+  function scopeOut(code) { return isCso(code) || !!(state.capOut && state.capOut[code]); }
+  function isOut(code) { return !!state.excluded[code] || scopeOut(code); }
+  function scopeLabel() {
+    var parts = [];
+    if ($('cCso').checked) parts.push('CSO 제외');
+    var cap = parseInt($('amtCap').value, 10) || 0;
+    if (cap > 0) parts.push('상위 ₩' + cap.toLocaleString('ko-KR') + '까지');
+    return parts.length ? ' · ' + parts.join(' · ') : '';
+  }
+
   function heldCompData() {
-    var ownSel = checkedMakers().slice().sort().join('|') + '#' + Object.keys(state.excluded).sort().join(',');
+    var ownSel = checkedMakers().slice().sort().join('|') + '#' + Object.keys(state.excluded).sort().join(',') + '#' + (state.scopeKey || '');
     if (state.heldComp && state.heldCompKey === ownSel) return state.heldComp;
     var anyOwn = checkedMakers().length > 0;
     var mcol = state.makerCol;
     var m = {};
     state.result.outRows.forEach(function (x) {
       if (x.kind !== '대체가능' || x.status !== '정상') return;
-      if (state.excluded[x.pCode]) return;
+      if (isOut(x.pCode)) return;
       if (anyOwn && !makerState.checked[x.pMaker || '(제조사 미상)']) return;
       var comp = mcol >= 0 ? String(x.cells[mcol] === undefined ? '' : x.cells[mcol]).trim() : '';
       if (!comp) comp = '(제약사 미상)';
@@ -735,10 +769,12 @@
         covered++; coveredAmt += hc[h].amt; totalProf += bestP; totalInc += maxInc;
       }
     });
+    /* 뒤에 뽑힌 회사가 품목을 다 가져가 담당 0이 된 회사는 목록에서 제외 */
+    var listOut = chosen.map(function (c) { return perComp[c]; }).filter(function (a) { return a.cnt > 0; });
     return {
-      list: chosen.map(function (c) { return perComp[c]; }),
+      list: listOut,
       covered: covered, coveredAmt: coveredAmt, totalProf: totalProf, totalInc: totalInc,
-      totalHelds: helds.length, mainCount: mainCount
+      totalHelds: helds.length, mainCount: Math.min(mainCount, listOut.length)
     };
   }
 
@@ -805,7 +841,7 @@
       pharmFileName: state.pharmFileName || '',
       checks: { own: makerState.checked, sw: makerState.swChecked },
       excluded: state.excluded,
-      view: { proposal: !!state.proposalMode, matched: $('cMatched').checked, bestOnly: $('cBestOnly').checked, sortKey: itemsSort.key, sortAsc: itemsSort.asc },
+      view: { proposal: !!state.proposalMode, matched: $('cMatched').checked, bestOnly: $('cBestOnly').checked, cso: $('cCso').checked, amtCap: $('amtCap').value, sortKey: itemsSort.key, sortAsc: itemsSort.asc },
       savedAt: new Date().toISOString()
     };
   }
@@ -818,6 +854,8 @@
     state.excluded = proj.excluded || {};
     if (proj.view) {
       state.proposalMode = !!proj.view.proposal;
+      $('cCso').checked = !!proj.view.cso;
+      if (proj.view.amtCap !== undefined) $('amtCap').value = proj.view.amtCap;
       matchedTouched = true;
       $('cMatched').checked = !!proj.view.matched;
       $('cBestOnly').checked = proj.view.bestOnly !== false;
@@ -939,7 +977,7 @@
   function makerAggs() {
     var m = {};
     state.result.pharm.forEach(function (d) {
-      if (state.excluded[d.code]) return;
+      if (isOut(d.code)) return;
       var name = d.maker || '(제조사 미상)';
       if (!m[name]) m[name] = { name: name, cnt: 0, qty: 0, amt: 0, subCnt: 0, subAmt: 0, inc: 0 };
       m[name].cnt++; m[name].qty += d.qty; m[name].amt += d.amt;
@@ -958,6 +996,7 @@
     return Object.keys(makerState.checked).filter(function (k) { return makerState.checked[k]; });
   }
   function renderMakers() {
+    refreshScope();
     if (makerState.tab === 'own') renderOwnList();
     else if (makerState.tab === 'switch') renderSwitchList();
     else renderComboList();
@@ -980,7 +1019,7 @@
       var mcol = state.makerCol;
       var m = {}, covered = 0, coveredAmt = 0, tP = 0, tI = 0, total = 0;
       state.result.pharm.forEach(function (d) {
-        if (state.excluded[d.code]) return;
+        if (isOut(d.code)) return;
         total++;
         var b = best[d.code];
         if (!b) return;
@@ -993,7 +1032,7 @@
       rows = Object.keys(m).map(function (k) { return m[k]; }).sort(function (a, b) { return b.prof - a.prof; });
       makerState.lastCombo = null;
       sub = rows.length + '개 제약사 · 커버 ' + covered + '/' + total + '품목' + ownFilterLabel();
-      lbl = '약가 동일·낮음 후보 중 정산금 최고 1개';
+      lbl = '약가 동일·낮음 후보 중 정산금 최고 1개' + scopeLabel();
       sum = '<div class="l" style="color:var(--blue)"><span>제안서 예상 정산액(월)</span><b>₩' + Math.round(tP).toLocaleString('ko-KR') + '</b></div>'
         + '<div class="l"><span>커버 처방금액</span><b>₩' + Math.round(coveredAmt).toLocaleString('ko-KR') + '</b></div>'
         + '<div class="l" style="color:var(--ok)"><span>저가대체 인센티브</span><b>₩' + Math.round(tI).toLocaleString('ko-KR') + '</b></div>'
@@ -1004,7 +1043,7 @@
       rows = r.list;
       makerState.lastCombo = r.list.map(function (a) { return a.name; });
       sub = r.list.length + '개 조합 · 커버 ' + r.covered + '/' + r.totalHelds + '품목' + ownFilterLabel();
-      lbl = '정산금 최대 기준';
+      lbl = '정산금 최대 기준' + scopeLabel();
       sum = '<div class="l" style="color:var(--blue)"><span>조합 예상 정산액(월)</span><b>₩' + Math.round(r.totalProf).toLocaleString('ko-KR') + '</b></div>'
         + '<div class="l"><span>커버 처방금액</span><b>₩' + Math.round(r.coveredAmt).toLocaleString('ko-KR') + '</b></div>'
         + '<div class="l" style="color:var(--ok)"><span>저가대체 인센티브</span><b>₩' + Math.round(r.totalInc).toLocaleString('ko-KR') + '</b></div>'
@@ -1525,6 +1564,7 @@
   }
 
   function drawRows() {
+    refreshScope();
     autoMatchedFilter();
     if (state.view === 'items') { drawItems(); return; }
     $('tblFoot').innerHTML = '';
@@ -1554,6 +1594,7 @@
     var anyOwn = checkedMakers().length > 0;
     var best = buildBestMap();
     var items = r.pharm.map(function (d) { return itemRow(d, best); });
+    items = items.filter(function (it) { return !scopeOut(it.code); });
     if (anyOwn) items = items.filter(function (it) { return makerState.checked[it.maker || '(제조사 미상)']; });
     /* 1차 필터: 매칭(선택 스위칭 제약사 기준) 품목만 남김 — 제외 체크한 매칭 품목은 되살릴 수 있게 표시 유지 */
     if ($('cMatched').checked) items = items.filter(function (it) { return it.istatus === '매칭' || (it.exc && best[it.code]); });
@@ -1628,7 +1669,7 @@
       active++; tAmt += it.amt;
       if (it.istatus === '매칭') { mCnt++; mAmt += it.amt; tProf += it.profTotal; tInc += it.incTotal; }
     });
-    var footLabel = '합계 (' + active + '품목, 제외 반영' + (state.proposalMode ? ', 제안서 기준: 약가 동일·낮음' : '') + (expand ? ', 최유리 기준' : '') + ')'
+    var footLabel = '합계 (' + active + '품목, 제외 반영' + scopeLabel().replace(/ · /g, ', ') + (state.proposalMode ? ', 제안서 기준: 약가 동일·낮음' : '') + (expand ? ', 최유리 기준' : '') + ')'
       + (over ? ' · 표시 ' + CAP + '행 초과분 생략(엑셀에는 전체 포함)' : '');
     $('tblFoot').innerHTML = '<tr>'
       + '<td colspan="7">' + footLabel + '</td>'
@@ -1654,7 +1695,7 @@
       var x = rows[i];
       if (kind && x.kind !== kind) continue;
       if (ing && x.ing !== ing) continue;
-      if (state.excluded[x.pCode]) continue;
+      if (isOut(x.pCode)) continue;
       if (!showExc && x.status !== '정상') continue;
       if (x.cmp === '낮음' && !showLow) continue;
       if (x.cmp === '동일' && !showSame) continue;
@@ -1699,6 +1740,8 @@
     tb.innerHTML = html.join('');
   }
   $('cMatched').addEventListener('input', function () { matchedTouched = true; });
+  $('cCso').addEventListener('change', function () { refreshScope(); renderMakers(); drawRows(); });
+  $('amtCap').addEventListener('input', function () { refreshScope(); renderMakers(); drawRows(); });
   ['q', 'fKind', 'fIng', 'cLow', 'cSame', 'cHigh', 'cExc', 'cMatched', 'cBestOnly'].forEach(function (id) { $(id).addEventListener('input', drawRows); });
   $('viewItems').addEventListener('click', function () {
     state.view = 'items';
@@ -1718,7 +1761,7 @@
 
     /* 최종 결과물: 품목별 요약 — 화면 모드 그대로 (1차 필터·후보 나열/최유리) */
     var best0 = buildBestMap();
-    var items0 = r.pharm.map(function (d) { return itemRow(d, best0); });
+    var items0 = r.pharm.map(function (d) { return itemRow(d, best0); }).filter(function (it) { return !scopeOut(it.code); });
     if ($('cMatched').checked) items0 = items0.filter(function (it) { return it.istatus === '매칭' || (it.exc && best0[it.code]); });
     sortItems(items0);
     var expand0 = !$('cBestOnly').checked;
@@ -1772,9 +1815,11 @@
     var tA2s = 0, tP2s = 0, tI2s = 0, m2 = 0;
     r.pharm.forEach(function (d) {
       var it = itemRow(d, best0);
-      var ok = it.istatus === '매칭';
-      if (!it.exc) { tA2s += d.amt; if (ok) { m2++; tP2s += it.profTotal; tI2s += it.incTotal; } }
-      aoa2.push([d.code, d.name, d.maker, d.price, d.qty, d.amt, it.pay, it.exc ? '제외' : it.istatus,
+      var so = scopeOut(d.code);
+      var ok = it.istatus === '매칭' && !so;
+      if (!it.exc && !so) { tA2s += d.amt; if (ok) { m2++; tP2s += it.profTotal; tI2s += it.incTotal; } }
+      var st2 = it.exc ? '제외' : (so ? (isCso(d.code) ? 'CSO제품(요율표 등재) 제외' : '매출 한도 밖') : it.istatus);
+      aoa2.push([d.code, d.name, d.maker, d.price, d.qty, d.amt, it.pay, st2,
         ok ? it.bestName : '', ok ? it.bestComp : '', ok ? it.bestPct : '', ok ? it.bestPrice : '', ok ? it.bdiff : '',
         ok && !it.exc ? it.profTotal : '', ok && !it.exc ? it.incTotal : '', d.candCount, d.ing || '']);
     });
