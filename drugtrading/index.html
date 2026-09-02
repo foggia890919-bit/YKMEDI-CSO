@@ -136,8 +136,10 @@
   <div class="projbar">
     <span class="lbl">📁 프로젝트</span>
     <select id="projSel"><option value="">— 저장된 프로젝트 —</option></select>
-    <input id="projName" class="wide" placeholder="병원(거래처)명 *">
+    <input id="projName" class="wide" list="clientList" autocomplete="off" placeholder="병원(거래처)명 * — 등록 거래처에서 선택">
+    <datalist id="clientList"></datalist>
     <input id="projBiz" placeholder="사업자번호 (선택)">
+    <span class="mini" id="clientStat"></span>
     <input id="projMemo" class="wide" placeholder="메모 (선택)">
     <button class="pbtn primary" id="projSave">저장</button>
     <button class="pbtn" id="projNew">새로</button>
@@ -252,6 +254,7 @@
             <option value="">상태 전체</option><option value="none">조회전</option><option value="pending">확인중</option><option value="ok">거래가능</option><option value="no">거래불가</option>
           </select>
           <button class="sbtn" id="comboFilterAll" style="display:none" title="현재 조합의 제약사 전부를 한 번에 필터링요청 (이미 가능/확인중인 곳은 건너뜀)">📨 조합 전체 필터링요청</button>
+          <button class="sbtn" id="availLoop" style="display:none; border-color:var(--warn); color:var(--warn)" title="거래불가 제약사를 빼고 다음 최적 조합을 다시 뽑은 뒤, 아직 요청 안 한 제약사만 필터링요청 — 결과 나오면 조회 후 다시 누르면 됩니다">🔁 불가 제외 → 재최적화 → 신규 요청</button>
           <span class="mini" id="availStat" style="flex:1; text-align:right"></span>
         </div>
         <div class="row"><input type="search" id="makerSearch" placeholder="제약사 검색…"></div>
@@ -547,6 +550,7 @@
   });
 
   $('btnRun').addEventListener('click', function () {
+    if (!requireClient()) return;
     var msg = $('msg'); msg.className = ''; msg.textContent = '매핑 중…';
     try {
       if (state.rateMerged) {
@@ -896,6 +900,44 @@
       sel.appendChild(o);
     });
   }
+  /* ── 등록 거래처(★거래처정보/거래처등록) 목록 — 조제내역 돌리기 전에 거래처부터 특정 ── */
+  state.clients = null;
+  function loadClients() {
+    return fetch('/api/clients').then(function (r) { return r.json(); }).then(function (d) {
+      if (!d || !d.ok || !d.clients) return;
+      state.clients = d.clients;
+      var dl = $('clientList'); dl.innerHTML = '';
+      d.clients.forEach(function (c) {
+        var o = document.createElement('option'); o.value = c.n;
+        o.label = (c.b ? c.b + ' · ' : '') + (c.m ? '담당 ' + c.m : '');
+        dl.appendChild(o);
+      });
+      $('clientStat').textContent = '등록 거래처 ' + d.clients.length + '곳';
+    }).catch(function () {});
+  }
+  function findClient(name) {
+    if (!state.clients) return null;
+    var n = String(name || '').trim();
+    for (var i = 0; i < state.clients.length; i++) if (state.clients[i].n === n) return state.clients[i];
+    return null;
+  }
+  function syncClientBiz() {
+    var c = findClient($('projName').value);
+    if (c && c.b) $('projBiz').value = c.b;
+    $('clientStat').textContent = c ? '✓ 등록 거래처' + (c.m ? ' · 담당 ' + c.m : '') : (state.clients ? '등록 거래처 ' + state.clients.length + '곳' : '');
+  }
+  $('projName').addEventListener('change', syncClientBiz);
+  $('projName').addEventListener('input', function () { if (findClient(this.value)) syncClientBiz(); });
+  /* 거래처가 특정돼야 조제내역을 돌릴 수 있음 — 필터링·드라이브 저장이 전부 거래처 기준으로 연동되므로 */
+  function requireClient() {
+    var name = ($('projName').value || '').trim();
+    if (!name) { alert('조제내역을 돌리기 전에 병원(거래처)부터 선택해주세요.\n필터링요청·드라이브 저장이 모두 거래처 기준으로 연동됩니다.'); $('projName').focus(); return false; }
+    if (state.clients && !findClient(name)) {
+      return confirm('"' + name + '"은(는) 등록된 거래처가 아닙니다.\n거래처등록 후 진행하는 것을 권장합니다. 그래도 계속할까요?');
+    }
+    return true;
+  }
+
   function refreshCloudList(selected) {
     return fetch('/api/subprojects').then(function (r) { return r.json(); }).then(function (d) {
       if (d && d.ok && d.list) {
@@ -969,6 +1011,7 @@
       if (!name) { $('projName').focus(); return; }
       $('projName').value = name;
     }
+    if (state.clients && !findClient(name) && !confirm('"' + name + '"은(는) 등록된 거래처가 아닙니다. 그래도 저장할까요?')) return;
     var data = currentProjectData();
     /* 로컬 백업은 항상 */
     var p = loadProjects(); p[name] = data; persistProjects(p);
@@ -1046,6 +1089,7 @@
   });
   refreshProjSel('');
   refreshCloudList(''); /* 사이트(로그인)에서 열리면 드라이브 프로젝트 목록으로 전환 */
+  loadClients();
 
   function makerAggs() {
     var m = {};
@@ -1082,7 +1126,7 @@
     $('makerTitle').textContent = '🏆 최적 조합';
     $('pharmNameRow').style.display = 'none';
     $('comboRow').style.display = 'flex';
-    $('availRow').style.display = 'flex'; $('comboFilterAll').style.display = '';
+    $('availRow').style.display = 'flex'; $('comboFilterAll').style.display = ''; $('availLoop').style.display = '';
     var full = $('comboModeFull').checked;
     var list = $('makerList'); list.innerHTML = '';
     makerState.view = [];
@@ -1195,7 +1239,7 @@
     $('makerTitle').textContent = '🔄 스위칭 제약사';
     $('pharmNameRow').style.display = 'none';
     $('comboRow').style.display = 'none';
-    $('availRow').style.display = 'flex'; $('comboFilterAll').style.display = 'none';
+    $('availRow').style.display = 'flex'; $('comboFilterAll').style.display = 'none'; $('availLoop').style.display = 'none';
     var aggs = switchAggs();
     var list = $('makerList'); list.innerHTML = '';
     var q = makerState.q.toLowerCase();
@@ -1824,6 +1868,14 @@
   $('cMatched').addEventListener('input', function () { matchedTouched = true; });
   $('cCso').addEventListener('change', function () { refreshScope(); renderMakers(); drawRows(); });
   $('availLoad').addEventListener('click', function () { loadAvail(false); });
+  $('availLoop').addEventListener('click', function () {
+    var run = function () {
+      $('cAvailNo').checked = true; state.heldComp = null;
+      renderMakers(); drawRows();
+      $('comboFilterAll').click();
+    };
+    if (($('projName').value || '').trim()) loadAvail(true).then(run); else run();
+  });
   $('cAvailNo').addEventListener('change', function () { state.heldComp = null; renderMakers(); drawRows(); });
   $('availFilter').addEventListener('change', renderMakers);
   $('comboFilterAll').addEventListener('click', function () {
