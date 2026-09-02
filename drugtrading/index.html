@@ -248,6 +248,9 @@
         <div class="row" id="availRow" style="display:none">
           <button class="sbtn" id="availLoad" title="프로젝트 바의 병원(거래처)명으로 거래가능유무 시트를 조회해 제약사 옆에 O/X를 표시">🔎 거래가능 조회</button>
           <label class="chk" style="margin:0; font-size:12px" title="필터링 결과가 '불가'인 제약사를 스위칭·조합 계산에서 뺍니다"><input type="checkbox" id="cAvailNo">거래불가 제외</label>
+          <select id="availFilter" title="스위칭 제약사 목록을 거래가능 상태로 좁혀 보기" style="padding:4px 6px; font-size:12px; border:1px solid var(--line); border-radius:6px; font-family:inherit">
+            <option value="">상태 전체</option><option value="none">조회전</option><option value="pending">확인중</option><option value="ok">거래가능</option><option value="no">거래불가</option>
+          </select>
           <button class="sbtn" id="comboFilterAll" style="display:none" title="현재 조합의 제약사 전부를 한 번에 필터링요청 (이미 가능/확인중인 곳은 건너뜀)">📨 조합 전체 필터링요청</button>
           <span class="mini" id="availStat" style="flex:1; text-align:right"></span>
         </div>
@@ -801,12 +804,16 @@
     if (!state.avail) return null;
     var k = normVendor(comp);
     if (state.avail[k]) return state.avail[k];
-    for (var key in state.avail) { if (key.length >= 2 && k.length >= 2 && (key.indexOf(k) !== -1 || k.indexOf(key) !== -1)) return state.avail[key]; }
+    /* '제약/약품' 접미사만 뗀 뒤 정확히 같을 때만 (동아 ↔ 동아에스티 같은 오매칭 방지) */
+    var strip = function (t) { return t.replace(/(제약|약품)$/, ''); };
+    var ks = strip(k);
+    if (ks.length >= 2) for (var key in state.avail) { if (strip(key) === ks) return state.avail[key]; }
     return null;
   }
+  function availKindFor(comp) { var a = availFor(comp); return a ? a.kind : 'none'; }
   function availBadge(comp) {
     var a = availFor(comp);
-    if (!a) return '';
+    if (!a) return ' <span class="badge" style="background:#eef0f4;color:#667" title="아직 필터링(거래가능 조회) 요청 전">조회전</span>';
     if (a.kind === 'ok') return ' <span class="badge ok2" title="거래가능 (' + esc(a.date) + ')">O 가능</span>';
     if (a.kind === 'no') return ' <span class="badge miss" title="거래불가 (' + esc(a.date) + ')' + (a.note ? ' — ' + esc(a.note) : '') + '">X 불가</span>';
     return ' <span class="badge" style="background:#fff2cc;color:#7a5b00" title="필터링 요청됨 — 결과 대기 (' + esc(a.date) + ')">⏳ 확인중</span>';
@@ -831,7 +838,8 @@
       state.avail = map; state.heldComp = null;
       var ok = 0, no = 0, pd = 0;
       for (var k2 in map) { if (map[k2].kind === 'ok') ok++; else if (map[k2].kind === 'no') no++; else pd++; }
-      $('availStat').textContent = cnt ? name + ': 가능 ' + ok + ' · 불가 ' + no + ' · 확인중 ' + pd : name + ': 필터링 기록 없음';
+      var none = 0; try { switchAggs().forEach(function (a) { if (!availFor(a.name)) none++; }); } catch (e) {}
+      $('availStat').textContent = name + ': 가능 ' + ok + ' · 불가 ' + no + ' · 확인중 ' + pd + ' · 조회전 ' + none;
       renderMakers(); drawRows();
     }).catch(function () { $('availStat').textContent = '조회 실패: 사이트(로그인)에서만 조회됩니다'; });
   }
@@ -1191,7 +1199,8 @@
     var aggs = switchAggs();
     var list = $('makerList'); list.innerHTML = '';
     var q = makerState.q.toLowerCase();
-    var view = aggs.filter(function (a) { return !q || a.name.toLowerCase().indexOf(q) !== -1; });
+    var af = $('availFilter').value;
+    var view = aggs.filter(function (a) { return (!q || a.name.toLowerCase().indexOf(q) !== -1) && (!af || availKindFor(a.name) === af); });
     makerState.view = view;
     if (makerState.focus >= view.length) makerState.focus = view.length - 1;
     if (makerState.focus < 0 && view.length) makerState.focus = 0;
@@ -1816,6 +1825,7 @@
   $('cCso').addEventListener('change', function () { refreshScope(); renderMakers(); drawRows(); });
   $('availLoad').addEventListener('click', function () { loadAvail(false); });
   $('cAvailNo').addEventListener('change', function () { state.heldComp = null; renderMakers(); drawRows(); });
+  $('availFilter').addEventListener('change', renderMakers);
   $('comboFilterAll').addEventListener('click', function () {
     var names = makerState.lastComboNames || [];
     var hosp = ($('projName').value || '').trim(), biz = ($('projBiz').value || '').trim();
