@@ -316,6 +316,69 @@ function classifyRateRow(cells, price, pct, hasRateCol, nameCol) {
   return '정상';
 }
 
+/* 약품명 괄호에서 성분명 추출 — 용량 표기 괄호((91.37mg/1정) 등)는 건너뜀.
+   예: "알레네정70밀리그램(알렌드론산나트륨삼수화물)_(91.37mg/1정)" → "알렌드론산나트륨삼수화물" */
+function extractIngredient(name) {
+  var re = /\(([^()]+)\)/g, m;
+  var s = String(name || '');
+  while ((m = re.exec(s))) {
+    var t = m[1].trim();
+    if (!t || /^[\d.]/.test(t)) continue; /* 숫자로 시작 = 용량/규격 */
+    if (!/[가-힣]{2,}/.test(t)) continue;
+    if (/^(중단|품절|단종|비급여|수출용)/.test(t)) continue;
+    return t;
+  }
+  return '';
+}
+function normIng(s) {
+  return String(s || '').replace(/[\s·,\/]+/g, '').toLowerCase();
+}
+/* 이름에서 함량(수치+단위) 추출 → mg 환산값 목록. ml/% 등 다른 단위는 단위별로 구분 */
+function extractStrengths(name) {
+  var out = [];
+  var re = /(\d+(?:\.\d+)?)\s*(mg|mcg|㎍|밀리그램|밀리그람|그램|g|ml|밀리리터|%)/gi, m;
+  var s = String(name || '');
+  while ((m = re.exec(s))) {
+    var v = parseFloat(m[1]);
+    var u = m[2].toLowerCase();
+    if (u === '밀리그램' || u === '밀리그람') u = 'mg';
+    else if (u === '그램') u = 'g';
+    else if (u === '㎍') u = 'mcg';
+    else if (u === '밀리리터') u = 'ml';
+    if (u === 'g') { v = v * 1000; u = 'mg'; }
+    else if (u === 'mcg') { v = v / 1000; u = 'mg'; }
+    out.push(u + ':' + v);
+  }
+  return out;
+}
+function strengthsCompatible(a, b) {
+  if (!a.length || !b.length) return true; /* 어느 한쪽에 함량 표기가 없으면 통과(참고 매칭) */
+  for (var i = 0; i < a.length; i++) if (b.indexOf(a[i]) !== -1) return true;
+  return false;
+}
+/* 잘 알려진 비급여 브랜드 → 성분 토큰 (요율표 성분명이 영문인 경우 대비, 한/영 병기) */
+var NONPAY_BRANDS = [
+  { key: '팔팔', tokens: ['sildenafil', '실데나필'] },
+  { key: '비아그라', tokens: ['sildenafil', '실데나필'] },
+  { key: '센글라', tokens: ['sildenafil', '실데나필'] },
+  { key: '구구', tokens: ['tadalafil', '타다라필'] },
+  { key: '시알리스', tokens: ['tadalafil', '타다라필'] },
+  { key: '센돔', tokens: ['tadalafil', '타다라필'] },
+  { key: '기넥신', tokens: ['ginkgo', '은행엽'] },
+  { key: '타나민', tokens: ['ginkgo', '은행엽'] },
+  { key: '멜라토닌', tokens: ['melatonin', '멜라토닌'] },
+  { key: '서카딘', tokens: ['melatonin', '멜라토닌'] }
+];
+/* 품목명 비교용 정규화: 용량·숫자 제거, 캅셀→캡슐 통일. 예: "팔팔정50밀리그램" → "팔팔정" */
+function normProdName(s) {
+  return String(s || '')
+    .replace(/캅셀/g, '캡슐')
+    .replace(/\d+(\.\d+)?\s*(mg|mcg|㎍|밀리그램|밀리그람|그램|g|ml|밀리리터|%)/gi, '')
+    .replace(/\([^()]*\)/g, '')
+    .replace(/[\d.\s_\-\/]+/g, '')
+    .toLowerCase();
+}
+
 /* 매핑 실행 */
 function buildMapping(pharm, rate, master) {
   var pgroups = {};
@@ -364,7 +427,7 @@ function buildMapping(pharm, rate, master) {
         }
       }
       outRows.push({
-        grp: mhit.grp, ing: mhit.ing,
+        grp: mhit.grp, ing: mhit.ing, pay: '급여',
         kind: own ? '보유품목' : '대체가능',
         status: status,
         pCode: held.code, pName: held.name, pMaker: held.maker, pQty: held.qty, pAmt: held.amt,
@@ -376,10 +439,116 @@ function buildMapping(pharm, rate, master) {
       });
     }
   }
+  /* ── 비급여(약가파일 미등재) 품목: 성분명 텍스트 매칭 ──
+     약품명 괄호에서 성분을 뽑아 요율표 성분명(없으면 품목명)과 대조, 함량이 어긋나는 후보는 제외.
+     비급여는 저가약 대체조제 장려금(급여 청구) 대상이 아니므로 인센티브 0, 요율 정산만 계산 */
+  var ingCol = -1;
+  for (var ic = 0; ic < rate.header.length; ic++) {
+    if (matchGroup(rate.header[ic]) === 4) { ingCol = ic; break; }
+  }
+  var nonPay = [];
+  for (var np = 0; np < pharm.length; np++) {
+    var pd = pharm[np];
+    pd.pay = pd.grp ? '급여' : '비급여';
+    if (!pd.grp) {
+      pd.extIng = extractIngredient(pd.name);
+      pd.strengths = extractStrengths(pd.name);
+      nonPay.push(pd);
+    }
+  }
+  if (nonPay.length) {
+    /* 성분 토큰 만들기: ① 약품명 괄호 성분 ② 브랜드 사전 ③ 요율표 어느 셀에서든 같은 품목명(대조약 포함) 발견 시 그 행의 성분명 */
+    var needIng = [];
+    for (var ni = 0; ni < nonPay.length; ni++) {
+      var nn = nonPay[ni];
+      nn.ingTokens = [];
+      if (nn.extIng && normIng(nn.extIng).length >= 3) nn.ingTokens.push(normIng(nn.extIng));
+      for (var nb = 0; nb < NONPAY_BRANDS.length; nb++) {
+        if (nn.name.indexOf(NONPAY_BRANDS[nb].key) !== -1) {
+          for (var nt = 0; nt < NONPAY_BRANDS[nb].tokens.length; nt++) nn.ingTokens.push(normIng(NONPAY_BRANDS[nb].tokens[nt]));
+          if (!nn.extIng) nn.extIng = NONPAY_BRANDS[nb].tokens.join('/');
+          break;
+        }
+      }
+      if (!nn.ingTokens.length) {
+        nn.baseName = normProdName(nn.name);
+        if (nn.baseName.length >= 3) needIng.push(nn);
+      }
+    }
+    if (needIng.length) {
+      for (var lk = 0; lk < rate.rows.length; lk++) {
+        var lrr = rate.rows[lk];
+        var lJoin = normProdName(lrr.cells.join('|'));
+        if (!lJoin) continue;
+        for (var lq = 0; lq < needIng.length; lq++) {
+          var nd = needIng[lq];
+          if (nd.ingTokens.length) continue;
+          if (lJoin.indexOf(nd.baseName) === -1) continue;
+          var foundIng = ingCol >= 0 ? String(lrr.cells[ingCol] === undefined ? '' : lrr.cells[ingCol]).trim() : '';
+          if (!foundIng) foundIng = extractIngredient(nameCol >= 0 ? String(lrr.cells[nameCol] === undefined ? '' : lrr.cells[nameCol]) : '');
+          if (foundIng && normIng(foundIng).length >= 3) {
+            /* 성분명에 붙은 용량은 떼고 토큰화: "melatonin 2mg" → "melatonin" */
+            var tok = normIng(foundIng.replace(/\d+(\.\d+)?\s*(mg|mcg|㎍|밀리그램|밀리그람|그램|g|ml|밀리리터|%)/gi, ''));
+            if (tok.length >= 3) { nd.ingTokens.push(tok); nd.extIng = foundIng; }
+          }
+        }
+      }
+    }
+    for (var nf = 0; nf < nonPay.length; nf++) nonPay[nf].ing = nonPay[nf].extIng || null;
+    nonPay = nonPay.filter(function (x) { return x.ingTokens.length; });
+  }
+  if (nonPay.length) {
+    for (var tk = 0; tk < rate.rows.length; tk++) {
+      var trr = rate.rows[tk];
+      var rIngRaw = ingCol >= 0 ? String(trr.cells[ingCol] === undefined ? '' : trr.cells[ingCol]) : '';
+      var rName = nameCol >= 0 ? String(trr.cells[nameCol] === undefined ? '' : trr.cells[nameCol]) : '';
+      if (!rIngRaw) rIngRaw = extractIngredient(rName);
+      var rIng = normIng(rIngRaw);
+      if (rIng.length < 3) continue;
+      var rStr = null; /* 필요할 때만 계산 */
+      var tPrice = rate.priceCol >= 0 ? num(trr.cells[rate.priceCol]) : 0;
+      var tPct = rate.rateCol >= 0 ? num(trr.cells[rate.rateCol]) : 0;
+      var tStatus = classifyRateRow(trr.cells, tPrice, tPct, rate.rateCol >= 0, nameCol);
+      var tNormal = tStatus === '정상';
+      for (var tp = 0; tp < nonPay.length; tp++) {
+        var hd = nonPay[tp];
+        var hit = false;
+        for (var ht = 0; ht < hd.ingTokens.length; ht++) {
+          var tkn = hd.ingTokens[ht];
+          if (rIng.indexOf(tkn) !== -1 || tkn.indexOf(rIng) !== -1) { hit = true; break; }
+        }
+        if (!hit) continue;
+        if (rStr === null) rStr = extractStrengths(rName);
+        if (!strengthsCompatible(hd.strengths, rStr)) continue;
+        var tOwn = hd.code === trr.code;
+        var tBase = hd.price || 0;
+        var tDiff = tPrice - tBase;
+        var tCmp;
+        if (tPrice <= 0) { tCmp = '가격미상'; tDiff = 0; }
+        else tCmp = tBase > 0 ? (tDiff > 0 ? '높음' : (tDiff < 0 ? '낮음' : '동일')) : '기준없음';
+        if (!tOwn && tNormal) {
+          candCount[hd.code] = (candCount[hd.code] || 0) + 1;
+          if (tPrice > 0 && (!(hd.code in minCandPrice) || tPrice < minCandPrice[hd.code])) minCandPrice[hd.code] = tPrice;
+        }
+        outRows.push({
+          grp: null, ing: hd.extIng, pay: '비급여',
+          kind: tOwn ? '보유품목' : '대체가능',
+          status: tStatus,
+          pCode: hd.code, pName: hd.name, pMaker: hd.maker, pQty: hd.qty, pAmt: hd.amt,
+          price: tPrice, basePrice: tBase, diff: tDiff, cmp: tCmp,
+          pct: tPct, profit: tNormal ? Math.round(tPrice * tPct) / 100 : 0, incentive: 0,
+          incTotal: 0,
+          profTotal: tNormal && tPrice > 0 && tPct > 0 ? Math.round(tPrice * tPct / 100 * hd.qty) : 0,
+          cells: trr.cells
+        });
+      }
+    }
+  }
   for (var q = 0; q < pharm.length; q++) {
     var dd = pharm[q];
     dd.candCount = candCount[dd.code] || 0;
-    if (!dd.grp) dd.status = '약가파일 미등재(비급여 등)';
+    if (!dd.grp && dd.candCount) dd.status = '비급여 — 성분명 매칭 후보 있음';
+    else if (!dd.grp) dd.status = '비급여(약가파일 미등재)' + (dd.extIng ? ' — 요율표에 성분 없음' : ' — 성분 추출 실패');
     else if (dd.candCount) dd.status = '대체후보 있음';
     else dd.status = '요율표에 동일성분 없음';
     /* 전량 최저가 후보로 대체했을 때의 인센티브(차액 30%) × 조제량 */

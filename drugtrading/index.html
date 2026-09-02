@@ -1227,6 +1227,7 @@
     return [
       { label: '주성분명', key: 'ing', str: true },
       { label: '구분', key: 'kind', str: true },
+      { label: '급여구분', key: 'pay', str: true },
       { label: '품목상태', key: 'status', str: true },
       { label: '약국 보유약품', key: 'pName', str: true },
       { label: '보유 제조회사', key: 'pMaker', str: true },
@@ -1298,6 +1299,7 @@
   var ITEM_COLS = [
     { key: 'exc', label: '제외', w: 46 },
     { key: 'istatus', label: '상태', str: true },
+    { key: 'pay', label: '급여', str: true, w: 62 },
     { key: 'name', label: '약국 약품명', str: true },
     { key: 'maker', label: '제조회사', str: true },
     { key: 'qty', label: '조제량' },
@@ -1362,6 +1364,7 @@
     var mcol = state.makerCol;
     return {
       code: it.code, exc: it.exc, istatus: it.exc ? '제외' : '매칭',
+      pay: it.pay,
       name: it.name, maker: it.maker, qty: it.qty, price: it.price, amt: it.amt,
       bestName: state.prodCol >= 0 ? String(x.cells[state.prodCol] === undefined ? '' : x.cells[state.prodCol]) : '',
       bestComp: mcol >= 0 ? String(x.cells[mcol] === undefined ? '' : x.cells[mcol]).trim() : '',
@@ -1376,11 +1379,12 @@
     var mcol = state.makerCol;
     var istatus;
     if (state.excluded[d.code]) istatus = '제외';
-    else if (!d.grp) istatus = '미등재';
-    else if (!b) istatus = '후보없음';
-    else istatus = '매칭';
+    else if (b) istatus = '매칭';
+    else if (!d.grp && !d.candCount) istatus = '미등재';
+    else istatus = '후보없음';
     return {
       code: d.code, exc: !!state.excluded[d.code], istatus: istatus,
+      pay: d.pay || (d.grp ? '급여' : '비급여'),
       name: d.name, maker: d.maker, qty: d.qty, price: d.price, amt: d.amt,
       bestName: b && state.prodCol >= 0 ? String(b.cells[state.prodCol] === undefined ? '' : b.cells[state.prodCol]) : '',
       bestComp: b && mcol >= 0 ? String(b.cells[mcol] === undefined ? '' : b.cells[mcol]).trim() : '',
@@ -1579,9 +1583,13 @@
         : '<span class="badge miss">' + esc(it.istatus) + '</span>';
       var diffCls = it.bdiff > 0 ? 'num pos' : (it.bdiff < 0 ? 'num neg' : 'num');
       var star = it._star ? '★ ' : '';
+      var payTd = it.pay === '비급여'
+        ? '<td style="color:var(--warn);font-weight:700" title="비급여: 성분명 텍스트 매칭 — 인센티브 없음, 요율 정산만">비급여</td>'
+        : '<td>급여</td>';
       html.push('<tr class="' + (it.exc ? 'excl' : '') + '" data-code="' + it.code + '">'
         + '<td class="exc-cell" style="text-align:center"><input type="checkbox" class="excChk" data-code="' + it.code + '"' + (it.exc ? ' checked' : '') + ' title="대체조제 제외"></td>'
         + '<td>' + badge + '</td>'
+        + payTd
         + '<td title="' + esc(it.name) + '">' + esc(it.name) + '</td>'
         + '<td>' + esc(it.maker) + '</td>'
         + '<td class="num">' + fmt(it.qty) + '</td>'
@@ -1617,7 +1625,7 @@
     var footLabel = '합계 (' + active + '품목, 제외 반영' + (state.proposalMode ? ', 제안서 기준: 약가 동일·낮음' : '') + (expand ? ', 최유리 기준' : '') + ')'
       + (over ? ' · 표시 ' + CAP + '행 초과분 생략(엑셀에는 전체 포함)' : '');
     $('tblFoot').innerHTML = '<tr>'
-      + '<td colspan="6">' + footLabel + '</td>'
+      + '<td colspan="7">' + footLabel + '</td>'
       + '<td class="num">' + fmt(tAmt) + '</td>'
       + '<td colspan="5">매칭 ' + mCnt + '품목 · 처방 ₩' + fmt(mAmt) + '</td>'
       + '<td class="num">' + fmt(tProf) + '</td>'
@@ -1661,6 +1669,7 @@
       var frontTd = {
         ing: '<td>' + esc(x.ing) + '</td>',
         kind: '<td>' + badge + '</td>',
+        pay: x.pay === '비급여' ? '<td style="color:var(--warn);font-weight:700">비급여</td>' : '<td>' + esc(x.pay || '') + '</td>',
         status: x.status === '정상' ? '<td>정상</td>' : '<td style="color:var(--warn);font-weight:700">' + esc(x.status) + '</td>',
         pName: '<td>' + esc(x.pName) + '</td>',
         pMaker: '<td>' + esc(x.pMaker) + '</td>',
@@ -1711,7 +1720,7 @@
     if (expand0) headI.push('최유리');
     var aoaI = [headI];
     var pushRow = function (it, star) {
-      var row = [it.exc ? '제외' : '', it.istatus, it.name, it.maker, it.qty, it.price, it.amt,
+      var row = [it.exc ? '제외' : '', it.istatus, it.pay || '', it.name, it.maker, it.qty, it.price, it.amt,
         it.bestName, it.bestComp, it.bestPct === null ? '' : it.bestPct, it.bestPrice === null ? '' : it.bestPrice,
         it.bdiff === null ? '' : it.bdiff, it.profTotal || '', it.incTotal || '', it.cand];
       if (expand0) row.push(star ? '★' : '');
@@ -1729,19 +1738,19 @@
     }
     var tP = 0, tI = 0, tA = 0;
     items0.forEach(function (it) { if (!it.exc) { tA += it.amt; tP += it.profTotal; tI += it.incTotal; } });
-    var totRow = ['', '합계(제외 반영' + (expand0 ? ', 최유리 기준' : '') + ')', '', '', '', '', tA, '', '', '', '', '', tP, tI, ''];
+    var totRow = ['', '합계(제외 반영' + (expand0 ? ', 최유리 기준' : '') + ')', '', '', '', '', '', tA, '', '', '', '', '', tP, tI, ''];
     if (expand0) totRow.push('');
     aoaI.push(totRow);
     var wsI = XLSX.utils.aoa_to_sheet(aoaI);
     wsI['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: aoaI.length - 1, c: headI.length - 1 } }) };
-    wsI['!cols'] = [{ wch: 8 }, { wch: 8 }, { wch: 36 }, { wch: 16 }, { wch: 8 }, { wch: 9 }, { wch: 11 }, { wch: 28 }, { wch: 14 }, { wch: 8 }, { wch: 9 }, { wch: 8 }, { wch: 11 }, { wch: 11 }, { wch: 7 }, { wch: 7 }];
+    wsI['!cols'] = [{ wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 36 }, { wch: 16 }, { wch: 8 }, { wch: 9 }, { wch: 11 }, { wch: 28 }, { wch: 14 }, { wch: 8 }, { wch: 9 }, { wch: 8 }, { wch: 11 }, { wch: 11 }, { wch: 7 }, { wch: 7 }];
     XLSX.utils.book_append_sheet(wb, wsI, '품목별 요약(최종)');
 
-    var head1 =['주성분코드(동일제형)', '주성분명', '구분', '품목상태', '약국 보유약품', '보유 제조회사', '조제량', '조제금액',
+    var head1 =['주성분코드(동일제형)', '주성분명', '구분', '급여구분', '품목상태', '약국 보유약품', '보유 제조회사', '조제량', '조제금액',
       '보유단가', '약가비교', '차액(약가-보유단가)', '요율(%)', '정당이익(약가×요율)', '저가 인센티브(정당)'].concat(state.rateParsed.header);
     var aoa1 = [head1];
     sortedRows().forEach(function (x) {
-      var row = [x.grp, x.ing, x.kind, x.status, x.pName, x.pMaker, x.pQty, x.pAmt, x.basePrice, x.cmp, x.diff, x.pct, x.profit, x.incentive];
+      var row = [x.grp, x.ing, x.kind, x.pay || '', x.status, x.pName, x.pMaker, x.pQty, x.pAmt, x.basePrice, x.cmp, x.diff, x.pct, x.profit, x.incentive];
       for (var j = 0; j < state.rateParsed.header.length; j++) row.push(x.cells[j] === undefined ? '' : x.cells[j]);
       aoa1.push(row);
     });
@@ -1782,6 +1791,8 @@
       ['"약가비교" = 후보 약가 vs 보유단가 (낮음=저렴한 대체 / 높음=단가 상승), "차액" = 약가 - 보유단가'],
       ['"정당이익(약가×요율)" = 요율표의 약가 × 코드(요율%) ÷ 100 — 1정(단위)당 이익 금액'],
       ['"저가 인센티브(정당)" = 저가약 대체조제 장려금: 보유품목보다 약가가 낮은 대체 시 (보유단가 - 후보약가) × 30%'],
+      ['"급여구분": 급여 = 약가파일(급여목록) 등재 → 주성분코드 매칭 / 비급여 = 미등재 → 약품명 괄호의 성분명을 요율표 성분명과 대조(함량 확인)한 참고 매칭'],
+      ['비급여 품목은 저가약 대체조제 장려금(급여 청구) 대상이 아니므로 인센티브 0, 요율 정산액만 계산됩니다. 성분명 매칭은 코드 매칭보다 정확도가 낮으니 제형·함량을 확인하세요.'],
       ['주의: 실제 대체조제 시 생동성 인정품목 여부(생동/생산 열), 저함량 배수 조제 등은 심평원 고시 기준으로 최종 확인 필요.']
     ];
     var ws3 = XLSX.utils.aoa_to_sheet(notes);
