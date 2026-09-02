@@ -1531,6 +1531,22 @@
     drawCands();
   }
 
+  /* 품목별 요약 정렬 (화면·엑셀 공통) */
+  function sortItems(items) {
+    var k = itemsSort.key, dir = itemsSort.asc ? 1 : -1;
+    items.sort(function (a, b) {
+      var va = a[k], vb = b[k];
+      if (va === null || va === undefined) va = -Infinity;
+      if (vb === null || vb === undefined) vb = -Infinity;
+      if (typeof va === 'string' || typeof vb === 'string') {
+        va = String(va); vb = String(vb);
+        return va < vb ? -dir : (va > vb ? dir : 0);
+      }
+      return (va - vb) * dir;
+    });
+    return items;
+  }
+
   /* 품목별 요약: 조제내역 1품목 = 1행 + 최적 스위칭 품목 + 정산·인센티브 (최종 결과물) */
   function drawItems() {
     var r = state.result; if (!r) return;
@@ -1546,17 +1562,7 @@
         return (it.name + ' ' + it.maker + ' ' + it.bestName + ' ' + it.bestComp).toLowerCase().indexOf(q) !== -1;
       });
     }
-    var k = itemsSort.key, dir = itemsSort.asc ? 1 : -1;
-    items.sort(function (a, b) {
-      var va = a[k], vb = b[k];
-      if (va === null || va === undefined) va = -Infinity;
-      if (vb === null || vb === undefined) vb = -Infinity;
-      if (typeof va === 'string' || typeof vb === 'string') {
-        va = String(va); vb = String(vb);
-        return va < vb ? -dir : (va > vb ? dir : 0);
-      }
-      return (va - vb) * dir;
-    });
+    sortItems(items);
     /* 후보 나열 모드: 품목당 후보를 전부 중복 나열 (첫 행 = 최유리 ★) */
     var expand = !$('cBestOnly').checked;
     var rows2 = items;
@@ -1714,6 +1720,7 @@
     var best0 = buildBestMap();
     var items0 = r.pharm.map(function (d) { return itemRow(d, best0); });
     if ($('cMatched').checked) items0 = items0.filter(function (it) { return it.istatus === '매칭' || (it.exc && best0[it.code]); });
+    sortItems(items0);
     var expand0 = !$('cBestOnly').checked;
     var headI = ITEM_COLS.filter(function (c) { return c.key !== 'exc'; }).map(function (c) { return c.label; });
     headI.unshift('제외여부');
