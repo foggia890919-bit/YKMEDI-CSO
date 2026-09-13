@@ -199,7 +199,7 @@
   </nav>
 
   <section class="step" data-step="1">
-  <div class="stephead"><h2>1. 거래처 선택</h2><p>등록된 거래처(병의원·약국)에서 고릅니다. 필터링요청·드라이브 저장이 모두 이 거래처 기준으로 묶입니다. 저장된 프로젝트를 고르면 이전 작업이 그대로 열립니다.</p><a class="sbtn" href="/cso/clients" target="_blank" rel="noopener">🏥 거래처 등록 (새 창)</a></div>
+  <div class="stephead"><h2>1. 거래처 선택</h2><p>등록된 거래처(병의원·약국)에서 고릅니다. 필터링요청·프로젝트 저장이 모두 이 거래처 기준으로 묶입니다. 「저장」은 거래처 등록이 아니라 이 도구의 작업 상태(조제내역·매핑 설정·진행 단계)를 영업 시트에 남기는 것이며, 저장된 프로젝트를 고르면 이전 작업이 그대로 열립니다.</p><a class="sbtn" href="/cso/clients" target="_blank" rel="noopener">🏥 거래처 등록 (새 창)</a></div>
   <div class="projbar">
     <span class="lbl">📁 프로젝트</span>
     <select id="projSel"><option value="">— 저장된 프로젝트 —</option></select>
@@ -406,7 +406,7 @@
   <div class="rep" id="repBoxes"></div>
   <div class="actions">
     <button id="btnDown">📥 결과 엑셀 다운로드</button>
-    <button class="pbtn" id="repSave" style="background:#fff; border:1px solid var(--line); color:#1c2333">💾 드라이브에 저장</button>
+    <button class="pbtn" id="repSave" style="background:#fff; border:1px solid var(--line); color:#1c2333">💾 프로젝트 저장 (영업 시트)</button>
     <button class="pbtn" id="repCombo" style="background:#fff; border:1px solid var(--line); color:#1c2333">🏆 최적 조합으로 압축 보기</button>
   </div>
   <div class="stepnav"><button class="pbtn" id="prev6">← 2차 매핑</button><span></span></div>
@@ -1383,9 +1383,9 @@
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: name, data: data })
     }).then(function (r) { return r.json(); }).then(function (d) {
-      if (d && d.ok) { refreshCloudList(name).then(function () { projStatMsg('☁ 드라이브에 저장됨: ' + name + ' — 어느 계정에서나 불러올 수 있습니다'); }); }
-      else { refreshProjSel(name); projStatMsg('✓ 이 브라우저에 저장됨: ' + name + (d && d.error ? ' (드라이브 저장 실패: ' + d.error + ')' : '')); }
-    }).catch(function () { refreshProjSel(name); projStatMsg('✓ 이 브라우저에 저장됨: ' + name + ' (오프라인 — 사이트에서 열면 드라이브에 저장됩니다)'); });
+      if (d && d.ok) { refreshCloudList(name).then(function () { projStatMsg('☁ 영업 시트에 저장됨: ' + name + ' — 어느 계정에서나 불러올 수 있습니다'); }); }
+      else { refreshProjSel(name); projStatMsg('✓ 이 브라우저에 저장됨: ' + name + (d && d.error ? ' (공유 저장 실패: ' + d.error + ')' : '')); }
+    }).catch(function () { refreshProjSel(name); projStatMsg('✓ 이 브라우저에 저장됨: ' + name + ' (오프라인 — 사이트에서 열면 영업 시트에 저장됩니다)'); });
   });
   $('projSel').addEventListener('change', function () {
     var v = this.value; if (!v) return;
@@ -1414,7 +1414,7 @@
     if (v.indexOf('cloud:') === 0) {
       var id = v.slice(6), nm = '';
       cloudProj.list.forEach(function (x) { if (x.id === id) nm = x.name; });
-      if (!confirm('드라이브 프로젝트 "' + nm + '"를 삭제할까요? (모든 계정에서 사라집니다)')) return;
+      if (!confirm('공유 프로젝트 "' + nm + '"를 삭제할까요? (모든 계정에서 사라집니다)')) return;
       fetch('/api/subprojects?id=' + encodeURIComponent(id), { method: 'DELETE' })
         .then(function (r) { return r.json(); }).then(function (d) {
           if (d && d.ok) { refreshCloudList('').then(function () { projStatMsg('삭제됨: ' + nm); }); }
