@@ -388,6 +388,8 @@
     <button class="sbtn" id="ftSelTop">상위 N개사 체크</button>
     <button class="sbtn" id="ftSelAll">전부 체크</button>
     <button class="sbtn" id="ftSelNone">해제</button>
+    <label class="chk" title="영업사원 정산 잠재 합계가 이 금액 이상인 제약사만 표시"><span>정산 ≥</span><input type="number" id="ftMinProf" min="0" step="100000" placeholder="0" style="width:96px; padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin:0 4px"><span>원</span></label>
+    <label class="chk" title="추가수수료가 이 % 이상인 제약사만 표시"><span>추가수수료 ≥</span><input type="number" id="ftMinExtra" min="0" step="0.5" placeholder="0" style="width:56px; padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin:0 4px"><span>%</span></label>
     <label class="chk" title="요청자(담당자)로 기록됩니다. 비우면 로그인한 계정의 담당자명"><span>담당자</span><input id="ftManager" list="managerList" placeholder="거래처 담당자" style="width:120px; padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin:0 4px"><datalist id="managerList"></datalist></label>
     <button class="pbtn primary" id="ftRequest" style="padding:7px 14px; font-size:13px; border-radius:8px; border:0; background:var(--blue); color:#fff; cursor:pointer">📨 체크한 제약사 필터링요청</button>
     <button class="sbtn" id="ftRefresh">🔄 결과 새로고침</button>
@@ -1520,10 +1522,24 @@
 
   /* ── 4단계: 필터링 진행 — 1차 매핑 상위 N위 범주의 제약사 목록 + 체크 요청 ── */
   var ftSel = {};
+  var ftSort = { key: 'potential', dir: -1 }; /* dir -1 내림차순, 1 오름차순 */
+  function ftSorted(list) {
+    var k = ftSort.key, d = ftSort.dir;
+    return list.slice().sort(function (a, b) {
+      var va = a[k], vb = b[k];
+      if (k === 'name') return (va < vb ? -1 : va > vb ? 1 : 0) * d;
+      if (k === 'status') { var o = { ok: 0, pending: 1, none: 2, no: 3 }; return ((o[availKindFor(a.name)] || 0) - (o[availKindFor(b.name)] || 0)) * d; }
+      return ((va || 0) - (vb || 0)) * d || (b.potential - a.potential);
+    });
+  }
+  function ftFiltered(list) {
+    var mp = parseFloat($('ftMinProf').value) || 0, me = parseFloat($('ftMinExtra').value) || 0;
+    return list.filter(function (a) { return a.potential >= mp && (a.extra || 0) >= me; });
+  }
   function filterCompanies() {
     var M = buildMatrix(Math.max(1, parseInt($('mxK').value, 10) || 10));
     var first = {}; M.rows.forEach(function (r) { if (r.top[0]) first[r.top[0].comp] = (first[r.top[0].comp] || 0) + 1; });
-    return { M: M, list: M.comps.map(function (c) { return { name: c, potential: M.potential[c], appear: M.appear[c], first: first[c] || 0 }; }) };
+    return { M: M, list: M.comps.map(function (c) { var ex = extraFor(c); return { name: c, potential: M.potential[c], appear: M.appear[c], first: first[c] || 0, extra: ex && ex.pct > 0 ? ex.pct : 0 }; }) };
   }
   function renderFilterStep() {
     if (!state.result) return;
@@ -1531,10 +1547,19 @@
     if (cl && cl.m && !$('ftManager').value) $('ftManager').value = cl.m;
     var dl = $('managerList'); dl.innerHTML = '';
     var seen = {}; (state.clients || []).forEach(function (c) { if (c.m && !seen[c.m]) { seen[c.m] = 1; var o = document.createElement('option'); o.value = c.m; dl.appendChild(o); } });
-    var F = filterCompanies(); state.ftList = F.list;
-    var th = '<tr><th style="width:30px"><input type="checkbox" id="ftAllChk"></th><th style="width:40px">순위</th><th>제약사</th><th>추가수수료</th><th class="num">잠재 정산(월)</th><th class="num">등장 품목</th><th class="num">1위 품목</th><th>필터링 상태</th><th></th></tr>';
+    var F = filterCompanies(); state.ftList = ftSorted(ftFiltered(F.list));
+    var arrow = function (k) { return ftSort.key === k ? (ftSort.dir < 0 ? ' ▼' : ' ▲') : ''; };
+    var hth = function (k, label, cls) { return '<th class="' + (cls || '') + '" data-k="' + k + '" style="cursor:pointer" title="클릭: 정렬 (다시 클릭하면 오름↔내림)">' + label + arrow(k) + '</th>'; };
+    var th = '<tr><th style="width:30px"><input type="checkbox" id="ftAllChk"></th><th style="width:40px">순위</th>' + hth('name', '제약사') + hth('extra', '추가수수료') + hth('potential', '잠재 정산(월)', 'num') + hth('appear', '등장 품목', 'num') + hth('first', '1위 품목', 'num') + hth('status', '필터링 상태') + '<th></th></tr>';
     $('ftab').querySelector('thead').innerHTML = th;
-    var rows = F.list.map(function (a, i) {
+    $('ftab').querySelectorAll('th[data-k]').forEach(function (h) {
+      h.addEventListener('click', function () {
+        var k = h.getAttribute('data-k');
+        if (ftSort.key === k) ftSort.dir = -ftSort.dir; else { ftSort.key = k; ftSort.dir = (k === 'name' ? 1 : -1); }
+        renderFilterStep();
+      });
+    });
+    var rows = state.ftList.map(function (a, i) {
       var av = availFor(a.name), on = !!ftSel[a.name];
       return '<tr class="' + (on ? 'sel' : '') + '" data-n="' + esc(a.name) + '"><td><input type="checkbox" class="ftChk"' + (on ? ' checked' : '') + '></td><td class="num">' + (i + 1) + '</td>'
         + '<td><b>' + esc(a.name) + '</b></td><td>' + (extraBadge(a.name) || '<span class="mini">—</span>') + '</td>'
@@ -1547,18 +1572,20 @@
       cb.addEventListener('change', function () { var tr = cb.closest('tr'); ftSel[tr.getAttribute('data-n')] = cb.checked; tr.classList.toggle('sel', cb.checked); ftStatus(); });
     });
     tb.querySelectorAll('[data-one]').forEach(function (b) { b.addEventListener('click', function () { requestFilters([b.getAttribute('data-one')]); }); });
-    $('ftAllChk').addEventListener('change', function () { var on = this.checked; F.list.forEach(function (a) { ftSel[a.name] = on; }); renderFilterStep(); });
+    $('ftAllChk').addEventListener('change', function () { var on = this.checked; state.ftList.forEach(function (a) { ftSel[a.name] = on; }); renderFilterStep(); });
     ftStatus();
   }
   function ftStatus() {
     var n = Object.keys(ftSel).filter(function (k) { return ftSel[k]; }).length;
     var ok = 0, no = 0, pd = 0, none = 0;
     (state.ftList || []).forEach(function (a) { var k = availKindFor(a.name); if (k === 'ok') ok++; else if (k === 'no') no++; else if (k === 'pending') pd++; else none++; });
-    $('ftStat').textContent = '체크 ' + n + '곳 · 가능 ' + ok + ' · 불가 ' + no + ' · 확인중 ' + pd + ' · 조회전 ' + none;
+    $('ftStat').textContent = '표시 ' + (state.ftList || []).length + '곳 · 체크 ' + n + '곳 · 가능 ' + ok + ' · 불가 ' + no + ' · 확인중 ' + pd + ' · 조회전 ' + none;
   }
   $('ftSelTop').addEventListener('click', function () { var N = Math.max(1, parseInt($('ftTopN').value, 10) || 5); ftSel = {}; (state.ftList || []).slice(0, N).forEach(function (a) { ftSel[a.name] = true; }); renderFilterStep(); });
   $('ftSelAll').addEventListener('click', function () { ftSel = {}; (state.ftList || []).forEach(function (a) { ftSel[a.name] = true; }); renderFilterStep(); });
   $('ftSelNone').addEventListener('click', function () { ftSel = {}; renderFilterStep(); });
+  $('ftMinProf').addEventListener('input', renderFilterStep);
+  $('ftMinExtra').addEventListener('input', renderFilterStep);
   $('ftRefresh').addEventListener('click', function () { loadAvail(false).then(renderFilterStep); });
   $('ftRequest').addEventListener('click', function () { requestFilters(Object.keys(ftSel).filter(function (k) { return ftSel[k]; })); });
   function requestFilters(names) {
