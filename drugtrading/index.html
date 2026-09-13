@@ -136,6 +136,11 @@
   .mxsum .st b { font-variant-numeric: tabular-nums; }
   .mxsum .st.on { border-color: var(--blue); box-shadow: inset 0 0 0 1px var(--blue); }
   .badge.xf { background: #eef2ff; color: #3730a3; }
+  .ptools .row { flex-wrap: wrap; row-gap: 6px; }
+  .ptools .row .sbtn, .ptools .row .chk, .ptools .row button, .ptools .row select { white-space: nowrap; }
+  .ptools .row .plab { flex: 0 0 100%; font-size: 11px; font-weight: 800; color: #556; letter-spacing: .02em; margin-bottom: -2px; }
+  .ptools .row .plab small { font-weight: 500; color: #8a93a6; margin-left: 4px; }
+  .ptools .row .mini.full { flex: 0 0 100%; text-align: left; }
   /* 단계형 흐름 */
   .steps { display: flex; gap: 6px; margin: 0 0 16px; flex-wrap: wrap; }
   .steps button { flex: 1; min-width: 150px; display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: #fff; border-radius: 10px; padding: 9px 12px; font-size: 13px; font-weight: 700; color: #667; cursor: pointer; text-align: left; }
@@ -332,6 +337,10 @@
       </div>
       <label class="chk" title="이 값 이상 추가수수료가 붙는 제약사를 리스트A 우선 배정 대상으로 봅니다"><span>추가수수료</span><input type="number" id="ykMin" min="0" max="20" step="0.5" value="3" style="width:56px; padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin:0 4px"><span>% 이상 우선</span></label>
     </div>
+    <div class="ctlrow"><span class="lab">정산 기준<small>제약사별 최소 매출</small></span>
+      <label class="chk" title="제약사에 배정된 처방매출(조제금액 합)이 이 금액 미만이면 정산이 안 되므로, 그 품목은 후보(상위 N위) 중 이미 매출이 큰 제약사로 옮겨 붙입니다. 0이면 사용 안 함"><span>제약사 처방매출</span><input type="number" id="minAmt" min="0" step="10000" value="400000" style="width:90px; padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin:0 4px"><span>원 미만이면 매출 큰 제약사에 합침</span></label>
+      <span class="mini" style="color:#667">작은 품목을 1품목씩 억지로 배정하지 않고 후순위·매출 큰 곳에 붙임</span>
+    </div>
     <div class="ctlrow"><span class="lab">후보 범위<small>어떤 대체품까지</small></span>
       <label class="chk" title="품목마다 정산 상위 몇 곳까지 후보 범주에 넣을지"><span>품목별 상위</span><input type="number" id="mxK" min="1" max="30" value="10" style="width:52px; padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin:0 4px"><span>위까지</span></label>
       <span class="chk" style="gap:8px; font-weight:700" title="지금 조제단가와 비교해 어떤 약가의 대체품까지 허용할지. 약국은 보통 낮음·동일, 병원은 높음도 허용 가능">
@@ -387,21 +396,27 @@
       <div class="ptools">
         <div class="row" id="pharmNameRow" style="display:none"><input type="search" id="pharmName" placeholder="약국(거래처)명 — 필터링요청에 기재됩니다"></div>
         <div class="row" id="comboRow" style="display:none">
+          <span class="plab">조합 방식<small>몇 곳으로 묶을지</small></span>
           <label class="chk" style="margin:0; font-size:12px" title="정산금 기준으로 가장 유리한 제약사 N곳 조합"><input type="checkbox" id="comboModeOpt" checked>제약사 최적화</label>
           <input type="number" id="comboK" min="1" max="99" value="5" title="제약사 개수" style="margin-top:0; width:58px; padding:4px 8px; font-size:12px; border:1px solid var(--line); border-radius:6px; font-family:inherit">
+          <span class="mini">곳</span>
           <label class="chk" style="margin:0; font-size:12px" title="품목마다 약가가 동일하거나 낮은 후보 중 정산금이 가장 높은 1개만 남겨 제안서를 만듭니다"><input type="checkbox" id="comboModeFull">품목 전체 커버(제안서)</label>
           <button id="comboApply" title="이 조합의 제약사들을 스위칭 체크에 넣어 품목별 요약에 반영 — 품목마다 조합 내 최유리 제약사만 남습니다" style="margin-top:0; padding:4px 10px; font-size:12px; border:1px solid var(--blue); background:var(--blue); color:#fff; border-radius:6px; cursor:pointer">표에 적용</button>
-          <span class="mini" id="comboModeLbl" style="flex:1; text-align:right">정산금 최대 기준</span>
+          <span class="mini full" id="comboModeLbl">정산금 최대 기준</span>
         </div>
         <div class="row" id="availRow" style="display:none">
+          <span class="plab">필터링 결과<small>거래가능 조회·대입</small></span>
           <button class="sbtn" id="availLoad" title="프로젝트 바의 병원(거래처)명으로 거래가능유무 시트를 조회해 제약사 옆에 O/X를 표시">🔎 거래가능 조회</button>
           <label class="chk" style="margin:0; font-size:12px" title="필터링 결과가 '불가'인 제약사를 스위칭·조합 계산에서 뺍니다"><input type="checkbox" id="cAvailNo">거래불가 제외</label>
           <select id="availFilter" title="스위칭 제약사 목록을 거래가능 상태로 좁혀 보기" style="padding:4px 6px; font-size:12px; border:1px solid var(--line); border-radius:6px; font-family:inherit">
             <option value="">상태 전체</option><option value="none">조회전</option><option value="pending">확인중</option><option value="ok">거래가능</option><option value="no">거래불가</option>
           </select>
-          <button class="sbtn" id="comboFilterAll" style="display:none" title="현재 조합의 제약사 전부를 한 번에 필터링요청 (이미 가능/확인중인 곳은 건너뜀)">📨 조합 전체 필터링요청</button>
-          <button class="sbtn" id="availLoop" style="display:none; border-color:var(--warn); color:var(--warn)" title="거래불가 제약사를 빼고 다음 최적 조합을 다시 뽑은 뒤, 아직 요청 안 한 제약사만 필터링요청 — 결과 나오면 조회 후 다시 누르면 됩니다">🔁 불가 제외 → 재최적화 → 신규 요청</button>
-          <span class="mini" id="availStat" style="flex:1; min-width:0; text-align:right; white-space:nowrap; overflow:hidden; text-overflow:ellipsis"></span>
+          <span class="mini full" id="availStat" style="min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis"></span>
+        </div>
+        <div class="row" id="reqRow" style="display:none">
+          <span class="plab">필터링 요청<small>조합 기준 일괄</small></span>
+          <button class="sbtn" id="comboFilterAll" title="현재 조합의 제약사 전부를 한 번에 필터링요청 (이미 가능/확인중인 곳은 건너뜀)">📨 조합 전체 필터링요청</button>
+          <button class="sbtn" id="availLoop" style="border-color:var(--warn); color:var(--warn)" title="거래불가 제약사를 빼고 다음 최적 조합을 다시 뽑은 뒤, 아직 요청 안 한 제약사만 필터링요청 — 결과 나오면 조회 후 다시 누르면 됩니다">🔁 불가 제외 → 재최적화 → 신규 요청</button>
         </div>
         <div class="row"><input type="search" id="makerSearch" placeholder="제약사 검색…"></div>
         <div class="row">
@@ -891,7 +906,7 @@
   }
 
   /* ── 제약사×품목 매트릭스: 품목별 상위 K 제약사 정산금(가로) + 제약사별 합산(세로) + 필터링 대입 최종 배정 ── */
-  state.mx = { K: 10, stage: 'all', mode: 'prof', ykMin: 3 };
+  state.mx = { K: 10, stage: 'all', mode: 'prof', ykMin: 3, minAmt: 400000 };
   function mxAllowed(comp, stage) {
     if (stage === 'all') return true;
     var k = availKindFor(comp);
@@ -923,11 +938,11 @@
     var comps = Object.keys(potential).sort(function (a, b) { return potential[b] - potential[a]; });
     /* 단계(필터링 대입) × 모드(정산금 최대 / YK 우선) 별 최종 배정. 품목당 제약사 1곳.
        YK 우선: 추가수수료 ≥ ykMin 인 제약사 중 정산금 최고 → 없으면 정산금 1위로 폴백. 갭 = 1위 정산 − 배정 정산 */
-    var ykMin = state.mx.ykMin;
+    var ykMin = state.mx.ykMin, minAmt = parseFloat($('minAmt').value) || 0;
     var stages = {};
     ['all', 'nono', 'okonly'].forEach(function (st) {
       ['prof', 'yk'].forEach(function (mode) {
-        var assign = {}, tot = 0, totAmt = 0, cnt = 0, totInc = 0, gap = 0, ykRev = 0, ykCnt = 0;
+        var key = 'pick_' + st + '_' + mode;
         rows.forEach(function (r) {
           var pickP = null, pickY = null;
           for (var i = 0; i < r.top.length; i++) {
@@ -937,20 +952,30 @@
             if (!pickY && t.extraPct >= ykMin && ykMin > 0) pickY = t;
             if (pickP && pickY) break;
           }
-          var pick = mode === 'yk' ? (pickY || pickP) : pickP;
-          r['pick_' + st + '_' + mode] = pick; r['best_' + st] = pickP;
+          r[key] = mode === 'yk' ? (pickY || pickP) : pickP; r['best_' + st] = pickP; r[key + '_from'] = null;
+        });
+        /* 최소 처방매출 미만 제약사의 품목은 매출 큰 후보 제약사로 합침 */
+        var cr = consolidate(rows, key, function (c) { return mxAllowed(c, st); }, { minAmt: minAmt, yk: mode === 'yk', ykMin: ykMin });
+        var assign = {}, tot = 0, totAmt = 0, cnt = 0, totInc = 0, gap = 0, ykRev = 0, ykCnt = 0;
+        rows.forEach(function (r) {
+          var pick = r[key], pickP = r['best_' + st];
           if (!pick) return;
           var a = assign[pick.comp] || (assign[pick.comp] = { cnt: 0, prof: 0, amt: 0, inc: 0, ykRev: 0 });
           var rev = pick.yk || 0;
           a.cnt++; a.prof += pick.prof; a.amt += r.amt; a.inc += pick.inc; a.ykRev += rev;
           tot += pick.prof; totAmt += r.amt; totInc += pick.inc; cnt++; ykRev += rev;
-          if (mode === 'yk' && pickY) { ykCnt++; gap += pickP.prof - pickY.prof; }
+          if (mode === 'yk' && pick.extraPct >= ykMin && ykMin > 0) ykCnt++;
+          if (pickP && pickP.prof > pick.prof) gap += pickP.prof - pick.prof;
         });
-        stages[st + '_' + mode] = { assign: assign, total: tot, totalAmt: totAmt, count: cnt, inc: totInc, gap: gap, ykRev: ykRev, ykCnt: ykCnt };
+        stages[st + '_' + mode] = { assign: assign, total: tot, totalAmt: totAmt, count: cnt, inc: totInc, gap: gap, ykRev: ykRev, ykCnt: ykCnt, merged: cr.moved, under: cr.under };
       });
     });
     var allAmt = 0; rows.forEach(function (r) { allAmt += r.amt; });
     return { rows: rows, comps: comps, potential: potential, appear: appear, stages: stages, allAmt: allAmt, K: K };
+  }
+  function minAmtLbl(cur) {
+    var m = parseFloat($('minAmt').value) || 0; if (!(m > 0)) return '';
+    return ' · 최소 매출 ' + won(m) + ' 미만 합침 ' + (cur.merged || 0) + '품목' + (cur.under && cur.under.length ? ' · <span style="color:#b45309" title="' + esc(cur.under.join(', ')) + '">기준 미달 ' + cur.under.length + '곳(옮길 곳 없음)</span>' : '');
   }
   function won(n) { return '₩' + Math.round(n || 0).toLocaleString('ko-KR'); }
   function pctOf(a, b) { return b > 0 ? (a / b * 100).toFixed(1) + '%' : '-'; }
@@ -968,7 +993,7 @@
       var x = S[k + '_' + mode];
       return '<div class="st' + (k === st ? ' on' : '') + '"><span style="color:#667">' + stLbl[k] + '</span> <b>' + won(x.total) + '</b> · ' + x.count + '품목 · 매출 ' + won(x.totalAmt) + ' · 수수료율 <b>' + pctOf(x.total, x.totalAmt) + '</b> (전체 ' + pctOf(x.total, M.allAmt) + ')'
         + ' · <span style="color:#3730a3">YK 추가수수료 <b>' + won(x.ykRev) + '</b></span>' + (yk ? ' · <span style="color:#3730a3">1위 대비 갭 <b>' + won(x.gap) + '</b> · 우선배정 ' + x.ykCnt + '품목</span>' : '') + '</div>';
-    }).join('') + '<div class="st" style="border:0; color:#667">' + (yk ? '리스트A · 추가수수료 ' + state.mx.ykMin + '% 이상 제약사 우선 · ' : '리스트B · 영업사원 정산 최대 · ') + '정산 = 영업사원 몫(기본요율) · 제약사 ' + M.comps.length + '곳 · 품목 ' + M.rows.length + ' · 상위 ' + K + '위 범주 · 저가 인센티브 ' + won(cur.inc) + avail + '</div>';
+    }).join('') + '<div class="st" style="border:0; color:#667">' + (yk ? '리스트A · 추가수수료 ' + state.mx.ykMin + '% 이상 제약사 우선 · ' : '리스트B · 영업사원 정산 최대 · ') + '정산 = 영업사원 몫(기본요율) · 제약사 ' + M.comps.length + '곳 · 품목 ' + M.rows.length + ' · 상위 ' + K + '위 범주 · 저가 인센티브 ' + won(cur.inc) + (minAmtLbl(cur)) + avail + '</div>';
 
     var tbl = $('tbl'); tbl.className = 'mx';
     $('tblCols').innerHTML = '';
@@ -988,7 +1013,7 @@
       var m = {}; row.top.forEach(function (t) { m[t.comp] = t; });
       var tr = '<tr><td class="fix" style="left:0; max-width:220px" title="' + esc(row.name) + '">' + esc(row.name) + '</td>'
         + '<td class="fix num" style="left:220px; max-width:80px">' + Math.round(row.amt).toLocaleString('ko-KR') + '</td>'
-        + '<td class="fix" style="left:300px; max-width:120px">' + (pick ? '<b>' + esc(pick.comp) + '</b>' + (yk && pick.extraPct >= state.mx.ykMin ? ' <span class="badge xf">+' + pick.extraPct + '%</span>' : (yk ? ' <span class="mini">(1위 폴백)</span>' : '')) : (row.top.length ? '<span style="color:var(--err)">거래가능 없음</span>' : '<span style="color:#aaa">후보없음</span>')) + '</td>'
+        + '<td class="fix" style="left:300px; max-width:120px">' + (pick ? '<b>' + esc(pick.comp) + '</b>' + (yk && pick.extraPct >= state.mx.ykMin ? ' <span class="badge xf">+' + pick.extraPct + '%</span>' : (yk ? ' <span class="mini">(1위 폴백)</span>' : '')) + (row['pick_' + st + '_' + mode + '_from'] ? ' <span class="mini" style="color:#b45309" title="' + esc(row['pick_' + st + '_' + mode + '_from']) + ' 배정 매출이 최소 기준 미만이라 매출 큰 제약사로 합침">↩합침</span>' : '') : (row.top.length ? '<span style="color:var(--err)">거래가능 없음</span>' : '<span style="color:#aaa">후보없음</span>')) + '</td>'
         + '<td class="fix num" style="left:420px">' + (pick ? '<b>' + Math.round(pick.prof).toLocaleString('ko-KR') + '</b>' : '') + '</td>';
       if (yk) {
         var gapV = pick && best ? best.prof - pick.prof : 0;
@@ -1163,32 +1188,32 @@
         });
       }
     }
-    /* 최종 배정: 품목마다 조합 내 정산금 최고 회사 담당 (정산 0이어도 후보가 있으면 커버) */
+    /* 최종 배정: 품목마다 조합 내 정산금 최고 회사 담당 (정산 0이어도 후보가 있으면 커버)
+       → 이후 최소 처방매출 미만 회사의 품목은 조합 내 매출 큰 회사로 합침 */
     var perComp = {};
     chosen.forEach(function (c) { perComp[c] = { name: c, cnt: 0, prof: 0, amt: 0, inc: 0 }; });
-    var covered = 0, coveredAmt = 0, totalProf = 0, totalInc = 0;
+    var covered = 0, coveredAmt = 0, totalProf = 0, totalInc = 0, rows = [];
     helds.forEach(function (h) {
-      var bestC = null, bestP = 0, bestI = 0;
-      chosen.forEach(function (c) {
-        var e = hc[h].comps[c];
-        if (e && (bestC === null || e.prof > bestP)) { bestP = e.prof; bestC = c; }
-      });
-      var maxInc = 0;
-      chosen.forEach(function (c) {
-        var e = hc[h].comps[c];
-        if (e && e.inc > maxInc) maxInc = e.inc;
-      });
-      if (bestC) {
-        perComp[bestC].cnt++; perComp[bestC].prof += bestP; perComp[bestC].amt += hc[h].amt; perComp[bestC].inc += maxInc;
-        covered++; coveredAmt += hc[h].amt; totalProf += bestP; totalInc += maxInc;
-      }
+      var top = chosen.filter(function (c) { return !!hc[h].comps[c]; })
+        .map(function (c) { var e = hc[h].comps[c]; return { comp: c, prof: e.prof, inc: e.inc, extraPct: (extraFor(c) || {}).pct || 0 }; })
+        .sort(function (x, y) { return y.prof - x.prof; });
+      rows.push({ h: h, amt: hc[h].amt, top: top, pick: top[0] || null });
+    });
+    var mergeRes = consolidate(rows, 'pick', function () { return true; }, { minAmt: parseFloat($('minAmt').value) || 0, yk: false, ykMin: 0 });
+    rows.forEach(function (r) {
+      if (!r.pick) return;
+      var maxInc = 0; r.top.forEach(function (t) { if (t.inc > maxInc) maxInc = t.inc; });
+      var pc = perComp[r.pick.comp];
+      pc.cnt++; pc.prof += r.pick.prof; pc.amt += r.amt; pc.inc += maxInc;
+      covered++; coveredAmt += r.amt; totalProf += r.pick.prof; totalInc += maxInc;
     });
     /* 뒤에 뽑힌 회사가 품목을 다 가져가 담당 0이 된 회사는 목록에서 제외 */
     var listOut = chosen.map(function (c) { return perComp[c]; }).filter(function (a) { return a.cnt > 0; });
     return {
       list: listOut,
       covered: covered, coveredAmt: coveredAmt, totalProf: totalProf, totalInc: totalInc,
-      totalHelds: helds.length, mainCount: Math.min(mainCount, listOut.length)
+      totalHelds: helds.length, mainCount: Math.min(mainCount, listOut.length),
+      merged: mergeRes.moved, under: mergeRes.under
     };
   }
 
@@ -1363,7 +1388,7 @@
       step: wizard.step,
       kind: state.kind,
       ftSel: ftSel,
-      mx: { K: $('mxK').value, mode: state.mx.mode, ykMin: $('ykMin').value, stage: state.mx.stage, manager: ($('ftManager').value || '').trim(), price: priceKey() },
+      mx: { K: $('mxK').value, mode: state.mx.mode, ykMin: $('ykMin').value, minAmt: $('minAmt').value, stage: state.mx.stage, manager: ($('ftManager').value || '').trim(), price: priceKey() },
       savedAt: new Date().toISOString()
     };
   }
@@ -1396,6 +1421,7 @@
     if (proj.mx) {
       if (proj.mx.K) $('mxK').value = proj.mx.K;
       if (proj.mx.ykMin !== undefined) $('ykMin').value = proj.mx.ykMin;
+      if (proj.mx.minAmt !== undefined) $('minAmt').value = proj.mx.minAmt;
       if (proj.mx.mode) { state.mx.mode = proj.mx.mode; $('mxMode').querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-m') === proj.mx.mode); }); }
       if (proj.mx.manager) $('ftManager').value = proj.mx.manager;
       if (proj.mx.price !== undefined) { $('cLow').checked = proj.mx.price.indexOf('L') !== -1; $('cSame').checked = proj.mx.price.indexOf('S') !== -1; $('cHigh').checked = proj.mx.price.indexOf('H') !== -1; }
@@ -1815,7 +1841,7 @@
     $('makerTitle').textContent = '🏆 최적 조합';
     $('pharmNameRow').style.display = 'none';
     $('comboRow').style.display = 'flex';
-    $('availRow').style.display = 'flex'; $('comboFilterAll').style.display = ''; $('availLoop').style.display = '';
+    $('availRow').style.display = 'flex'; $('reqRow').style.display = 'flex';
     var full = $('comboModeFull').checked;
     var list = $('makerList'); list.innerHTML = '';
     makerState.view = [];
@@ -1856,7 +1882,9 @@
       sum = '<div class="l" style="color:var(--blue)"><span>조합 예상 정산액(월)</span><b>₩' + Math.round(r.totalProf).toLocaleString('ko-KR') + '</b></div>'
         + '<div class="l"><span>커버 처방금액</span><b>₩' + Math.round(r.coveredAmt).toLocaleString('ko-KR') + '</b></div>'
         + '<div class="l" style="color:var(--ok)"><span>저가대체 인센티브</span><b>₩' + Math.round(r.totalInc).toLocaleString('ko-KR') + '</b></div>'
-        + '<div class="l"><span>조합 밖 품목</span><b>' + (r.totalHelds - r.covered).toLocaleString('ko-KR') + '품목</b></div>';
+        + '<div class="l"><span>조합 밖 품목</span><b>' + (r.totalHelds - r.covered).toLocaleString('ko-KR') + '품목</b></div>'
+        + (r.merged ? '<div class="l" style="color:#b45309"><span>최소매출 미만 → 큰 곳에 합침</span><b>' + r.merged + '품목</b></div>' : '')
+        + (r.under && r.under.length ? '<div class="l" style="color:#b45309" title="' + esc(r.under.join(', ')) + '"><span>최소매출 미달(옮길 곳 없음)</span><b>' + r.under.length + '곳</b></div>' : '');
     }
     $('comboModeLbl').textContent = lbl;
     rows.forEach(function (a, ri) {
@@ -1886,7 +1914,7 @@
     $('makerTitle').textContent = '🏭 보유 제조회사';
     $('pharmNameRow').style.display = 'none';
     $('comboRow').style.display = 'none';
-    $('availRow').style.display = 'none';
+    $('availRow').style.display = 'none'; $('reqRow').style.display = 'none';
     var aggs = makerAggs();
     var list = $('makerList'); list.innerHTML = '';
     var q = makerState.q.toLowerCase();
@@ -1928,7 +1956,7 @@
     $('makerTitle').textContent = '🔄 스위칭 제약사';
     $('pharmNameRow').style.display = 'none';
     $('comboRow').style.display = 'none';
-    $('availRow').style.display = 'flex'; $('comboFilterAll').style.display = 'none'; $('availLoop').style.display = 'none';
+    $('availRow').style.display = 'flex'; $('reqRow').style.display = 'none';
     var aggs = switchAggs();
     var list = $('makerList'); list.innerHTML = '';
     var q = makerState.q.toLowerCase();
@@ -2177,40 +2205,107 @@
     });
     return best;
   }
-  function buildBestMap() {
-    if (state.proposalMode) return proposalBest();
-    var swSel = Object.keys(makerState.swChecked).some(function (k) { return makerState.swChecked[k]; });
+  /* 품목별 최적 후보 — 제약사×품목 매트릭스와 같은 규칙:
+     ① 후보 범위(상위 N위 제약사, 대체 약가 조건) ② 배정 기준(리스트B 정산 최대 / 리스트A 추가수수료 ≥ 기준 우선)
+     ③ 필터링 대입(무시 / 불가 제외 / 가능 확정만) + 패널 「거래불가 제외」. 스위칭 체크·최적 조합 적용 시 그 제약사 안에서만 고른다. */
+  function mxOpts() {
+    return {
+      K: Math.max(1, parseInt($('mxK').value, 10) || state.mx.K || 10),
+      stage: state.mx.stage || 'all',
+      yk: state.mx.mode === 'yk',
+      ykMin: parseFloat($('ykMin').value) || 0,
+      minAmt: parseFloat($('minAmt').value) || 0
+    };
+  }
+  /* 최소 처방매출 합치기 — 배정 매출(조제금액 합) < minAmt 인 제약사는 정산이 안 되므로,
+     그 품목을 후보(top, 상위 N위 안) 가운데 이미 매출이 minAmt 이상인 제약사(후순위라도)로 옮겨 붙인다.
+     작은 제약사부터 처리, 옮길 곳이 없는 제약사는 '기준 미달'로 남긴다. rows: {amt, top:[{comp,extraPct,..}], [key]: pick} */
+  function consolidate(rows, key, allowed, o) {
+    var MIN = o.minAmt, res = { moved: 0, under: [] };
+    if (!(MIN > 0)) return res;
+    var amtBy = {};
+    rows.forEach(function (r) { var p = r[key]; if (p) amtBy[p.comp] = (amtBy[p.comp] || 0) + r.amt; });
+    var stuck = {}, guard = 0;
+    while (guard++ < 1000) {
+      var small = Object.keys(amtBy).filter(function (c) { return amtBy[c] > 0 && amtBy[c] < MIN && !stuck[c]; })
+        .sort(function (a, b) { return amtBy[a] - amtBy[b]; });
+      if (!small.length) break;
+      var c = small[0], any = false;
+      rows.forEach(function (r) {
+        var p = r[key]; if (!p || p.comp !== c) return;
+        var alt = null, altY = null, big = null;
+        for (var i = 0; i < r.top.length; i++) {
+          var t = r.top[i];
+          if (t.comp === c || !allowed(t.comp)) continue;
+          var ta = amtBy[t.comp] || 0;
+          if (ta < MIN) { if (ta > amtBy[c] && (!big || ta > (amtBy[big.comp] || 0))) big = t; continue; } /* 기준 미만이면 더 큰 곳으로 모으기(후순위) */
+          if (!alt) alt = t;
+          if (o.yk && o.ykMin > 0 && (t.extraPct || 0) >= o.ykMin && !altY) altY = t;
+          if (alt && (altY || !(o.yk && o.ykMin > 0))) break;
+        }
+        var to = altY || alt || big;
+        if (to) { r[key] = to; r[key + '_from'] = c; amtBy[c] -= r.amt; amtBy[to.comp] += r.amt; res.moved++; any = true; }
+      });
+      if (!any) stuck[c] = true;
+    }
+    for (var k in stuck) if (amtBy[k] > 0) res.under.push(k);
+    return res;
+  }
+  function compOf(x) {
     var mcol = state.makerCol;
-    var best = {};
+    var c = mcol >= 0 ? String(x.cells[mcol] === undefined ? '' : x.cells[mcol]).trim() : '';
+    return c || '(제약사 미상)';
+  }
+  function candPerComp() {
+    var swSel = Object.keys(makerState.swChecked).some(function (k) { return makerState.swChecked[k]; });
+    var per = {};
     state.result.outRows.forEach(function (x) {
       if (x.kind !== '대체가능' || x.status !== '정상' || !priceOk(x)) return;
-      if (state.avail && availExcluded(String(x.cells[mcol] === undefined ? '' : x.cells[mcol]).trim())) return;
-      if (swSel) {
-        var comp = mcol >= 0 ? String(x.cells[mcol] === undefined ? '' : x.cells[mcol]).trim() : '(제약사 미상)';
-        if (!makerState.swChecked[comp || '(제약사 미상)']) return;
-      }
-      /* 하나의 대체품이 정산+인센티브를 모두 주므로 합산 이익이 최대인 후보 선택 */
-      var cur = best[x.pCode];
-      if (!cur || (x.profTotal + x.incTotal) > (cur.profTotal + cur.incTotal)) best[x.pCode] = x;
+      if (state.proposalMode && x.diff > 0) return;
+      var comp = compOf(x);
+      if (swSel && !makerState.swChecked[comp]) return;
+      var e = per[x.pCode] || (per[x.pCode] = {});
+      if (!e[comp] || x.profTotal > e[comp].profTotal) e[comp] = x; /* 제약사당 정산 최고 1품목 */
     });
+    return per;
+  }
+  function rankedCands(code, per, o) {
+    var e = per[code]; if (!e) return [];
+    return Object.keys(e).map(function (c) { return e[c]; })
+      .sort(function (a, b) { return b.profTotal - a.profTotal; }).slice(0, o.K)
+      .filter(function (x) { var c = compOf(x); return mxAllowed(c, o.stage) && !(state.avail && availExcluded(c)); });
+  }
+  function pickOf(list, o) {
+    var pickP = null, pickY = null;
+    for (var i = 0; i < list.length; i++) {
+      var x = list[i];
+      if (!pickP) pickP = x;
+      if (!pickY && o.yk && o.ykMin > 0 && (x.extraPct || 0) >= o.ykMin) pickY = x;
+      if (pickP && pickY) break;
+    }
+    return pickY || pickP;
+  }
+  function buildBestMap() {
+    if (state.proposalMode) return proposalBest();
+    var o = mxOpts(), per = candPerComp(), best = {}, rows = [];
+    state.result.pharm.forEach(function (d) {
+      if (!per[d.code]) return;
+      var top = rankedCands(d.code, per, o).map(function (x) { return { comp: compOf(x), extraPct: x.extraPct || 0, prof: x.profTotal, x: x }; });
+      rows.push({ code: d.code, amt: d.amt, top: top, pick: pickOf(top, o), skip: !!state.excluded[d.code] || scopeOut(d.code) });
+    });
+    var cr = consolidate(rows.filter(function (r) { return !r.skip; }), 'pick', function () { return true; }, o);
+    state.itemsMerge = { moved: cr.moved, under: cr.under };
+    rows.forEach(function (r) { if (r.pick) { best[r.code] = r.pick.x; if (r.pick_from) best[r.code + '@from'] = r.pick_from; } });
     return best;
   }
   /* 품목별 전체 후보 목록(중복 나열용) — 스위칭 체크·제외와 같은 범위, 합산이익 내림차순 */
   function buildCandLists() {
-    var swSel = Object.keys(makerState.swChecked).some(function (k) { return makerState.swChecked[k]; });
-    var mcol = state.makerCol;
-    var lists = {};
-    state.result.outRows.forEach(function (x) {
-      if (x.kind !== '대체가능' || x.status !== '정상' || !priceOk(x)) return;
-      if (state.proposalMode && x.diff > 0) return;
-      if (state.avail && availExcluded(String(x.cells[mcol] === undefined ? '' : x.cells[mcol]).trim())) return;
-      if (swSel) {
-        var comp = mcol >= 0 ? String(x.cells[mcol] === undefined ? '' : x.cells[mcol]).trim() : '(제약사 미상)';
-        if (!makerState.swChecked[comp || '(제약사 미상)']) return;
-      }
-      (lists[x.pCode] = lists[x.pCode] || []).push(x);
-    });
-    for (var k in lists) lists[k].sort(function (a, b) { return (b.profTotal + b.incTotal) - (a.profTotal + a.incTotal); });
+    var o = mxOpts(), per = candPerComp(), lists = {}, best = buildBestMap();
+    for (var code in per) {
+      var l = rankedCands(code, per, o), pk = best[code];
+      if (pk && l[0] !== pk) { l = [pk].concat(l.filter(function (x) { return x !== pk; })); } /* 배정(★)이 첫 행 */
+      if (l.length) lists[code] = l;
+    }
     return lists;
   }
   /* 후보 나열 모드에서 (보유품목 it × 후보 x) 한 행 생성 — itemRow와 같은 모양 */
@@ -2487,7 +2582,7 @@
       active++; tAmt += it.amt;
       if (it.istatus === '매칭') { mCnt++; mAmt += it.amt; tProf += it.profTotal; tInc += it.incTotal; }
     });
-    var footLabel = '합계 (' + active + '품목, 제외 반영' + scopeLabel().replace(/ · /g, ', ') + (state.proposalMode ? ', 제안서 기준: 약가 동일·낮음' : '') + (expand ? ', 최유리 기준' : '') + ')'
+    var footLabel = '합계 (' + active + '품목, ' + (state.mx.mode === 'yk' ? '리스트A·추가수수료 ' + (parseFloat($('ykMin').value) || 0) + '%↑ 우선' : '리스트B·정산 최대') + ', 상위 ' + mxOpts().K + '위, ' + ({ all: '필터링 무시', nono: '불가 제외', okonly: '가능 확정만' }[state.mx.stage] || '') + (state.itemsMerge && (parseFloat($('minAmt').value) || 0) > 0 ? ', 최소매출 합침 ' + state.itemsMerge.moved + '품목' + (state.itemsMerge.under.length ? '·미달 ' + state.itemsMerge.under.length + '곳' : '') : '') + ', 제외 반영' + scopeLabel().replace(/ · /g, ', ') + (state.proposalMode ? ', 제안서 기준: 약가 동일·낮음' : '') + (expand ? ', 최유리 기준' : '') + ')'
       + (over ? ' · 표시 ' + CAP + '행 초과분 생략(엑셀에는 전체 포함)' : '');
     $('tblFoot').innerHTML = '<tr>'
       + '<td colspan="7">' + footLabel + '</td>'
@@ -2609,19 +2704,20 @@
     if (!state.avail && cloudProj.on) loadAvail(true);
     drawRows();
   });
-  $('mxK').addEventListener('input', function () { if (state.view === 'matrix') drawRows(); });
+  $('mxK').addEventListener('input', function () { state.mx.K = Math.max(1, parseInt(this.value, 10) || 10); state.heldComp = null; renderMakers(); drawRows(); });
   $('mxStage').addEventListener('click', function (e) {
     var b = e.target.closest('button'); if (!b) return;
     this.querySelectorAll('button').forEach(function (x) { x.classList.remove('on'); }); b.classList.add('on');
-    state.mx.stage = b.getAttribute('data-s'); if (state.view === 'matrix') drawRows();
+    state.mx.stage = b.getAttribute('data-s'); state.heldComp = null; renderMakers(); drawRows();
   });
   $('mxAvail').addEventListener('click', function () { loadAvail(false); });
   $('mxMode').addEventListener('click', function (e) {
     var b = e.target.closest('button'); if (!b) return;
     this.querySelectorAll('button').forEach(function (x) { x.classList.remove('on'); }); b.classList.add('on');
-    state.mx.mode = b.getAttribute('data-m'); if (state.view === 'matrix') drawRows();
+    state.mx.mode = b.getAttribute('data-m'); state.heldComp = null; renderMakers(); drawRows();
   });
-  $('ykMin').addEventListener('input', function () { if (state.view === 'matrix') drawRows(); });
+  $('ykMin').addEventListener('input', function () { state.mx.ykMin = parseFloat(this.value) || 0; state.heldComp = null; renderMakers(); drawRows(); });
+  $('minAmt').addEventListener('input', function () { state.mx.minAmt = parseFloat(this.value) || 0; state.heldComp = null; renderMakers(); drawRows(); });
   ['cLow', 'cSame', 'cHigh'].forEach(function (id) { $(id).addEventListener('change', function () { refreshScope(); state.heldComp = null; renderMakers(); drawRows(); }); });
 
   $('btnDown').addEventListener('click', function () {
