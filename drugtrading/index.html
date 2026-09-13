@@ -207,6 +207,7 @@
     <datalist id="clientList"></datalist>
     <input id="projBiz" placeholder="사업자번호 (선택)">
     <span class="mini" id="clientStat"></span>
+    <button class="pbtn" id="clientReload" title="거래처등록 페이지에서 방금 등록한 거래처를 목록에 반영">🔄 목록 새로고침</button>
     <input id="projMemo" class="wide" placeholder="메모 (선택)">
     <button class="pbtn primary" id="projSave">저장</button>
     <button class="pbtn" id="projNew">새로</button>
@@ -1500,6 +1501,10 @@
   $('next4').addEventListener('click', function () { showStep(5); });
   $('prev6').addEventListener('click', function () { showStep(5); });
   $('projName').addEventListener('input', updateSteps);
+  $('clientReload').addEventListener('click', function () {
+    $('clientStat').textContent = '거래처 목록 새로고침 중…';
+    loadClients().then(function () { syncClientBiz(); updateSteps(); });
+  });
   $('projSel').addEventListener('change', updateSteps);
 
   /* ── 4단계: 필터링 진행 — 1차 매핑 상위 N위 범주의 제약사 목록 + 체크 요청 ── */
