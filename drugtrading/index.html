@@ -1313,6 +1313,7 @@
         dl.appendChild(o);
       });
       $('clientStat').textContent = '등록 거래처 ' + d.clients.length + '곳';
+      try { updateSteps(); } catch (e) {}
     }).catch(function () {});
   }
   function findClient(name) {
@@ -1400,6 +1401,9 @@
     if (proj.ftSel) ftSel = proj.ftSel;
     if (proj.kind) setKind(proj.kind, true);
     wizard.resumeStep = proj.step || 3;
+    /* 불러온 거래처명으로 단계 버튼·다음 버튼 상태 갱신 (드롭다운 change 시점엔 아직 이름이 비어 있었음) */
+    syncClientBiz(); updateSteps();
+    if (!proj.pharmRows || !proj.pharmRows.length) showStep(Math.min(proj.step || 1, 1));
     projStatMsg('✓ 불러옴: ' + (name || '') + (proj.savedBy ? ' — 저장: ' + proj.savedBy : ''));
     if (cloudProj.on) loadAvail(true);
     ready();
