@@ -170,6 +170,17 @@
   .ftab td.num { text-align: right; font-variant-numeric: tabular-nums; }
   .ftab tr.sel td { background: #f3f7ff; }
   .fwrap { background: #fff; border: 1px solid var(--line); border-radius: 10px; overflow: auto; max-height: 60vh; }
+  .kinds { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin: 0 0 14px; }
+  .kind { background: #fff; border: 2px solid var(--line); border-radius: 12px; padding: 14px 16px; cursor: pointer; }
+  .kind:hover { border-color: #a5b4fc; }
+  .kind.on { border-color: var(--blue); background: #f3f7ff; }
+  .kind h3 { margin: 0 0 4px; font-size: 15px; }
+  .kind p { margin: 0; font-size: 12.5px; color: #667; line-height: 1.5; }
+  .kind .tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 10px; margin-left: 6px; vertical-align: 2px; }
+  .kind .tag.ok { background: #e2f5e9; color: var(--ok); } .kind .tag.req { background: #fff2cc; color: #7a5b00; }
+  .reqbox { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .reqbox .row { display: grid; grid-template-columns: 110px 1fr; gap: 8px; align-items: center; margin-bottom: 8px; font-size: 13px; }
+  .reqbox input[type=text], .reqbox textarea { width: 100%; padding: 7px 10px; font-size: 13px; border: 1px solid var(--line); border-radius: 8px; font-family: inherit; box-sizing: border-box; }
   .rep { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin: 0 0 14px; }
   .rep .box { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; font-size: 12.5px; }
   .rep .box h3 { margin: 0 0 6px; font-size: 13px; color: var(--blue); }
@@ -195,6 +206,7 @@
 <main>
   <div class="mini" id="autoSaveStat" style="text-align:right; margin:-6px 0 4px"></div>
   <nav class="steps" id="steps">
+    <button data-step="0"><b>0</b>업무 유형</button>
     <button data-step="1"><b>1</b>거래처 선택</button>
     <button data-step="2"><b>2</b>조제내역 업로드</button>
     <button data-step="3"><b>3</b>1차 매핑</button>
@@ -202,6 +214,24 @@
     <button data-step="5"><b>5</b>2차 매핑</button>
     <button data-step="6"><b>6</b>보고서·제안서</button>
   </nav>
+
+  <section class="step" data-step="0">
+  <div class="stephead"><h2>0. 업무 유형 선택</h2><p>무엇을 대체할지 고릅니다. 의약품·급여 치료재료는 코드로 자동 매칭되어 1~6단계로 진행하고, 비급여 소모품·의료기기는 자동 매칭이 안 되므로 목록을 올려 요청하면 사무실에서 대체품을 찾아 드립니다. <b>(베타)</b></p></div>
+  <div class="kinds" id="kinds">
+    <div class="kind on" data-kind="원외 의약품"><h3>💊 원외 의약품 <span class="tag ok">자동 매칭</span></h3><p>약국 조제내역 → 동일성분(주성분코드_동일제형) 대체. 약가 낮음·동일 기본.</p></div>
+    <div class="kind" data-kind="원내 의약품"><h3>🏥 원내 의약품 <span class="tag ok">자동 매칭</span></h3><p>병의원 원내 사용내역 → 같은 기준으로 대체. 병원은 약가 높음도 허용(기본 체크).</p></div>
+    <div class="kind" data-kind="급여 치료재료"><h3>🩹 급여 치료재료 <span class="tag ok">자동 매칭</span></h3><p>치료재료 코드가 있는 급여 재료. 지금은 의약품과 같은 코드 매칭 규칙으로 진행(전용 코드표는 준비 중).</p></div>
+    <div class="kind" data-kind="비급여 소모품·의료기기"><h3>🧰 비급여 소모품·의료기기 <span class="tag req">요청하기</span></h3><p>공통 코드가 없어 자동 매칭 불가. 사용 목록 파일과 메모를 올리면 사무실에서 대체품을 찾아 회신.</p></div>
+  </div>
+  <div class="reqbox" id="reqBox" style="display:none">
+    <div class="row"><span>거래처</span><input type="text" id="reqName" list="clientList" placeholder="거래처(병의원·약국)명 — 등록 거래처에서 선택"></div>
+    <div class="row"><span>사용 목록 파일</span><div><input type="file" id="reqFile" accept=".xls,.xlsx,.csv"><span class="mini" id="reqFileStat" style="margin-left:8px"></span></div></div>
+    <div class="row"><span>메모</span><textarea id="reqMemo" rows="3" placeholder="예: 수술용 장갑·주사기·드레싱 위주, 현재 거래처와 단가, 원하는 조건(가격·브랜드·납기)"></textarea></div>
+    <div class="row"><span>담당자</span><input type="text" id="reqManager" placeholder="비우면 로그인 계정"></div>
+    <div class="row"><span></span><div><button class="pbtn primary" id="reqSend" style="padding:9px 16px; font-size:13px; border-radius:8px; border:0; background:var(--blue); color:#fff; cursor:pointer">📨 대체품 찾기 요청</button> <span class="mini" id="reqStat"></span></div></div>
+  </div>
+  <div class="stepnav"><span class="mini" id="kindStat"></span><button class="pbtn primary" id="next0">다음 → 거래처 선택</button></div>
+  </section>
 
   <section class="step" data-step="1">
   <div class="stephead"><h2>1. 거래처 선택</h2><p>등록된 거래처(병의원·약국)에서 고릅니다. 필터링요청·프로젝트 저장이 모두 이 거래처 기준으로 묶입니다. 「저장」은 거래처 등록이 아니라 이 도구의 작업 상태(조제내역·매핑 설정·진행 단계)를 영업 시트에 남기는 것이며, 저장된 프로젝트를 고르면 이전 작업이 그대로 열립니다.</p><a class="sbtn" href="/cso/clients" target="_blank" rel="noopener">🏥 거래처 등록 (새 창)</a></div>
@@ -222,7 +252,7 @@
     <input type="file" id="projImport" accept=".json" style="display:none">
     <span class="pstat" id="projStat"></span>
   </div>
-  <div class="stepnav"><span class="mini" id="step1Stat"></span><button class="pbtn primary" id="next1">다음 → 조제내역 업로드</button></div>
+  <div class="stepnav"><button class="pbtn" id="prev1">← 업무 유형</button><span class="mini" id="step1Stat" style="flex:1; text-align:center"></span><button class="pbtn primary" id="next1">다음 → 조제내역 업로드</button></div>
   </section>
 
   <section class="step" data-step="2">
@@ -1327,6 +1357,7 @@
       excluded: state.excluded,
       view: { proposal: !!state.proposalMode, matched: $('cMatched').checked, bestOnly: $('cBestOnly').checked, cso: $('cCso').checked, amtCap: $('amtCap').value, sortKey: itemsSort.key, sortAsc: itemsSort.asc },
       step: wizard.step,
+      kind: state.kind,
       ftSel: ftSel,
       mx: { K: $('mxK').value, mode: state.mx.mode, ykMin: $('ykMin').value, stage: state.mx.stage, manager: ($('ftManager').value || '').trim(), price: priceKey() },
       savedAt: new Date().toISOString()
@@ -1367,6 +1398,7 @@
       else if (proj.mx.noHigher !== undefined) $('cHigh').checked = !proj.mx.noHigher;
     }
     if (proj.ftSel) ftSel = proj.ftSel;
+    if (proj.kind) setKind(proj.kind, true);
     wizard.resumeStep = proj.step || 3;
     projStatMsg('✓ 불러옴: ' + (name || '') + (proj.savedBy ? ' — 저장: ' + proj.savedBy : ''));
     if (cloudProj.on) loadAvail(true);
@@ -1491,7 +1523,45 @@
   /* ══════════ 단계형 흐름(위저드) ══════════
      1 거래처 선택 → 2 조제내역 업로드 → 3 1차 매핑(품목별 1~N위, 정산금 최대 / YK 우선) → 4 필터링 진행
      → 5 2차 매핑(필터링 결과 대입, 같은 매트릭스) → 6 보고서·제안서 */
-  var wizard = { step: 1, resumeStep: 0 };
+  var wizard = { step: 0, resumeStep: 0 };
+  state.kind = '원외 의약품';
+  var KIND_REQ = '비급여 소모품·의료기기';
+  function setKind(k, silent) {
+    state.kind = k;
+    document.querySelectorAll('#kinds .kind').forEach(function (el) { el.classList.toggle('on', el.getAttribute('data-kind') === k); });
+    var req = k === KIND_REQ;
+    $('reqBox').style.display = req ? '' : 'none';
+    $('next0').style.display = req ? 'none' : '';
+    $('kindStat').textContent = req ? '자동 매칭이 안 되는 유형 — 아래에서 목록을 올려 요청하세요' : '선택: ' + k + (k === '원내 의약품' ? ' · 대체 약가 높음 허용' : '');
+    if (!silent) { $('cHigh').checked = (k === '원내 의약품'); if (state.result) { refreshScope(); state.heldComp = null; renderMakers(); drawRows(); } }
+    if (req && !$('reqName').value) $('reqName').value = ($('projName').value || '').trim();
+  }
+  document.querySelectorAll('#kinds .kind').forEach(function (el) { el.addEventListener('click', function () { setKind(el.getAttribute('data-kind')); }); });
+  $('next0').addEventListener('click', function () { showStep(1); });
+  /* 비급여 소모품·의료기기: 목록 파일 → 행 JSON 으로 접수 (영업 시트 「대체품요청」 탭) */
+  state.reqRows = null;
+  $('reqFile').addEventListener('change', function (e) {
+    var f = e.target.files[0]; if (!f) return;
+    readWb(f, function (err, wb) {
+      if (err) { $('reqFileStat').textContent = err.message; return; }
+      var rows = sheetRows(wb, wb.SheetNames[0]).filter(function (r) { return r.some(function (c) { return String(c === undefined ? '' : c).trim(); }); });
+      state.reqRows = rows.slice(0, 3000); state.reqFileName = f.name;
+      $('reqFileStat').textContent = '✓ ' + f.name + ' · ' + (rows.length - 1) + '행';
+    });
+  });
+  $('reqSend').addEventListener('click', function () {
+    var name = ($('reqName').value || '').trim();
+    if (!name) { alert('거래처명을 입력해주세요.'); $('reqName').focus(); return; }
+    if (!state.reqRows) { alert('사용 목록 파일을 올려주세요.'); return; }
+    if (!confirm('대체품 찾기 요청을 접수할까요?\n· 거래처: ' + name + '\n· 유형: ' + state.kind + '\n· 목록: ' + (state.reqRows.length - 1) + '행')) return;
+    $('reqStat').textContent = '접수 중…';
+    fetch('/api/subrequests', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name, kind: state.kind, memo: ($('reqMemo').value || '').trim(), requester: ($('reqManager').value || '').trim(), fileName: state.reqFileName || '', rows: state.reqRows }) })
+      .then(function (r) { return r.json(); }).then(function (d) {
+        if (d && d.ok) { $('reqStat').textContent = '✅ 접수됨 (' + d.count + '행) — 사무실에서 대체품을 찾아 담당자에게 회신합니다'; }
+        else $('reqStat').textContent = '접수 실패: ' + ((d && d.error) || '사이트에 로그인된 상태에서만 접수됩니다');
+      }).catch(function () { $('reqStat').textContent = '접수 실패: 사이트(로그인)에서 열었을 때만 접수됩니다'; });
+  });
   /* 2단계: 요율표·약가파일은 저장소에서 자동 (이미 있으면 건너뜀) */
   function autoLoadSources() {
     if (!(state.rateWb || state.rateMerged)) $('btnCloudRate').click();
@@ -1525,7 +1595,7 @@
     var panel = $('makerPanel');
     if (n === 3 || n === 5) {
       if (state.result) panel.classList.add('show');
-      $('mapTitle').textContent = n === 3 ? '3. 1차 매핑 — 품목별 1~N위 (요율표 + 추가수수료)' : '5. 2차 매핑 — 필터링 결과 대입';
+      $('mapTitle').textContent = (n === 3 ? '3. 1차 매핑 — 품목별 1~N위 (요율표 + 추가수수료)' : '5. 2차 매핑 — 필터링 결과 대입') + ' · ' + state.kind;
       $('mapHint').textContent = n === 3
         ? '품목마다 영업사원 정산(약가×기본요율×조제량) 상위 N위 제약사를 매핑한 결과입니다. 「리스트B」는 추가수수료를 보지 않고 정산 1위, 「리스트A」는 추가수수료(와이케이 몫)가 기준 이상인 제약사를 우선 배정하고 1위 대비 갭을 보여줍니다. 대체 약가 조건(낮음/동일/높음)은 위 체크로. 오른쪽 패널에서 제약사 목록·필터링요청, 아래 「다음」으로 필터링 진행.'
         : '필터링 결과(거래가능유무)를 대입한 현실치입니다. 「불가 제외」는 불가만 빼고, 「가능 확정만」은 가능으로 확정된 제약사만으로 배정합니다. 조회전 제약사가 배정에 남아 있으면 4단계로 돌아가 추가 요청하세요. 오른쪽 「최적 조합」에서 N곳으로 압축할 수 있습니다.';
@@ -1552,6 +1622,7 @@
   }
   document.querySelectorAll('#steps button').forEach(function (b) { b.addEventListener('click', function () { showStep(parseInt(b.getAttribute('data-step'), 10)); }); });
   $('next1').addEventListener('click', function () { if (!requireClient()) return; showStep(2); });
+  $('prev1').addEventListener('click', function () { showStep(0); });
   $('prev2').addEventListener('click', function () { showStep(1); });
   $('next2').addEventListener('click', function () { showStep(3); });
   $('prevMap').addEventListener('click', function () { showStep(wizard.step === 3 ? 2 : 4); });
@@ -1695,7 +1766,8 @@
   $('repSave').addEventListener('click', function () { saveProject(false); });
   $('repCombo').addEventListener('click', function () { showStep(5); $('comboModeOpt').checked = true; $('comboModeFull').checked = false; $('tabCombo').click(); });
 
-  showStep(1);
+  setKind(state.kind, true);
+  showStep(0);
   loadExtraFee();
   refreshCloudList(''); /* 사이트(로그인)에서 열리면 드라이브 프로젝트 목록으로 전환 */
   loadClients();
