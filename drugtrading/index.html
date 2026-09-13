@@ -240,19 +240,24 @@
       </div>
     </div>
     <div class="card">
-      <h2>② 요율표</h2>
-      <p class="hint">.xlsx — 성분명·품목명·보험코드 열 포함. 여러 파일 선택 시 메디펄스(파일명 기준)를 기본으로 두고 나머지에서 없는 품목만 추가해 공통요율표로 병합</p>
-      <input type="file" id="fRate" accept=".xls,.xlsx" multiple>
-      <select id="rateSheet" style="display:none"></select>
-      <button class="sbtn" id="btnCloudRate" style="margin-top:8px">☁️ 공통요율표 자동 불러오기 (구글시트)</button>
-      <div class="stat" id="sRate"></div>
+      <h2>② 요율표 <span class="mini" style="font-weight:500">자동</span></h2>
+      <p class="hint">공통요율표 저장소(드라이브 → 매일 07시 병합본)에서 자동으로 불러옵니다.</p>
+      <div class="stat" id="sRate">불러오는 중…</div>
+      <details style="margin-top:8px"><summary class="mini" style="cursor:pointer">다른 요율표 파일을 직접 올리기 / 다시 불러오기</summary>
+        <input type="file" id="fRate" accept=".xls,.xlsx" multiple style="margin-top:6px">
+        <select id="rateSheet" style="display:none"></select>
+        <button class="sbtn" id="btnCloudRate" style="margin-top:8px">☁️ 공통요율표 다시 불러오기</button>
+        <p class="hint" style="margin-top:6px">여러 파일 선택 시 메디펄스(파일명 기준)를 기본으로 두고 나머지에서 없는 품목만 추가해 병합</p>
+      </details>
     </div>
     <div class="card">
-      <h2>③ 약가마스터 (건강보험 약가파일)</h2>
-      <p class="hint">.xlsx — 주성분코드_동일제형·주성분명·제품코드 열 포함</p>
-      <input type="file" id="fMaster" accept=".xls,.xlsx">
-      <button class="sbtn" id="btnCloudMaster" style="margin-top:8px">☁️ 약가파일 자동 불러오기</button>
-      <div class="stat" id="sMaster"></div>
+      <h2>③ 약가마스터 <span class="mini" style="font-weight:500">자동</span></h2>
+      <p class="hint">건강보험 약가파일(약제급여목록) 저장소에서 자동으로 불러옵니다.</p>
+      <div class="stat" id="sMaster">불러오는 중…</div>
+      <details style="margin-top:8px"><summary class="mini" style="cursor:pointer">다른 약가파일을 직접 올리기 / 다시 불러오기</summary>
+        <input type="file" id="fMaster" accept=".xls,.xlsx" style="margin-top:6px">
+        <button class="sbtn" id="btnCloudMaster" style="margin-top:8px">☁️ 약가파일 다시 불러오기</button>
+      </details>
     </div>
   </div>
 
@@ -1439,6 +1444,11 @@
      1 거래처 선택 → 2 조제내역 업로드 → 3 1차 매핑(품목별 1~N위, 정산금 최대 / YK 우선) → 4 필터링 진행
      → 5 2차 매핑(필터링 결과 대입, 같은 매트릭스) → 6 보고서·제안서 */
   var wizard = { step: 1, resumeStep: 0 };
+  /* 2단계: 요율표·약가파일은 저장소에서 자동 (이미 있으면 건너뜀) */
+  function autoLoadSources() {
+    if (!(state.rateWb || state.rateMerged)) $('btnCloudRate').click();
+    if (!state.master) $('btnCloudMaster').click();
+  }
   function stepOk(n) {
     var name = ($('projName').value || '').trim();
     if (n <= 1) return true;
@@ -1485,6 +1495,7 @@
       }
     } else {
       panel.classList.remove('show');
+      if (n === 2) autoLoadSources();
       if (n === 4) renderFilterStep();
       if (n === 6) renderReportStep();
     }
