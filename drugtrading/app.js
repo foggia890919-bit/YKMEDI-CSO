@@ -123,13 +123,18 @@ function parsePharmacy(rows, map) {
     if (rawCode.replace(/\D/g, '').length < 4) continue;
     var code = normCode(rawCode);
     if (!code) continue;
+    var price = cPrice >= 0 ? num(r[cPrice]) : 0, qty = cQty >= 0 ? num(r[cQty]) : 0, amt = cAmt >= 0 ? num(r[cAmt]) : 0;
+    /* 조제단가 열이 깨진 행(단가×수량이 조제금액과 1% 넘게 어긋남)은 조제금액÷조제량을 단가로 사용 */
+    var priceSrc = '단가';
+    if (qty > 0 && amt > 0 && Math.abs(price * qty - amt) > amt * 0.01) { price = Math.round(amt / qty * 100) / 100; priceSrc = '금액÷수량'; }
     out.push({
       code: code,
       name: name,
       maker: cMaker >= 0 ? String(r[cMaker] === undefined ? '' : r[cMaker]).trim() : '',
-      price: cPrice >= 0 ? num(r[cPrice]) : 0,
-      qty: cQty >= 0 ? num(r[cQty]) : 0,
-      amt: cAmt >= 0 ? num(r[cAmt]) : 0
+      price: price,
+      priceSrc: priceSrc,
+      qty: qty,
+      amt: amt
     });
   }
   return out;

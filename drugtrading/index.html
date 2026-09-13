@@ -284,10 +284,10 @@
     </div>
     <span id="mxCtl" style="display:inline-flex; gap:8px; align-items:center; flex-wrap:wrap">
       <div class="seg" id="mxMode" title="정산금 최대 = 딜러에게 주는 정산 기준 1위 / YK 우선 = 추가수수료(와이케이 수익)가 기준 이상인 제약사를 우선 배정하고 1위 대비 갭을 표시">
-        <button data-m="prof" class="on">정산금 최대</button>
-        <button data-m="yk">YK 우선 · 추가수수료</button>
+        <button data-m="prof" class="on">리스트B · 추가 고려 없음</button>
+        <button data-m="yk">리스트A · 추가수수료 우선</button>
       </div>
-      <label class="chk" title="이 값 이상 추가수수료가 붙는 제약사를 YK 우선 배정 대상으로 봅니다"><span>추가수수료</span><input type="number" id="ykMin" min="0" max="20" step="0.5" value="4" style="width:56px; padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin:0 4px"><span>% 이상 우선</span></label>
+      <label class="chk" title="이 값 이상 추가수수료가 붙는 제약사를 YK 우선 배정 대상으로 봅니다"><span>추가수수료</span><input type="number" id="ykMin" min="0" max="20" step="0.5" value="3" style="width:56px; padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin:0 4px"><span>% 이상 우선</span></label>
       <label class="chk" title="품목마다 정산금 상위 몇 곳까지 후보 범주에 넣을지"><span>품목별 상위</span><input type="number" id="mxK" min="1" max="30" value="10" style="width:52px; padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin:0 4px"><span>위까지</span></label>
       <div class="seg" id="mxStage" title="2차 매핑: 필터링 결과 대입">
         <button data-s="all" class="on">필터링 무시</button>
@@ -811,11 +811,13 @@
       var comp = mcol >= 0 ? String(x.cells[mcol] === undefined ? '' : x.cells[mcol]).trim() : '';
       var ex = comp ? extraFor(comp) : null;
       var add = ex && ex.pct > 0 ? ex.pct : 0;
+      /* 정산(profit/profTotal) = 딜러(영업사원) 몫 = 약가 × 기본요율. 추가수수료는 딜러에게 주지 않는 와이케이 몫 → ykTotal 로 분리 */
       x.extraPct = add; x.extraSub = ex ? ex.sub : '';
-      x.pct = x.basePct + add;
+      x.pct = x.basePct;
       var normal = x.status === '정상';
       x.profit = normal ? Math.round(x.price * x.pct) / 100 : 0;
       x.profTotal = normal && x.price > 0 && x.pct > 0 ? Math.round(x.price * x.pct / 100 * x.pQty) : 0;
+      x.ykTotal = normal && x.price > 0 && add > 0 ? Math.round(x.price * add / 100 * x.pQty) : 0;
     });
   }
   function extraBadge(comp) {
@@ -825,7 +827,7 @@
   }
 
   /* ── 제약사×품목 매트릭스: 품목별 상위 K 제약사 정산금(가로) + 제약사별 합산(세로) + 필터링 대입 최종 배정 ── */
-  state.mx = { K: 10, stage: 'all', mode: 'prof', ykMin: 4 };
+  state.mx = { K: 10, stage: 'all', mode: 'prof', ykMin: 3 };
   function mxAllowed(comp, stage) {
     if (stage === 'all') return true;
     var k = availKindFor(comp);
@@ -844,13 +846,13 @@
       var e = per[x.pCode] || (per[x.pCode] = { comps: {} });
       var c = e.comps[comp];
       var prod = state.prodCol >= 0 ? String(x.cells[state.prodCol] === undefined ? '' : x.cells[state.prodCol]) : '';
-      if (!c || x.profTotal > c.prof) e.comps[comp] = { prof: x.profTotal, inc: x.incTotal || 0, prod: prod, pct: x.pct, price: x.price, extraPct: x.extraPct || 0, extraSub: x.extraSub || '' };
+      if (!c || x.profTotal > c.prof) e.comps[comp] = { prof: x.profTotal, yk: x.ykTotal || 0, inc: x.incTotal || 0, prod: prod, pct: x.pct, price: x.price, extraPct: x.extraPct || 0, extraSub: x.extraSub || '' };
     });
     var rows = [], potential = {}, appear = {};
     state.result.pharm.slice().sort(function (a, b) { return b.amt - a.amt; }).forEach(function (d) {
       if (isOut(d.code)) return;
       var e = per[d.code];
-      var top = e ? Object.keys(e.comps).map(function (c) { var v = e.comps[c]; return { comp: c, prof: v.prof, inc: v.inc, prod: v.prod, pct: v.pct, price: v.price, extraPct: v.extraPct, extraSub: v.extraSub }; }).sort(function (a, b) { return b.prof - a.prof; }).slice(0, K) : [];
+      var top = e ? Object.keys(e.comps).map(function (c) { var v = e.comps[c]; return { comp: c, prof: v.prof, yk: v.yk, inc: v.inc, prod: v.prod, pct: v.pct, price: v.price, extraPct: v.extraPct, extraSub: v.extraSub }; }).sort(function (a, b) { return b.prof - a.prof; }).slice(0, K) : [];
       top.forEach(function (t) { potential[t.comp] = (potential[t.comp] || 0) + t.prof; appear[t.comp] = (appear[t.comp] || 0) + 1; });
       rows.push({ code: d.code, name: d.name, amt: d.amt, qty: d.qty, top: top });
     });
@@ -875,7 +877,7 @@
           r['pick_' + st + '_' + mode] = pick; r['best_' + st] = pickP;
           if (!pick) return;
           var a = assign[pick.comp] || (assign[pick.comp] = { cnt: 0, prof: 0, amt: 0, inc: 0, ykRev: 0 });
-          var rev = pick.price * (pick.extraPct || 0) / 100 * r.qty;
+          var rev = pick.yk || 0;
           a.cnt++; a.prof += pick.prof; a.amt += r.amt; a.inc += pick.inc; a.ykRev += rev;
           tot += pick.prof; totAmt += r.amt; totInc += pick.inc; cnt++; ykRev += rev;
           if (mode === 'yk' && pickY) { ykCnt++; gap += pickP.prof - pickY.prof; }
@@ -901,12 +903,12 @@
     sum.innerHTML = ['all', 'nono', 'okonly'].map(function (k) {
       var x = S[k + '_' + mode];
       return '<div class="st' + (k === st ? ' on' : '') + '"><span style="color:#667">' + stLbl[k] + '</span> <b>' + won(x.total) + '</b> · ' + x.count + '품목 · 매출 ' + won(x.totalAmt) + ' · 수수료율 <b>' + pctOf(x.total, x.totalAmt) + '</b> (전체 ' + pctOf(x.total, M.allAmt) + ')'
-        + (yk ? ' · <span style="color:#3730a3">YK 추가수익 <b>' + won(x.ykRev) + '</b> · 1위 대비 갭 <b>' + won(x.gap) + '</b> · 우선배정 ' + x.ykCnt + '품목</span>' : '') + '</div>';
-    }).join('') + '<div class="st" style="border:0; color:#667">' + (yk ? 'YK 우선(추가수수료 ' + state.mx.ykMin + '% 이상) · ' : '정산금 최대 · ') + '제약사 ' + M.comps.length + '곳 · 품목 ' + M.rows.length + ' · 상위 ' + K + '위 범주 · 저가 인센티브 ' + won(cur.inc) + avail + '</div>';
+        + ' · <span style="color:#3730a3">YK 추가수수료 <b>' + won(x.ykRev) + '</b></span>' + (yk ? ' · <span style="color:#3730a3">1위 대비 갭 <b>' + won(x.gap) + '</b> · 우선배정 ' + x.ykCnt + '품목</span>' : '') + '</div>';
+    }).join('') + '<div class="st" style="border:0; color:#667">' + (yk ? '리스트A · 추가수수료 ' + state.mx.ykMin + '% 이상 제약사 우선 · ' : '리스트B · 영업사원 정산 최대 · ') + '정산 = 영업사원 몫(기본요율) · 제약사 ' + M.comps.length + '곳 · 품목 ' + M.rows.length + ' · 상위 ' + K + '위 범주 · 저가 인센티브 ' + won(cur.inc) + avail + '</div>';
 
     var tbl = $('tbl'); tbl.className = 'mx';
     $('tblCols').innerHTML = '';
-    var fixed = yk ? ['약품명', '조제금액', 'YK 우선 제약사', '정산(월)', '1위 대비 갭', 'YK 추가수익(월)'] : ['약품명', '조제금액', '최종 제약사', '최종 정산(월)', '수수료율'];
+    var fixed = yk ? ['약품명', '조제금액', 'YK 우선 제약사', '영업사원 정산(월)', '1위 대비 갭', 'YK 추가수수료(월)'] : ['약품명', '조제금액', '최종 제약사', '영업사원 정산(월)', '수수료율'];
     var lefts = yk ? [0, 220, 300, 420, 520, 600] : [0, 220, 300, 420, 520];
     var widths = yk ? [220, 80, 120, 100, 80, 90] : [220, 80, 120, 100, 60];
     var h = '<tr>' + fixed.map(function (f, i) { return '<th class="fix" style="left:' + lefts[i] + 'px; min-width:' + widths[i] + 'px; max-width:' + widths[i] + 'px">' + f + '</th>'; }).join('');
@@ -927,7 +929,7 @@
       if (yk) {
         var gapV = pick && best ? best.prof - pick.prof : 0;
         tr += '<td class="fix num" style="left:520px">' + (pick ? (gapV > 0 ? '<span style="color:var(--err)">−' + Math.round(gapV).toLocaleString('ko-KR') + '</span>' : '0') : '') + '</td>'
-          + '<td class="fix num" style="left:600px">' + (pick ? '<b style="color:#3730a3">' + Math.round(pick.price * (pick.extraPct || 0) / 100 * row.qty).toLocaleString('ko-KR') + '</b>' : '') + '</td>';
+          + '<td class="fix num" style="left:600px">' + (pick ? '<b style="color:#3730a3">' + Math.round(pick.yk || 0).toLocaleString('ko-KR') + '</b>' : '') + '</td>';
       } else {
         tr += '<td class="fix num" style="left:520px">' + (pick ? pctOf(pick.prof, row.amt) : '') + '</td>';
       }
@@ -954,7 +956,7 @@
       + fr('배정 품목수', function (c) { var a = cur.assign[c]; return a ? a.cnt : ''; })
       + fr('배정 매출(조제금액)', function (c) { var a = cur.assign[c]; return a ? Math.round(a.amt).toLocaleString('ko-KR') : ''; })
       + fr('매출대비 수수료율', function (c) { var a = cur.assign[c]; return a ? pctOf(a.prof, a.amt) : ''; })
-      + (yk ? fr('YK 추가수익(월)', function (c) { var a = cur.assign[c]; return a && a.ykRev > 0 ? Math.round(a.ykRev).toLocaleString('ko-KR') : ''; }, { 5: '<b>' + Math.round(cur.ykRev).toLocaleString('ko-KR') + '</b>' }) : '')
+      + (yk ? fr('YK 추가수수료(월)', function (c) { var a = cur.assign[c]; return a && a.ykRev > 0 ? Math.round(a.ykRev).toLocaleString('ko-KR') : ''; }, { 5: '<b>' + Math.round(cur.ykRev).toLocaleString('ko-KR') + '</b>' }) : '')
       + fr('최종 순위', function (c) { return rankOf[c] || ''; });
     $('tblFoot').innerHTML = foot;
   }
@@ -969,7 +971,7 @@
     M.rows.forEach(function (row) {
       var pick = row['pick_' + st + '_' + mode], best = row['best_' + st], m = {}; row.top.forEach(function (t) { m[t.comp] = t; });
       var line = [row.code, row.name, row.amt, pick ? pick.comp : '', pick ? pick.prod : '', pick ? pick.prof : '', pick && row.amt > 0 ? Math.round(pick.prof / row.amt * 1000) / 10 : ''];
-      if (yk) line.push(pick && best ? best.prof - pick.prof : '', pick ? Math.round(pick.price * (pick.extraPct || 0) / 100 * row.qty) : '');
+      if (yk) line.push(pick && best ? best.prof - pick.prof : '', pick ? Math.round(pick.yk || 0) : '');
       M.comps.forEach(function (c) { line.push(m[c] ? m[c].prof : ''); });
       aoa.push(line);
     });
@@ -1466,7 +1468,7 @@
       if (state.result) panel.classList.add('show');
       $('mapTitle').textContent = n === 3 ? '3. 1차 매핑 — 품목별 1~N위 (요율표 + 추가수수료)' : '5. 2차 매핑 — 필터링 결과 대입';
       $('mapHint').textContent = n === 3
-        ? '품목마다 정산금 상위 N위 제약사를 매핑한 결과입니다. 「정산금 최대」는 딜러 정산 기준 1위, 「YK 우선」은 추가수수료(와이케이 수익)가 기준 이상인 제약사를 우선 배정하고 1위 대비 갭을 보여줍니다. 오른쪽 패널에서 제약사 목록·필터링요청, 아래 「다음」으로 필터링 진행.'
+        ? '품목마다 영업사원 정산(약가×기본요율×조제량) 상위 N위 제약사를 매핑한 결과입니다. 「리스트B」는 추가수수료를 보지 않고 정산 1위, 「리스트A」는 추가수수료(와이케이 몫)가 기준 이상인 제약사를 우선 배정하고 1위 대비 갭을 보여줍니다. 약가가 조제단가보다 높은 후보는 제외. 오른쪽 패널에서 제약사 목록·필터링요청, 아래 「다음」으로 필터링 진행.'
         : '필터링 결과(거래가능유무)를 대입한 현실치입니다. 「불가 제외」는 불가만 빼고, 「가능 확정만」은 가능으로 확정된 제약사만으로 배정합니다. 조회전 제약사가 배정에 남아 있으면 4단계로 돌아가 추가 요청하세요. 오른쪽 「최적 조합」에서 N곳으로 압축할 수 있습니다.';
       $('mxStage').style.display = n === 3 ? 'none' : '';
       $('mxAvail').style.display = n === 3 ? 'none' : '';
@@ -1572,20 +1574,20 @@
     var M = buildMatrix(K), S = M.stages;
     var box = function (title, x, extra) {
       return '<div class="box"><h3>' + title + '</h3>'
-        + '<div class="l"><span>최종 배정 정산(월)</span><b>' + won(x.total) + '</b></div>'
+        + '<div class="l"><span>영업사원 정산 합계(월)</span><b>' + won(x.total) + '</b></div>'
         + '<div class="l"><span>배정 품목 / 매출</span><b>' + x.count + '품목 · ' + won(x.totalAmt) + '</b></div>'
         + '<div class="l"><span>매출대비 수수료율</span><b>' + pctOf(x.total, x.totalAmt) + ' (전체 ' + pctOf(x.total, M.allAmt) + ')</b></div>'
         + '<div class="l"><span>배정 제약사 수</span><b>' + Object.keys(x.assign).length + '곳</b></div>'
         + '<div class="l"><span>저가 인센티브</span><b>' + won(x.inc) + '</b></div>'
-        + '<div class="l" style="color:#3730a3"><span>YK 추가수익(추가수수료)</span><b>' + won(x.ykRev) + '</b></div>'
+        + '<div class="l" style="color:#3730a3"><span>YK 추가수수료(와이케이 몫)</span><b>' + won(x.ykRev) + '</b></div>'
         + (extra || '') + '</div>';
     };
     var ykX = function (x) { return '<div class="l" style="color:var(--err)"><span>1위 대비 갭(딜러 정산)</span><b>−' + won(x.gap) + '</b></div><div class="l"><span>추가수수료 우선 배정</span><b>' + x.ykCnt + '품목</b></div>'; };
-    var html = box('1차 · 정산금 최대 (필터링 무시)', S.all_prof)
-      + box('1차 · YK 우선 (추가수수료 ' + state.mx.ykMin + '%↑)', S.all_yk, ykX(S.all_yk))
-      + box('2차 · 불가 제외 · 정산금 최대', S.nono_prof)
-      + box('2차 · 가능 확정만 · 정산금 최대', S.okonly_prof)
-      + box('2차 · 가능 확정만 · YK 우선', S.okonly_yk, ykX(S.okonly_yk));
+    var html = box('1차 · 리스트B (추가 고려 없음, 필터링 무시)', S.all_prof)
+      + box('1차 · 리스트A (추가수수료 ' + state.mx.ykMin + '%↑ 우선)', S.all_yk, ykX(S.all_yk))
+      + box('2차 · 불가 제외 · 리스트B', S.nono_prof)
+      + box('2차 · 가능 확정만 · 리스트B', S.okonly_prof)
+      + box('2차 · 가능 확정만 · 리스트A', S.okonly_yk, ykX(S.okonly_yk));
     try {
       var Kc = Math.max(1, parseInt($('comboK').value, 10) || 5);
       var prevA = $('cAvailNo').checked; $('cAvailNo').checked = true; state.heldComp = null;
@@ -2555,7 +2557,8 @@
       ['주의: 실제 대체조제 시 생동성 인정품목 여부(생동/생산 열), 저함량 배수 조제 등은 심평원 고시 기준으로 최종 확인 필요.'],
       ['"제약사×품목 매트릭스" 시트: 가로 = 품목별 상위 N위 제약사의 정산금(요율표 요율 + 제약사별 추가수수료 적용), 세로 = 제약사별 합산. 최종 배정 = 화면에서 고른 단계(1단계 전부 / 2단계 불가 제외 / 2단계 가능 확정만) 기준으로 품목당 제약사 1곳(중복 없음).'],
       ['대체 규칙: 후보 약가가 지금 조제단가보다 높은 품목은 대체 대상이 아니므로(「약가 상승 후보 제외」 기본 ON) 매트릭스·스위칭·조합·이 엑셀에서 모두 제외됩니다.'],
-      ['추가수수료 = 영업 시트 ★YK추가수수료 탭. 노란색 칠한 제출처를 우선, 없으면 최고값의 왼쪽 열. 요율(%) 열은 추가수수료가 더해진 적용요율입니다.']
+      ['추가수수료 = 영업 시트 ★YK추가수수료 탭. 노란색 칠한 제출처를 우선, 없으면 최고값의 왼쪽 열. 정산(요율%)은 영업사원 몫(기본요율)이고 추가수수료는 와이케이 몫으로 따로 표시됩니다.'],
+      ['조제단가 열이 깨진 행(단가×수량 ≠ 조제금액)은 조제금액÷조제량을 단가로 씁니다.']
     ];
     var ws3 = XLSX.utils.aoa_to_sheet(notes);
     ws3['!cols'] = [{ wch: 110 }];
