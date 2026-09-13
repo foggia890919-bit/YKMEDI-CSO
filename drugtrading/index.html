@@ -309,7 +309,7 @@
     <button id="btnRun" disabled>매핑 실행 → 1차 매핑</button>
     <span id="msg"></span>
   </div>
-  <div class="stepnav"><button class="pbtn" id="prev2">← 거래처 선택</button><button class="pbtn" id="next2" disabled>다음 → 1차 매핑</button></div>
+  <div class="stepnav"><button class="pbtn" id="prev2">← 거래처 선택</button><span style="flex:1"></span><button class="pbtn" id="next2" disabled title="1차·2차 매핑 표를 자세히 볼 때">1차 매핑 표 보기 →</button><button class="pbtn primary" id="next2b" disabled title="매핑 표를 건너뛰고 바로 제약사 체크·필터링요청·제안서로">다음 → 제약사 확정</button></div>
   </section>
 
   <section class="step" data-step="3 5">
@@ -469,10 +469,16 @@
   </section>
 
   <section class="step" data-step="6">
-  <div class="stephead"><h2>6. 제약사 확정</h2><p>2차 매핑 결과를 보고 <b>제안서에 넣을 제약사</b>를 체크합니다. 체크한 제약사만으로 품목을 다시 배정한 숫자가 아래 요약에 나오고, 다음 단계의 보고서·엑셀은 이 확정 목록만 씁니다.</p></div>
+  <div class="stephead"><h2>6. 제약사 확정</h2><p>조제내역만 올리면 바로 오는 화면입니다. 제약사를 체크하고 → 조회전인 곳은 여기서 바로 <b>필터링요청</b> → 결과가 오면 「결과 새로고침」 → 거래가능만 남기고 확정 → 다음 단계 보고서·엑셀. 3~5단계 매핑 표는 자세히 보고 싶을 때만 가면 됩니다.</p></div>
+  <div class="ctlbar" style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:0 0 8px; padding:8px 10px; background:#f3f7ff; border:1px solid #c7d2fe; border-radius:8px">
+    <span class="lab" style="font-weight:700">필터링</span>
+    <button class="sbtn" id="cfReq" style="border-color:var(--blue); color:var(--blue)">📨 체크한 제약사 필터링요청 (조회전만)</button>
+    <button class="sbtn" id="cfRefresh">🔎 결과 새로고침</button>
+    <span class="mini" id="cfAvailStat"></span>
+  </div>
   <div class="ctlbar" style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:0 0 8px">
     <label class="chk" title="필터링 결과가 거래가능(O)인 제약사만 표에 보입니다"><input type="checkbox" id="cfOnlyOk" checked><span>거래가능 제약사만 보기</span></label>
-    <label class="chk"><span>정렬</span><select id="cfSort" style="padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin-left:4px"><option value="amt">조제금액(배정 매출) 높은순</option><option value="prof">정산 높은순</option><option value="cnt">품목수 많은순</option><option value="ykRev">YK 추가수수료 높은순</option></select></label>
+    <label class="chk"><span>정렬</span><select id="cfSort" style="padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin-left:4px"><option value="amt">조제금액(배정 매출) 높은순</option><option value="prof">정산 높은순</option><option value="cnt">품목수 많은순</option><option value="ykRev">YK 추가수수료 높은순</option><option value="potential">잠재 정산(등장 전부) 높은순</option></select></label>
     <span style="border-left:1px solid var(--line); height:20px"></span>
     <button class="sbtn" id="cfAll">전체 선택</button>
     <button class="sbtn" id="cfNone">해제</button>
@@ -483,9 +489,14 @@
   </div>
   <div class="rep" id="cfSum"></div>
   <div style="overflow:auto; border:1px solid var(--line); border-radius:10px">
-    <table class="ftab" id="cftab"><thead><tr><th style="width:36px"><input type="checkbox" id="cfHead"></th><th>순위</th><th>제약사</th><th>거래가능</th><th>추가수수료</th><th class="num">배정 품목</th><th class="num">배정 매출</th><th class="num">정산(월)</th><th class="num">YK 추가수수료</th><th class="num">수수료율</th><th class="num">확정 후 품목</th><th class="num">확정 후 정산</th></tr></thead><tbody></tbody></table>
+    <table class="ftab" id="cftab"><thead><tr><th style="width:36px"><input type="checkbox" id="cfHead"></th><th>순위</th><th>제약사</th><th>거래가능</th><th>추가수수료</th><th class="num">배정 품목</th><th class="num">배정 매출</th><th class="num">정산(월)</th><th class="num">YK 추가수수료</th><th class="num">수수료율</th><th class="num">확정 후 품목</th><th class="num">확정 후 매출</th><th class="num">확정 후 정산</th></tr></thead><tbody></tbody></table>
   </div>
-  <h3 style="margin:16px 0 6px; font-size:14px">품목별 1·2·3순위 <span class="mini">(확정 제약사 안에서 정산 높은 순 · 상위 N위 후보 범위 · 조제금액 높은순)</span></h3>
+  <h3 style="margin:16px 0 6px; font-size:14px; display:flex; flex-wrap:wrap; gap:8px; align-items:center">품목별 1·2·3순위 <span class="mini">(후보 범위 안 정산 높은 순 · 조제금액 높은순 · 굵게 = 확정 제약사)</span>
+    <span style="flex:1"></span>
+    <button class="sbtn" id="cfRank1" title="모든 품목의 1순위 제약사를 확정에 체크">1순위 전체 체크</button>
+    <button class="sbtn" id="cfRank2">1~2순위 체크</button>
+    <button class="sbtn" id="cfRank3">1~3순위 체크</button>
+  </h3>
   <div style="overflow:auto; border:1px solid var(--line); border-radius:10px; max-height:420px">
     <table class="ftab" id="cfItems"><thead><tr><th>약품명</th><th class="num">조제금액</th><th>1순위</th><th class="num">정산</th><th>2순위</th><th class="num">정산</th><th>3순위</th><th class="num">정산</th><th>확정 후 배정</th></tr></thead><tbody></tbody></table>
   </div>
@@ -791,7 +802,7 @@
       applyExtraFee();
       renderResult();
       msg.textContent = '완료';
-      updateSteps(); showStep(3);
+      updateSteps(); showStep(6); /* 매핑 직후 바로 제약사 확정(허브)으로 — 3~5단계는 자세히 볼 때 */
     } catch (e2) { msg.className = 'err'; msg.textContent = e2.message; }
   });
 
@@ -1662,7 +1673,7 @@
     var name = ($('projName').value || '').trim();
     $('step1Stat').textContent = name ? (findClient(name) ? '✓ 등록 거래처: ' + name : '⚠ 미등록 거래처명: ' + name) : '거래처를 선택하세요';
     $('next1').disabled = !name;
-    $('next2').disabled = !state.result;
+    $('next2').disabled = !state.result; $('next2b').disabled = !state.result;
   }
   function showStep(n) {
     if (!stepOk(n)) { updateSteps(); return; }
@@ -1693,7 +1704,7 @@
       panel.classList.remove('show');
       if (n === 2) autoLoadSources();
       if (n === 4) { if (!state.avail && ($('projName').value || '').trim()) loadAvail(true).then(renderFilterStep); else renderFilterStep(); }
-      if (n === 6) renderConfirmStep();
+      if (n === 6) { if (!state.avail && ($('projName').value || '').trim()) loadAvail(true).then(function () { state.heldComp = null; renderConfirmStep(); }); else renderConfirmStep(); }
       if (n === 7) renderReportStep();
     }
     updateSteps();
@@ -1705,6 +1716,7 @@
   $('prev1').addEventListener('click', function () { showStep(0); });
   $('prev2').addEventListener('click', function () { showStep(1); });
   $('next2').addEventListener('click', function () { showStep(3); });
+  $('next2b').addEventListener('click', function () { showStep(6); });
   $('prevMap').addEventListener('click', function () { showStep(wizard.step === 3 ? 2 : 4); });
   $('nextMap').addEventListener('click', function () { showStep(wizard.step === 3 ? 4 : 6); });
   $('next6').addEventListener('click', function () { applyConfirm(); showStep(7); });
@@ -1799,7 +1811,7 @@
     var next = function (i) {
       if (i >= todo.length) {
         $('ftStat').textContent = '접수 완료 ' + done + '곳' + (fail.length ? ' · 실패: ' + fail.join(', ') : '');
-        loadAvail(true).then(renderFilterStep);
+        loadAvail(true).then(function () { if (wizard.step === 6) { state.heldComp = null; renderConfirmStep(); } else renderFilterStep(); });
         autoSave(300);
         return;
       }
@@ -1845,7 +1857,8 @@
     var M = buildMatrix(K); state.mx.last = M;
     var st = state.mx.stage === 'all' ? 'nono' : state.mx.stage, mode = state.mx.mode;
     var cur = M.stages[st + '_' + mode];
-    cfRows = Object.keys(cur.assign).map(function (c) { var a = cur.assign[c]; return { name: c, cnt: a.cnt, amt: a.amt, prof: a.prof, ykRev: a.ykRev || 0 }; });
+    /* 후보 = 상위 N위 범주에 한 번이라도 등장한 제약사 전부 (2차 배정이 0이어도 확정하면 품목을 받을 수 있음) */
+    cfRows = M.comps.map(function (c) { var a = cur.assign[c] || { cnt: 0, amt: 0, prof: 0, ykRev: 0 }; return { name: c, cnt: a.cnt, amt: a.amt, prof: a.prof, ykRev: a.ykRev || 0, potential: M.potential[c] || 0, appear: M.appear[c] || 0 }; });
     var anyOk = cfRows.some(function (r) { return availKindFor(r.name) === 'ok'; });
     $('cfOnlyOk').checked = anyOk; /* 결과가 하나라도 있으면 거래가능만 보기 */
     /* 기본 선택: 저장된 확정 > 거래가능 전부 > 최적 조합 > 전부 */
@@ -1871,7 +1884,7 @@
         + '<td><b>' + esc(r.name) + '</b></td><td>' + availBadge(r.name) + '</td><td>' + (extraBadge(r.name) || '<span class="mini">—</span>') + '</td>'
         + '<td class="num">' + r.cnt + '</td><td class="num">' + Math.round(r.amt).toLocaleString('ko-KR') + '</td><td class="num"><b>' + Math.round(r.prof).toLocaleString('ko-KR') + '</b></td>'
         + '<td class="num" style="color:#3730a3">' + (r.ykRev ? Math.round(r.ykRev).toLocaleString('ko-KR') : '') + '</td><td class="num">' + pctOf(r.prof, r.amt) + '</td>'
-        + '<td class="num">' + (p ? p.cnt : '<span class="mini">—</span>') + '</td><td class="num">' + (p ? '<b style="color:var(--ok)">' + Math.round(p.prof).toLocaleString('ko-KR') + '</b>' : '') + '</td></tr>';
+        + '<td class="num">' + (p ? p.cnt : '<span class="mini">—</span>') + '</td><td class="num">' + (p ? Math.round(p.amt).toLocaleString('ko-KR') : '') + '</td><td class="num">' + (p ? '<b style="color:var(--ok)">' + Math.round(p.prof).toLocaleString('ko-KR') + '</b>' : '') + '</td></tr>';
     }).join('');
     tb.querySelectorAll('tr').forEach(function (tr) {
       var n = tr.getAttribute('data-n');
@@ -1882,13 +1895,14 @@
     var itemRows = (state.mx.last ? state.mx.last.rows : []).slice().sort(function (a, b) { return b.amt - a.amt; });
     var assignBy = {}; /* 확정 후 배정: assignWithin 의 rows 는 품목명 기준 → 이름으로 매칭 */
     if (A.rows) A.rows.forEach(function (r) { if (r.pick) assignBy[r.code] = r.pick.comp; });
+    var stR = state.mx.stage === 'all' ? 'nono' : state.mx.stage;
     state.confirm.itemRanks = itemRows.map(function (row) {
-      var ranked = row.top.filter(function (t) { return set[t.comp]; }).sort(function (a, b) { return b.prof - a.prof; }).slice(0, 3);
+      var ranked = row.top.filter(function (t) { return mxAllowed(t.comp, stR); }).sort(function (a, b) { return b.prof - a.prof; }).slice(0, 3);
       return { code: row.code, name: row.name, amt: row.amt, ranked: ranked, assigned: assignBy[row.code] || '' };
     });
     var cap = 500, ir = state.confirm.itemRanks;
     $('cfItems').querySelector('tbody').innerHTML = ir.slice(0, cap).map(function (it) {
-      var cell = function (i) { var t = it.ranked[i]; return t ? '<td><b>' + esc(t.comp) + '</b>' + (t.extraPct ? ' <span class="badge xf">+' + t.extraPct + '%</span>' : '') + '</td><td class="num">' + Math.round(t.prof).toLocaleString('ko-KR') + '</td>' : '<td class="mini">—</td><td></td>'; };
+      var cell = function (i) { var t = it.ranked[i]; if (!t) return '<td class="mini">—</td><td></td>'; var on = !!set[t.comp]; return '<td' + (on ? '' : ' style="color:#99a"') + '>' + (on ? '<b>' + esc(t.comp) + '</b>' : esc(t.comp)) + (t.extraPct ? ' <span class="badge xf">+' + t.extraPct + '%</span>' : '') + availBadge(t.comp) + '</td><td class="num"' + (on ? '' : ' style="color:#99a"') + '>' + Math.round(t.prof).toLocaleString('ko-KR') + '</td>'; };
       return '<tr><td title="' + esc(it.name) + '">' + esc(it.name) + '</td><td class="num">' + Math.round(it.amt).toLocaleString('ko-KR') + '</td>' + cell(0) + cell(1) + cell(2)
         + '<td>' + (it.assigned ? esc(it.assigned) : '<span style="color:var(--err)">조합 밖</span>') + '</td></tr>';
     }).join('') + (ir.length > cap ? '<tr><td colspan="9" class="mini">표시 ' + cap + '행 초과분 생략 — 엑셀 「품목별 순위(확정)」 시트에 전체 포함</td></tr>' : '');
@@ -1896,6 +1910,8 @@
     var extraOut = 0; names.forEach(function (n) { if (!A.per[n] || !A.per[n].cnt) extraOut++; });
     var okCnt = cfRows.filter(function (r) { return availKindFor(r.name) === 'ok'; }).length;
     $('cfStat').textContent = '확정 ' + names.length + '곳 · 표시 ' + vis.length + '곳 / 후보 ' + cfRows.length + '곳 (거래가능 ' + okCnt + ')' + (extraOut ? ' · 배정 0품목 ' + extraOut + '곳' : '');
+    var pdC = 0, noC = 0, nnC = 0; names.forEach(function (n) { var k = availKindFor(n); if (k === 'pending') pdC++; else if (k === 'no') noC++; else if (k === 'none') nnC++; });
+    $('cfAvailStat').textContent = '확정 ' + names.length + '곳 중 가능 ' + (names.length - pdC - noC - nnC) + ' · 확인중 ' + pdC + ' · 불가 ' + noC + ' · 조회전 ' + nnC + (nnC ? ' → 「필터링요청」으로 조회전 ' + nnC + '곳 접수' : '');
     $('cfSum').innerHTML = '<div class="box"><h3>확정 ' + names.length + '곳으로 재배정</h3>'
       + '<div class="l"><span>영업사원 정산 합계(월)</span><b>' + won(A.totalProf) + '</b></div>'
       + '<div class="l"><span>커버</span><b>' + A.covered + '/' + A.total + '품목 · ' + won(A.coveredAmt) + '</b></div>'
@@ -1918,6 +1934,17 @@
   $('cfHead').addEventListener('change', function () { var on = this.checked; cfVisible().forEach(function (r) { state.confirm.names[r.name] = on; }); drawConfirm(); autoSave(800); });
   $('cfAll').addEventListener('click', function () { cfVisible().forEach(function (r) { state.confirm.names[r.name] = true; }); drawConfirm(); autoSave(800); });
   $('cfSort').addEventListener('change', drawConfirm);
+  function cfCheckRanks(n) {
+    var ir = state.confirm.itemRanks || []; var add = {};
+    ir.forEach(function (it) { it.ranked.slice(0, n).forEach(function (t) { add[t.comp] = true; }); });
+    for (var k in add) state.confirm.names[k] = true;
+    drawConfirm(); autoSave(800);
+  }
+  $('cfRank1').addEventListener('click', function () { cfCheckRanks(1); });
+  $('cfRank2').addEventListener('click', function () { cfCheckRanks(2); });
+  $('cfRank3').addEventListener('click', function () { cfCheckRanks(3); });
+  $('cfReq').addEventListener('click', function () { requestFilters(confirmedNames()); });
+  $('cfRefresh').addEventListener('click', function () { loadAvail(false).then(function () { state.heldComp = null; renderConfirmStep(); }); });
   $('cfOnlyOk').addEventListener('change', drawConfirm);
   $('cfNone').addEventListener('click', function () { state.confirm.names = {}; drawConfirm(); autoSave(800); });
   $('cfOk').addEventListener('click', function () { state.confirm.names = {}; cfRows.forEach(function (r) { if (availKindFor(r.name) === 'ok') state.confirm.names[r.name] = true; }); drawConfirm(); autoSave(800); });
