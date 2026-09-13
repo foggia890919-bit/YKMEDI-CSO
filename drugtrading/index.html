@@ -418,8 +418,8 @@
         </div>
         <div class="row" id="reqRow" style="display:none">
           <span class="plab">필터링 요청<small>조합 기준 일괄</small></span>
-          <button class="sbtn" id="comboFilterAll" title="현재 조합의 제약사 전부를 한 번에 필터링요청 (이미 가능/확인중인 곳은 건너뜀)">📨 조합 전체 필터링요청</button>
-          <button class="sbtn" id="availLoop" style="border-color:var(--warn); color:var(--warn)" title="거래불가 제약사를 빼고 다음 최적 조합을 다시 뽑은 뒤, 아직 요청 안 한 제약사만 필터링요청 — 결과 나오면 조회 후 다시 누르면 됩니다">🔁 불가 제외 → 재최적화 → 신규 요청</button>
+          <button class="sbtn" id="comboFilterAll" title="지금 보이는 조합의 제약사 중 아직 요청 안 한(조회전) 곳만 한 번에 필터링요청. 이미 요청됨·가능·불가는 건너뜀">📨 조합 전체 필터링요청 (조회전만)</button>
+          <button class="sbtn" id="availLoop" style="border-color:var(--warn); color:var(--warn)" title="결과가 돌아온 뒤 쓰는 버튼: 필터링 결과를 다시 조회 → 거래불가 제약사를 빼고 조합을 다시 뽑음 → 새로 조합에 들어온 제약사 중 조회전인 곳만 요청. 결과가 올 때마다 반복하면 됩니다">🔁 불가 제외 → 재최적화 → 신규 요청</button>
         </div>
         <div class="row"><input type="search" id="makerSearch" placeholder="제약사 검색…"></div>
         <div class="row">
@@ -1263,12 +1263,15 @@
     var a = availFor(comp);
     return !!(a && a.kind === 'no');
   }
-  function loadAvail(silent) {
+  function loadAvail(silent, silent2) {
     var name = ($('projName').value || '').trim();
     if (!name) { if (!silent) alert('상단 프로젝트 바에 병원(거래처)명을 먼저 입력해주세요.'); return Promise.resolve(); }
     $('availStat').textContent = '조회 중…';
     return fetch('/api/availability?name=' + encodeURIComponent(name)).then(function (r) { return r.json(); }).then(function (d) {
-      if (!d || !d.ok) { $('availStat').textContent = '조회 실패' + (d && d.error ? ': ' + d.error : ''); return; }
+      if (!d || !d.ok) {
+        if (!silent2 && /quota|429|한도/i.test((d && d.error) || '')) { $('availStat').textContent = '구글 시트 조회 한도 — 3초 후 재시도…'; return new Promise(function (res) { setTimeout(function () { loadAvail(silent, true).then(res); }, 3000); }); }
+        $('availStat').textContent = '조회 실패' + (d && d.error ? ': ' + d.error : '') + ' — 「거래가능 조회」로 다시 시도'; return;
+      }
       var nn = normVendor(name), map = {}, cnt = 0;
       (d.items || []).forEach(function (it) { /* 최신이 위 → 제약사별 첫 항목만 */
         if (normVendor(it.name) !== nn) return;
@@ -1864,10 +1867,11 @@
       /* 품목 전체 커버(제안서): 품목마다 약가 동일·낮음 후보 중 정산금 최고 1개 → 회사별 집계 */
       var best = proposalBest();
       var mcol = state.makerCol;
-      var m = {}, covered = 0, coveredAmt = 0, tP = 0, tI = 0, total = 0;
+      var m = {}, covered = 0, coveredAmt = 0, tP = 0, tI = 0, total = 0, withCand = 0;
       state.result.pharm.forEach(function (d) {
         if (isOut(d.code)) return;
         total++;
+        if (d.grp || d.candCount) withCand++;
         var b = best[d.code];
         if (!b) return;
         covered++; coveredAmt += d.amt; tP += b.profTotal; tI += b.incTotal;
@@ -1879,7 +1883,7 @@
       rows = Object.keys(m).map(function (k) { return m[k]; }).sort(function (a, b) { return b.prof - a.prof; });
       makerState.lastCombo = null;
       makerState.lastComboNames = rows.map(function (a) { return a.name; });
-      sub = rows.length + '개 제약사 · 커버 ' + covered + '/' + total + '품목' + ownFilterLabel();
+      sub = rows.length + '개 제약사 · 커버 ' + covered + '/' + withCand + '품목 (후보 있는 품목 기준 · 전체 ' + total + ')' + ownFilterLabel();
       lbl = '약가 동일·낮음 후보 중 정산금 최고 1개' + scopeLabel();
       sum = '<div class="l" style="color:var(--blue)"><span>제안서 예상 정산액(월)</span><b>₩' + Math.round(tP).toLocaleString('ko-KR') + '</b></div>'
         + '<div class="l"><span>커버 처방금액</span><b>₩' + Math.round(coveredAmt).toLocaleString('ko-KR') + '</b></div>'
@@ -1891,7 +1895,7 @@
       rows = r.list;
       makerState.lastCombo = r.list.map(function (a) { return a.name; });
       makerState.lastComboNames = makerState.lastCombo;
-      sub = r.list.length + '개 조합 · 커버 ' + r.covered + '/' + r.totalHelds + '품목' + ownFilterLabel();
+      sub = r.list.length + '개 조합 · 커버 ' + r.covered + '/' + r.totalHelds + '품목 (후보 있는 품목 기준)' + ownFilterLabel();
       lbl = '정산금 최대 기준' + scopeLabel();
       sum = '<div class="l" style="color:var(--blue)"><span>조합 예상 정산액(월)</span><b>₩' + Math.round(r.totalProf).toLocaleString('ko-KR') + '</b></div>'
         + '<div class="l"><span>커버 처방금액</span><b>₩' + Math.round(r.coveredAmt).toLocaleString('ko-KR') + '</b></div>'
