@@ -136,6 +136,41 @@
   .mxsum .st b { font-variant-numeric: tabular-nums; }
   .mxsum .st.on { border-color: var(--blue); box-shadow: inset 0 0 0 1px var(--blue); }
   .badge.xf { background: #eef2ff; color: #3730a3; }
+  /* 단계형 흐름 */
+  .steps { display: flex; gap: 6px; margin: 0 0 16px; flex-wrap: wrap; }
+  .steps button { flex: 1; min-width: 150px; display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: #fff; border-radius: 10px; padding: 9px 12px; font-size: 13px; font-weight: 700; color: #667; cursor: pointer; text-align: left; }
+  .steps button b { width: 24px; height: 24px; border-radius: 50%; background: #e5e9f0; color: #556; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; flex: none; }
+  .steps button.done b { background: var(--ok); color: #fff; }
+  .steps button.on { border-color: var(--blue); color: var(--blue); box-shadow: inset 0 0 0 1px var(--blue); background: #f3f7ff; }
+  .steps button.on b { background: var(--blue); color: #fff; }
+  .steps button:disabled { opacity: .45; cursor: not-allowed; }
+  section.step { display: none; }
+  section.step.on { display: block; }
+  .stephead { display: flex; align-items: flex-start; gap: 14px; margin: 0 0 12px; flex-wrap: wrap; }
+  .stephead h2 { margin: 0; font-size: 17px; color: var(--blue); }
+  .stephead p { margin: 4px 0 0; font-size: 12.5px; color: #667; flex: 1 1 400px; }
+  .stephead .sbtn { margin-top: 2px; text-decoration: none; color: inherit; }
+  .stepnav { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 14px 0 6px; }
+  .stepnav .pbtn { border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 9px 16px; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .stepnav .pbtn.primary { background: var(--blue); color: #fff; border-color: var(--blue); }
+  .stepnav .pbtn:disabled { opacity: .5; cursor: not-allowed; }
+  .mapctl { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 0 0 10px; }
+  .mapctl .seg button { padding: 7px 12px; font-size: 12.5px; }
+  details.adv { margin: 0 0 10px; }
+  details.adv summary { cursor: pointer; font-size: 12.5px; font-weight: 700; color: var(--blue); padding: 4px 0; }
+  table.mx td.best { outline: 2px dashed #c7d2fe; outline-offset: -2px; }
+  /* 4단계 필터링 */
+  .ftab { width: 100%; border-collapse: collapse; background: #fff; font-size: 12.5px; }
+  .ftab th { position: static; background: #f3f5f9; color: #334; font-weight: 700; padding: 8px 10px; border-bottom: 1px solid var(--line); cursor: default; }
+  .ftab td { padding: 7px 10px; border-bottom: 1px solid #eef1f7; }
+  .ftab td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .ftab tr.sel td { background: #f3f7ff; }
+  .fwrap { background: #fff; border: 1px solid var(--line); border-radius: 10px; overflow: auto; max-height: 60vh; }
+  .rep { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin: 0 0 14px; }
+  .rep .box { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; font-size: 12.5px; }
+  .rep .box h3 { margin: 0 0 6px; font-size: 13px; color: var(--blue); }
+  .rep .box .l { display: flex; justify-content: space-between; padding: 2px 0; }
+  .rep .box .l b { font-variant-numeric: tabular-nums; }
   .viewseg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
   .viewseg button { border: 0; border-radius: 0; background: #fff; padding: 8px 14px; font-size: 13px; font-weight: 700; color: #667; cursor: pointer; }
   .viewseg button.on { background: var(--blue); color: #fff; }
@@ -154,6 +189,17 @@
   <p>약국 조제내역 + 요율표 + 건강보험 약가파일(주성분코드) 3개를 올리면, 주성분코드_동일제형 기준으로 대체조제 가능 품목을 요율표에 매핑해 엑셀로 내려줍니다. 모든 처리는 브라우저 안에서만 이루어지며 파일이 서버로 전송되지 않습니다.</p>
 </header>
 <main>
+  <nav class="steps" id="steps">
+    <button data-step="1"><b>1</b>거래처 선택</button>
+    <button data-step="2"><b>2</b>조제내역 업로드</button>
+    <button data-step="3"><b>3</b>1차 매핑</button>
+    <button data-step="4"><b>4</b>필터링 진행</button>
+    <button data-step="5"><b>5</b>2차 매핑</button>
+    <button data-step="6"><b>6</b>보고서·제안서</button>
+  </nav>
+
+  <section class="step" data-step="1">
+  <div class="stephead"><h2>1. 거래처 선택</h2><p>등록된 거래처(병의원·약국)에서 고릅니다. 필터링요청·드라이브 저장이 모두 이 거래처 기준으로 묶입니다. 저장된 프로젝트를 고르면 이전 작업이 그대로 열립니다.</p><a class="sbtn" href="/cso/clients" target="_blank" rel="noopener">🏥 거래처 등록 (새 창)</a></div>
   <div class="projbar">
     <span class="lbl">📁 프로젝트</span>
     <select id="projSel"><option value="">— 저장된 프로젝트 —</option></select>
@@ -170,6 +216,11 @@
     <input type="file" id="projImport" accept=".json" style="display:none">
     <span class="pstat" id="projStat"></span>
   </div>
+  <div class="stepnav"><span class="mini" id="step1Stat"></span><button class="pbtn primary" id="next1">다음 → 조제내역 업로드</button></div>
+  </section>
+
+  <section class="step" data-step="2">
+  <div class="stephead"><h2>2. 조제내역 업로드</h2><p>약국 조제내역 엑셀만 올리면 됩니다. 요율표(공통요율표)와 약가파일은 자동으로 불러옵니다. 매핑을 실행하면 1차 매핑으로 넘어갑니다.</p></div>
   <div class="cards">
     <div class="card">
       <h2>① 약국 조제내역</h2>
@@ -205,10 +256,14 @@
   </div>
 
   <div class="actions">
-    <button id="btnRun" disabled>매핑 실행</button>
-    <button id="btnDown">📥 결과 엑셀 다운로드</button>
+    <button id="btnRun" disabled>매핑 실행 → 1차 매핑</button>
     <span id="msg"></span>
   </div>
+  <div class="stepnav"><button class="pbtn" id="prev2">← 거래처 선택</button><button class="pbtn" id="next2" disabled>다음 → 1차 매핑</button></div>
+  </section>
+
+  <section class="step" data-step="3 5">
+  <div class="stephead"><h2 id="mapTitle">3. 1차 매핑</h2><p id="mapHint"></p></div>
 
   <div class="summary" id="summary">
     <div class="nums">
@@ -221,21 +276,29 @@
     </div>
   </div>
 
-  <div class="filters" id="filters" style="display:none">
+  <div class="mapctl" id="mapctl" style="display:none">
     <div class="viewseg">
-      <button id="viewItems" class="on">📋 품목별 요약</button>
+      <button id="viewMatrix" class="on" title="가로: 품목별 1~N위 제약사 정산금(추가수수료 포함) / 세로: 제약사별 합산·순위">🧮 제약사×품목</button>
+      <button id="viewItems">📋 품목별 요약</button>
       <button id="viewCands">전체 후보</button>
-      <button id="viewMatrix" title="가로: 품목별 1~N위 제약사 정산금(추가수수료 포함) / 세로: 제약사별 합산·순위. 필터링 결과(거래가능유무)를 대입해 품목당 제약사 1곳(중복 없음)으로 최종 배정">🧮 제약사×품목</button>
     </div>
-    <span id="mxCtl" style="display:none; gap:8px; align-items:center; flex-wrap:wrap">
-      <label class="chk" title="품목마다 정산금 상위 몇 곳까지 후보 범주에 넣을지"><span>품목별 상위</span><input type="number" id="mxK" min="1" max="30" value="10" style="width:52px; padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin:0 4px"><span>위까지</span></label>
-      <div class="seg" id="mxStage" title="1단계: 필터링 무시(중복 없는 최고치) / 2단계: 필터링 결과 대입(현실치)">
-        <button data-s="all" class="on">1단계 · 전부</button>
-        <button data-s="nono">2단계 · 불가 제외</button>
-        <button data-s="okonly">2단계 · 가능 확정만</button>
+    <span id="mxCtl" style="display:inline-flex; gap:8px; align-items:center; flex-wrap:wrap">
+      <div class="seg" id="mxMode" title="정산금 최대 = 딜러에게 주는 정산 기준 1위 / YK 우선 = 추가수수료(와이케이 수익)가 기준 이상인 제약사를 우선 배정하고 1위 대비 갭을 표시">
+        <button data-m="prof" class="on">정산금 최대</button>
+        <button data-m="yk">YK 우선 · 추가수수료</button>
       </div>
-      <button class="sbtn" id="mxAvail" title="프로젝트 바의 거래처명으로 필터링 결과(거래가능유무 시트)를 불러옵니다">🔎 필터링 결과 불러오기</button>
+      <label class="chk" title="이 값 이상 추가수수료가 붙는 제약사를 YK 우선 배정 대상으로 봅니다"><span>추가수수료</span><input type="number" id="ykMin" min="0" max="20" step="0.5" value="4" style="width:56px; padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin:0 4px"><span>% 이상 우선</span></label>
+      <label class="chk" title="품목마다 정산금 상위 몇 곳까지 후보 범주에 넣을지"><span>품목별 상위</span><input type="number" id="mxK" min="1" max="30" value="10" style="width:52px; padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin:0 4px"><span>위까지</span></label>
+      <div class="seg" id="mxStage" title="2차 매핑: 필터링 결과 대입">
+        <button data-s="all" class="on">필터링 무시</button>
+        <button data-s="nono">불가 제외</button>
+        <button data-s="okonly">가능 확정만</button>
+      </div>
+      <button class="sbtn" id="mxAvail" title="거래처명으로 필터링 결과(거래가능유무 시트)를 불러옵니다">🔎 필터링 결과 불러오기</button>
     </span>
+  </div>
+  <details class="adv" id="advFilters"><summary>상세 필터·보기 옵션 (품목별 요약·전체 후보용)</summary>
+  <div class="filters" id="filters" style="display:none">
     <label class="chk" style="font-weight:700"><input type="checkbox" id="cMatched"><span class="dot" style="background:var(--blue)"></span>매칭 품목만 (1차 필터)</label>
     <label class="chk" style="font-weight:700"><input type="checkbox" id="cBestOnly" checked><span class="dot" style="background:var(--ok)"></span>최유리 후보만 (해제 시 후보 전부 나열)</label>
     <label class="chk" style="font-weight:700" title="지금 조제 중인 제품이 요율표에 이미 있으면(=CSO 제품) 흡수율 이슈가 있어 스위칭 대상에서 뺍니다"><input type="checkbox" id="cCso"><span class="dot" style="background:var(--err)"></span>요율표 등재 제품(CSO) 제외</label>
@@ -252,6 +315,7 @@
     <label class="chk"><input type="checkbox" id="cHigh" checked><span class="dot high"></span>높음</label>
     <label class="chk"><input type="checkbox" id="cExc"><span class="dot" style="background:var(--warn)"></span>예외 품목 표시(중단·정산불가·가격미상 등)</label>
   </div>
+  </details>
   <details class="colpanel" id="colPanel">
     <summary>👁 표시할 열 선택 (체크 해제하면 숨김)</summary>
     <div class="boxes" id="colBoxes"></div>
@@ -307,6 +371,35 @@
       <div class="csum" id="makerSum"></div>
     </aside>
   </div>
+  <div class="stepnav"><button class="pbtn" id="prevMap">← 이전</button><button class="pbtn primary" id="nextMap">다음 → 필터링 진행</button></div>
+  </section>
+
+  <section class="step" data-step="4">
+  <div class="stephead"><h2>4. 필터링 진행</h2><p>1차 매핑에서 품목별 1~N위에 오른 제약사를 전부, 또는 상위 몇 곳부터 필터링(거래가능 조회) 요청합니다. 요청은 거래처 기준으로 필터링-거래가능유무 시트에 쌓이고, 사무실에서 결과를 입력하면 여기와 2차 매핑에 반영됩니다.</p></div>
+  <div class="mapctl">
+    <label class="chk"><span>상위</span><input type="number" id="ftTopN" min="1" max="99" value="5" style="width:52px; padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin:0 4px"><span>개사 선택</span></label>
+    <button class="sbtn" id="ftSelTop">상위 N개사 체크</button>
+    <button class="sbtn" id="ftSelAll">전부 체크</button>
+    <button class="sbtn" id="ftSelNone">해제</button>
+    <label class="chk" title="요청자(담당자)로 기록됩니다. 비우면 로그인한 계정의 담당자명"><span>담당자</span><input id="ftManager" list="managerList" placeholder="거래처 담당자" style="width:120px; padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin:0 4px"><datalist id="managerList"></datalist></label>
+    <button class="pbtn primary" id="ftRequest" style="padding:7px 14px; font-size:13px; border-radius:8px; border:0; background:var(--blue); color:#fff; cursor:pointer">📨 체크한 제약사 필터링요청</button>
+    <button class="sbtn" id="ftRefresh">🔄 결과 새로고침</button>
+    <span class="mini" id="ftStat" style="flex:1; text-align:right"></span>
+  </div>
+  <div class="fwrap"><table class="ftab" id="ftab"><thead></thead><tbody></tbody></table></div>
+  <div class="stepnav"><button class="pbtn" id="prev4">← 1차 매핑</button><button class="pbtn primary" id="next4">다음 → 2차 매핑 (결과 대입)</button></div>
+  </section>
+
+  <section class="step" data-step="6">
+  <div class="stephead"><h2>6. 보고서·제안서</h2><p>1차(이상치)와 2차(현실치) 숫자를 나란히 보고, 결과 엑셀(품목별 요약·조제내역+스위칭·제약사×품목 매트릭스 포함)을 내려받거나 드라이브에 저장합니다.</p></div>
+  <div class="rep" id="repBoxes"></div>
+  <div class="actions">
+    <button id="btnDown">📥 결과 엑셀 다운로드</button>
+    <button class="pbtn" id="repSave" style="background:#fff; border:1px solid var(--line); color:#1c2333">💾 드라이브에 저장</button>
+    <button class="pbtn" id="repCombo" style="background:#fff; border:1px solid var(--line); color:#1c2333">🏆 최적 조합으로 압축 보기</button>
+  </div>
+  <div class="stepnav"><button class="pbtn" id="prev6">← 2차 매핑</button><span></span></div>
+  </section>
 
   <p class="note">
     매칭 기준: 건강보험 약가파일의 <b>주성분코드_동일제형</b>이 같으면 동일성분·동일함량·동일제형으로 보아 대체조제 가능 후보로 분류합니다.<br>
@@ -322,7 +415,7 @@
 <script src="app.js"></script>
 <script>
 (function () {
-  var state = { pharm: null, rateWb: null, master: null, result: null, rateParsed: null };
+  var state = { pharm: null, rateWb: null, master: null, result: null, rateParsed: null, view: 'matrix' };
   var $ = function (id) { return document.getElementById(id); };
 
   function readWb(file, cb) {
@@ -595,6 +688,7 @@
       applyExtraFee();
       renderResult();
       msg.textContent = '완료';
+      updateSteps(); showStep(3);
     } catch (e2) { msg.className = 'err'; msg.textContent = e2.message; }
   });
 
@@ -609,6 +703,7 @@
     $('nExc').textContent = r.outRows.filter(function (x) { return x.status !== '정상'; }).length;
     $('summary').style.display = 'block';
     $('filters').style.display = 'flex';
+    $('mapctl').style.display = 'flex';
     $('tablewrap').style.display = 'block';
     $('btnDown').style.display = 'inline-block';
 
@@ -727,7 +822,7 @@
   }
 
   /* ── 제약사×품목 매트릭스: 품목별 상위 K 제약사 정산금(가로) + 제약사별 합산(세로) + 필터링 대입 최종 배정 ── */
-  state.mx = { K: 10, stage: 'all' };
+  state.mx = { K: 10, stage: 'all', mode: 'prof', ykMin: 4 };
   function mxAllowed(comp, stage) {
     if (stage === 'all') return true;
     var k = availKindFor(comp);
@@ -746,29 +841,44 @@
       var e = per[x.pCode] || (per[x.pCode] = { comps: {} });
       var c = e.comps[comp];
       var prod = state.prodCol >= 0 ? String(x.cells[state.prodCol] === undefined ? '' : x.cells[state.prodCol]) : '';
-      if (!c || x.profTotal > c.prof) e.comps[comp] = { prof: x.profTotal, inc: x.incTotal || 0, prod: prod, pct: x.pct, price: x.price };
+      if (!c || x.profTotal > c.prof) e.comps[comp] = { prof: x.profTotal, inc: x.incTotal || 0, prod: prod, pct: x.pct, price: x.price, extraPct: x.extraPct || 0, extraSub: x.extraSub || '' };
     });
     var rows = [], potential = {}, appear = {};
     state.result.pharm.slice().sort(function (a, b) { return b.amt - a.amt; }).forEach(function (d) {
       if (isOut(d.code)) return;
       var e = per[d.code];
-      var top = e ? Object.keys(e.comps).map(function (c) { var v = e.comps[c]; return { comp: c, prof: v.prof, inc: v.inc, prod: v.prod, pct: v.pct, price: v.price }; }).sort(function (a, b) { return b.prof - a.prof; }).slice(0, K) : [];
+      var top = e ? Object.keys(e.comps).map(function (c) { var v = e.comps[c]; return { comp: c, prof: v.prof, inc: v.inc, prod: v.prod, pct: v.pct, price: v.price, extraPct: v.extraPct, extraSub: v.extraSub }; }).sort(function (a, b) { return b.prof - a.prof; }).slice(0, K) : [];
       top.forEach(function (t) { potential[t.comp] = (potential[t.comp] || 0) + t.prof; appear[t.comp] = (appear[t.comp] || 0) + 1; });
-      rows.push({ code: d.code, name: d.name, amt: d.amt, top: top });
+      rows.push({ code: d.code, name: d.name, amt: d.amt, qty: d.qty, top: top });
     });
     var comps = Object.keys(potential).sort(function (a, b) { return potential[b] - potential[a]; });
+    /* 단계(필터링 대입) × 모드(정산금 최대 / YK 우선) 별 최종 배정. 품목당 제약사 1곳.
+       YK 우선: 추가수수료 ≥ ykMin 인 제약사 중 정산금 최고 → 없으면 정산금 1위로 폴백. 갭 = 1위 정산 − 배정 정산 */
+    var ykMin = state.mx.ykMin;
     var stages = {};
     ['all', 'nono', 'okonly'].forEach(function (st) {
-      var assign = {}, tot = 0, totAmt = 0, cnt = 0, totInc = 0;
-      rows.forEach(function (r) {
-        var pick = null;
-        for (var i = 0; i < r.top.length; i++) { if (mxAllowed(r.top[i].comp, st)) { pick = r.top[i]; break; } }
-        r['pick_' + st] = pick;
-        if (!pick) return;
-        var a = assign[pick.comp] || (assign[pick.comp] = { cnt: 0, prof: 0, amt: 0, inc: 0 });
-        a.cnt++; a.prof += pick.prof; a.amt += r.amt; a.inc += pick.inc; tot += pick.prof; totAmt += r.amt; totInc += pick.inc; cnt++;
+      ['prof', 'yk'].forEach(function (mode) {
+        var assign = {}, tot = 0, totAmt = 0, cnt = 0, totInc = 0, gap = 0, ykRev = 0, ykCnt = 0;
+        rows.forEach(function (r) {
+          var pickP = null, pickY = null;
+          for (var i = 0; i < r.top.length; i++) {
+            var t = r.top[i];
+            if (!mxAllowed(t.comp, st)) continue;
+            if (!pickP) pickP = t;
+            if (!pickY && t.extraPct >= ykMin && ykMin > 0) pickY = t;
+            if (pickP && pickY) break;
+          }
+          var pick = mode === 'yk' ? (pickY || pickP) : pickP;
+          r['pick_' + st + '_' + mode] = pick; r['best_' + st] = pickP;
+          if (!pick) return;
+          var a = assign[pick.comp] || (assign[pick.comp] = { cnt: 0, prof: 0, amt: 0, inc: 0, ykRev: 0 });
+          var rev = pick.price * (pick.extraPct || 0) / 100 * r.qty;
+          a.cnt++; a.prof += pick.prof; a.amt += r.amt; a.inc += pick.inc; a.ykRev += rev;
+          tot += pick.prof; totAmt += r.amt; totInc += pick.inc; cnt++; ykRev += rev;
+          if (mode === 'yk' && pickY) { ykCnt++; gap += pickP.prof - pickY.prof; }
+        });
+        stages[st + '_' + mode] = { assign: assign, total: tot, totalAmt: totAmt, count: cnt, inc: totInc, gap: gap, ykRev: ykRev, ykCnt: ykCnt };
       });
-      stages[st] = { assign: assign, total: tot, totalAmt: totAmt, count: cnt, inc: totInc };
     });
     var allAmt = 0; rows.forEach(function (r) { allAmt += r.amt; });
     return { rows: rows, comps: comps, potential: potential, appear: appear, stages: stages, allAmt: allAmt, K: K };
@@ -778,22 +888,24 @@
   function drawMatrix() {
     var r = state.result; if (!r) return;
     var K = Math.max(1, parseInt($('mxK').value, 10) || 10); state.mx.K = K;
-    var st = state.mx.stage;
+    var st = state.mx.stage, mode = state.mx.mode, yk = mode === 'yk';
+    state.mx.ykMin = parseFloat($('ykMin').value) || 0;
     var M = buildMatrix(K); state.mx.last = M;
-    var S = M.stages, cur = S[st];
-    var stLbl = { all: '1단계 · 필터링 무시', nono: '2단계 · 불가 제외', okonly: '2단계 · 가능 확정만' };
+    var S = M.stages, cur = S[st + '_' + mode];
+    var stLbl = { all: '1차 · 필터링 무시', nono: '2차 · 불가 제외', okonly: '2차 · 가능 확정만' };
     var sum = $('mxSum'); sum.style.display = 'flex';
     var avail = state.avail ? '' : ' <span style="color:var(--warn)">(필터링 결과 미조회 — 「필터링 결과 불러오기」)</span>';
     sum.innerHTML = ['all', 'nono', 'okonly'].map(function (k) {
-      var x = S[k];
-      return '<div class="st' + (k === st ? ' on' : '') + '"><span style="color:#667">' + stLbl[k] + '</span> <b>' + won(x.total) + '</b> · ' + x.count + '품목 · 매출 ' + won(x.totalAmt) + ' · 수수료율 <b>' + pctOf(x.total, x.totalAmt) + '</b> (전체 ' + pctOf(x.total, M.allAmt) + ')</div>';
-    }).join('') + '<div class="st" style="border:0; color:#667">제약사 ' + M.comps.length + '곳 · 품목 ' + M.rows.length + ' · 상위 ' + K + '위 범주 · 저가 인센티브 ' + won(cur.inc) + avail + '</div>';
+      var x = S[k + '_' + mode];
+      return '<div class="st' + (k === st ? ' on' : '') + '"><span style="color:#667">' + stLbl[k] + '</span> <b>' + won(x.total) + '</b> · ' + x.count + '품목 · 매출 ' + won(x.totalAmt) + ' · 수수료율 <b>' + pctOf(x.total, x.totalAmt) + '</b> (전체 ' + pctOf(x.total, M.allAmt) + ')'
+        + (yk ? ' · <span style="color:#3730a3">YK 추가수익 <b>' + won(x.ykRev) + '</b> · 1위 대비 갭 <b>' + won(x.gap) + '</b> · 우선배정 ' + x.ykCnt + '품목</span>' : '') + '</div>';
+    }).join('') + '<div class="st" style="border:0; color:#667">' + (yk ? 'YK 우선(추가수수료 ' + state.mx.ykMin + '% 이상) · ' : '정산금 최대 · ') + '제약사 ' + M.comps.length + '곳 · 품목 ' + M.rows.length + ' · 상위 ' + K + '위 범주 · 저가 인센티브 ' + won(cur.inc) + avail + '</div>';
 
     var tbl = $('tbl'); tbl.className = 'mx';
     $('tblCols').innerHTML = '';
-    var fixed = ['약품명', '조제금액', '최종 제약사', '최종 정산(월)', '수수료율'];
-    var lefts = [0, 220, 300, 420, 520];
-    var widths = [220, 80, 120, 100, 60];
+    var fixed = yk ? ['약품명', '조제금액', 'YK 우선 제약사', '정산(월)', '1위 대비 갭', 'YK 추가수익(월)'] : ['약품명', '조제금액', '최종 제약사', '최종 정산(월)', '수수료율'];
+    var lefts = yk ? [0, 220, 300, 420, 520, 600] : [0, 220, 300, 420, 520];
+    var widths = yk ? [220, 80, 120, 100, 80, 90] : [220, 80, 120, 100, 60];
     var h = '<tr>' + fixed.map(function (f, i) { return '<th class="fix" style="left:' + lefts[i] + 'px; min-width:' + widths[i] + 'px; max-width:' + widths[i] + 'px">' + f + '</th>'; }).join('');
     M.comps.forEach(function (c) {
       var ex = extraFor(c), xf = ex && ex.pct > 0 ? '<span class="xf">+' + ex.pct + '% ' + esc(ex.sub) + '</span>' : '<span class="xf">&nbsp;</span>';
@@ -803,18 +915,24 @@
     tbl.querySelector('thead').innerHTML = h;
     var body = [];
     M.rows.forEach(function (row) {
-      var pick = row['pick_' + st];
+      var pick = row['pick_' + st + '_' + mode], best = row['best_' + st];
       var m = {}; row.top.forEach(function (t) { m[t.comp] = t; });
       var tr = '<tr><td class="fix" style="left:0; max-width:220px" title="' + esc(row.name) + '">' + esc(row.name) + '</td>'
         + '<td class="fix num" style="left:220px; max-width:80px">' + Math.round(row.amt).toLocaleString('ko-KR') + '</td>'
-        + '<td class="fix" style="left:300px; max-width:120px">' + (pick ? '<b>' + esc(pick.comp) + '</b>' : (row.top.length ? '<span style="color:var(--err)">거래가능 없음</span>' : '<span style="color:#aaa">후보없음</span>')) + '</td>'
-        + '<td class="fix num" style="left:420px">' + (pick ? '<b>' + Math.round(pick.prof).toLocaleString('ko-KR') + '</b>' : '') + '</td>'
-        + '<td class="fix num" style="left:520px">' + (pick ? pctOf(pick.prof, row.amt) : '') + '</td>';
+        + '<td class="fix" style="left:300px; max-width:120px">' + (pick ? '<b>' + esc(pick.comp) + '</b>' + (yk && pick.extraPct >= state.mx.ykMin ? ' <span class="badge xf">+' + pick.extraPct + '%</span>' : (yk ? ' <span class="mini">(1위 폴백)</span>' : '')) : (row.top.length ? '<span style="color:var(--err)">거래가능 없음</span>' : '<span style="color:#aaa">후보없음</span>')) + '</td>'
+        + '<td class="fix num" style="left:420px">' + (pick ? '<b>' + Math.round(pick.prof).toLocaleString('ko-KR') + '</b>' : '') + '</td>';
+      if (yk) {
+        var gapV = pick && best ? best.prof - pick.prof : 0;
+        tr += '<td class="fix num" style="left:520px">' + (pick ? (gapV > 0 ? '<span style="color:var(--err)">−' + Math.round(gapV).toLocaleString('ko-KR') + '</span>' : '0') : '') + '</td>'
+          + '<td class="fix num" style="left:600px">' + (pick ? '<b style="color:#3730a3">' + Math.round(pick.price * (pick.extraPct || 0) / 100 * row.qty).toLocaleString('ko-KR') + '</b>' : '') + '</td>';
+      } else {
+        tr += '<td class="fix num" style="left:520px">' + (pick ? pctOf(pick.prof, row.amt) : '') + '</td>';
+      }
       M.comps.forEach(function (c) {
         var t = m[c];
         if (!t) { tr += '<td></td>'; return; }
-        var cls = 'num' + (pick && pick.comp === c ? ' pick' : (mxAllowed(c, st) ? '' : ' dead'));
-        tr += '<td class="' + cls + '" title="' + esc(t.prod) + ' · 약가 ' + t.price + ' · ' + t.pct + '%">' + Math.round(t.prof).toLocaleString('ko-KR') + '</td>';
+        var cls = 'num' + (pick && pick.comp === c ? ' pick' : (mxAllowed(c, st) ? '' : ' dead')) + (yk && best && best.comp === c && (!pick || pick.comp !== c) ? ' best' : '');
+        tr += '<td class="' + cls + '" title="' + esc(t.prod) + ' · 약가 ' + t.price + ' · 적용 ' + t.pct + '%' + (t.extraPct ? ' (추가수수료 ' + t.extraPct + '% ' + esc(t.extraSub) + ')' : '') + '">' + Math.round(t.prof).toLocaleString('ko-KR') + '</td>';
       });
       body.push(tr + '</tr>');
     });
@@ -823,7 +941,7 @@
     var rankOf = {}; ranks.forEach(function (c, i) { if ((cur.assign[c] || {}).prof > 0) rankOf[c] = i + 1; });
     var fr = function (label, fn, fixedVals) {
       var tr = '<tr><td class="fix lab" style="left:0; max-width:220px" title="' + label + '">' + label + '</td>';
-      for (var i = 1; i < 5; i++) tr += '<td class="fix num" style="left:' + lefts[i] + 'px">' + (fixedVals && fixedVals[i] !== undefined ? fixedVals[i] : '') + '</td>';
+      for (var i = 1; i < fixed.length; i++) tr += '<td class="fix num" style="left:' + lefts[i] + 'px">' + (fixedVals && fixedVals[i] !== undefined ? fixedVals[i] : '') + '</td>';
       M.comps.forEach(function (c) { var v = fn(c); tr += '<td class="num">' + (v === '' || v === undefined ? '' : v) + '</td>'; });
       return tr + '</tr>';
     };
@@ -833,29 +951,33 @@
       + fr('배정 품목수', function (c) { var a = cur.assign[c]; return a ? a.cnt : ''; })
       + fr('배정 매출(조제금액)', function (c) { var a = cur.assign[c]; return a ? Math.round(a.amt).toLocaleString('ko-KR') : ''; })
       + fr('매출대비 수수료율', function (c) { var a = cur.assign[c]; return a ? pctOf(a.prof, a.amt) : ''; })
+      + (yk ? fr('YK 추가수익(월)', function (c) { var a = cur.assign[c]; return a && a.ykRev > 0 ? Math.round(a.ykRev).toLocaleString('ko-KR') : ''; }, { 5: '<b>' + Math.round(cur.ykRev).toLocaleString('ko-KR') + '</b>' }) : '')
       + fr('최종 순위', function (c) { return rankOf[c] || ''; });
     $('tblFoot').innerHTML = foot;
   }
   function matrixSheetRows(M, st) {
-    var head = ['약품코드', '약품명', '조제금액', '최종 제약사', '최종 대체품목', '최종 정산(월)', '수수료율'].concat(M.comps);
+    var mode = state.mx.mode, yk = mode === 'yk';
+    var head = ['약품코드', '약품명', '조제금액', (yk ? 'YK우선 제약사' : '최종 제약사'), '최종 대체품목', '최종 정산(월)', '수수료율'].concat(yk ? ['1위 대비 갭', 'YK 추가수익(월)'] : []).concat(M.comps);
     var aoa = [head];
-    var exRow = ['', '추가수수료(제출처)', '', '', '', '', ''].concat(M.comps.map(function (c) { var ex = extraFor(c); return ex && ex.pct > 0 ? ex.pct + '% ' + ex.sub : ''; }));
-    var avRow = ['', '거래가능(필터링 결과)', '', '', '', '', ''].concat(M.comps.map(function (c) { var a = availFor(c); return a ? (a.kind === 'ok' ? 'O' : a.kind === 'no' ? 'X' : '확인중') : '조회전'; }));
+    var exRow = ['', '추가수수료(제출처)', '', '', '', '', ''].concat(yk ? ['', ''] : []).concat(M.comps.map(function (c) { var ex = extraFor(c); return ex && ex.pct > 0 ? ex.pct + '% ' + ex.sub : ''; }));
+    var avRow = ['', '거래가능(필터링 결과)', '', '', '', '', ''].concat(yk ? ['', ''] : []).concat(M.comps.map(function (c) { var a = availFor(c); return a ? (a.kind === 'ok' ? 'O' : a.kind === 'no' ? 'X' : '확인중') : '조회전'; }));
     aoa.push(exRow); aoa.push(avRow);
+    var pad = yk ? ['', ''] : [];
     M.rows.forEach(function (row) {
-      var pick = row['pick_' + st], m = {}; row.top.forEach(function (t) { m[t.comp] = t; });
+      var pick = row['pick_' + st + '_' + mode], best = row['best_' + st], m = {}; row.top.forEach(function (t) { m[t.comp] = t; });
       var line = [row.code, row.name, row.amt, pick ? pick.comp : '', pick ? pick.prod : '', pick ? pick.prof : '', pick && row.amt > 0 ? Math.round(pick.prof / row.amt * 1000) / 10 : ''];
+      if (yk) line.push(pick && best ? best.prof - pick.prof : '', pick ? Math.round(pick.price * (pick.extraPct || 0) / 100 * row.qty) : '');
       M.comps.forEach(function (c) { line.push(m[c] ? m[c].prof : ''); });
       aoa.push(line);
     });
-    var cur = M.stages[st];
+    var cur = M.stages[st + '_' + mode];
     aoa.push([]);
-    aoa.push(['', '잠재 합계(상위 ' + M.K + '위 등장 전부)', M.allAmt, '', '', '', ''].concat(M.comps.map(function (c) { return M.potential[c]; })));
-    aoa.push(['', '등장 품목수', '', '', '', '', ''].concat(M.comps.map(function (c) { return M.appear[c]; })));
-    aoa.push(['', '최종 배정 정산(월)', '', cur.count + '품목', '', cur.total, cur.totalAmt > 0 ? Math.round(cur.total / cur.totalAmt * 1000) / 10 : ''].concat(M.comps.map(function (c) { return cur.assign[c] ? cur.assign[c].prof : ''; })));
-    aoa.push(['', '배정 품목수', '', '', '', '', ''].concat(M.comps.map(function (c) { return cur.assign[c] ? cur.assign[c].cnt : ''; })));
-    aoa.push(['', '배정 매출(조제금액)', '', '', '', '', ''].concat(M.comps.map(function (c) { return cur.assign[c] ? cur.assign[c].amt : ''; })));
-    aoa.push(['', '매출대비 수수료율(%)', '', '', '', '', ''].concat(M.comps.map(function (c) { var a = cur.assign[c]; return a && a.amt > 0 ? Math.round(a.prof / a.amt * 1000) / 10 : ''; })));
+    aoa.push(['', '잠재 합계(상위 ' + M.K + '위 등장 전부)', M.allAmt, '', '', '', ''].concat(pad).concat(M.comps.map(function (c) { return M.potential[c]; })));
+    aoa.push(['', '등장 품목수', '', '', '', '', ''].concat(pad).concat(M.comps.map(function (c) { return M.appear[c]; })));
+    aoa.push(['', '최종 배정 정산(월)', '', cur.count + '품목', '', cur.total, cur.totalAmt > 0 ? Math.round(cur.total / cur.totalAmt * 1000) / 10 : ''].concat(pad).concat(M.comps.map(function (c) { return cur.assign[c] ? cur.assign[c].prof : ''; })));
+    aoa.push(['', '배정 품목수', '', '', '', '', ''].concat(pad).concat(M.comps.map(function (c) { return cur.assign[c] ? cur.assign[c].cnt : ''; })));
+    aoa.push(['', '배정 매출(조제금액)', '', '', '', '', ''].concat(pad).concat(M.comps.map(function (c) { return cur.assign[c] ? cur.assign[c].amt : ''; })));
+    aoa.push(['', '매출대비 수수료율(%)', '', '', '', '', ''].concat(pad).concat(M.comps.map(function (c) { var a = cur.assign[c]; return a && a.amt > 0 ? Math.round(a.prof / a.amt * 1000) / 10 : ''; })));
     return aoa;
   }
 
@@ -1056,10 +1178,10 @@
       renderMakers(); drawRows();
     }).catch(function () { $('availStat').textContent = '조회 실패: 사이트(로그인)에서만 조회됩니다'; });
   }
-  function postFilterReq(name, biz, comp) {
+  function postFilterReq(name, biz, comp, requester) {
     return fetch('/api/availability', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ category: '필터링', name: name, bizNo: biz, vendor: comp, note: '대체조제 스위칭 검토(대체조제 매핑 도구)' })
+      body: JSON.stringify({ category: '필터링', name: name, bizNo: biz, vendor: comp, requester: requester || '', note: '대체조제 스위칭 검토(대체조제 매핑 도구)' })
     }).then(function (r) { return r.json().catch(function () { return {}; }); });
   }
 
@@ -1165,6 +1287,8 @@
       checks: { own: makerState.checked, sw: makerState.swChecked },
       excluded: state.excluded,
       view: { proposal: !!state.proposalMode, matched: $('cMatched').checked, bestOnly: $('cBestOnly').checked, cso: $('cCso').checked, amtCap: $('amtCap').value, sortKey: itemsSort.key, sortAsc: itemsSort.asc },
+      step: wizard.step,
+      mx: { K: $('mxK').value, mode: state.mx.mode, ykMin: $('ykMin').value, stage: state.mx.stage, manager: ($('ftManager').value || '').trim() },
       savedAt: new Date().toISOString()
     };
   }
@@ -1194,6 +1318,13 @@
       applyPharmMap();
       setStat('sPharm', '✓ 프로젝트에서 복원: ' + (state.pharm ? state.pharm.length + '개 품목' : '') + (proj.pharmFileName ? ' (' + proj.pharmFileName + ')' : ''), true);
     }
+    if (proj.mx) {
+      if (proj.mx.K) $('mxK').value = proj.mx.K;
+      if (proj.mx.ykMin !== undefined) $('ykMin').value = proj.mx.ykMin;
+      if (proj.mx.mode) { state.mx.mode = proj.mx.mode; $('mxMode').querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-m') === proj.mx.mode); }); }
+      if (proj.mx.manager) $('ftManager').value = proj.mx.manager;
+    }
+    wizard.resumeStep = proj.step || 3;
     projStatMsg('✓ 불러옴: ' + (name || '') + (proj.savedBy ? ' — 저장: ' + proj.savedBy : ''));
     if (cloudProj.on) loadAvail(true);
     ready();
@@ -1207,7 +1338,7 @@
         tries++;
         if (state.pharm && (state.rateWb || state.rateMerged) && state.master) {
           clearInterval(t); ready();
-          if (!state.result) $('btnRun').click();
+          if (!state.result) { $('btnRun').click(); if (wizard.resumeStep && wizard.resumeStep !== 3) showStep(wizard.resumeStep); }
         } else if (tries > 120) clearInterval(t); /* 60초 내 준비 안 되면 수동 진행 */
       }, 500);
     }
@@ -1297,6 +1428,178 @@
     reader.readAsText(f);
   });
   refreshProjSel('');
+  /* ══════════ 단계형 흐름(위저드) ══════════
+     1 거래처 선택 → 2 조제내역 업로드 → 3 1차 매핑(품목별 1~N위, 정산금 최대 / YK 우선) → 4 필터링 진행
+     → 5 2차 매핑(필터링 결과 대입, 같은 매트릭스) → 6 보고서·제안서 */
+  var wizard = { step: 1, resumeStep: 0 };
+  function stepOk(n) {
+    var name = ($('projName').value || '').trim();
+    if (n <= 1) return true;
+    if (n === 2) return !!name;
+    return !!name && !!state.result;
+  }
+  function updateSteps() {
+    document.querySelectorAll('#steps button').forEach(function (b) {
+      var n = parseInt(b.getAttribute('data-step'), 10);
+      b.disabled = !stepOk(n);
+      b.classList.toggle('on', n === wizard.step);
+      b.classList.toggle('done', n < wizard.step && stepOk(n));
+    });
+    var name = ($('projName').value || '').trim();
+    $('step1Stat').textContent = name ? (findClient(name) ? '✓ 등록 거래처: ' + name : '⚠ 미등록 거래처명: ' + name) : '거래처를 선택하세요';
+    $('next1').disabled = !name;
+    $('next2').disabled = !state.result;
+  }
+  function showStep(n) {
+    if (!stepOk(n)) { updateSteps(); return; }
+    wizard.step = n;
+    document.querySelectorAll('section.step').forEach(function (sec) {
+      var list = sec.getAttribute('data-step').split(' ');
+      sec.classList.toggle('on', list.indexOf(String(n)) !== -1);
+    });
+    var panel = $('makerPanel');
+    if (n === 3 || n === 5) {
+      if (state.result) panel.classList.add('show');
+      $('mapTitle').textContent = n === 3 ? '3. 1차 매핑 — 품목별 1~N위 (요율표 + 추가수수료)' : '5. 2차 매핑 — 필터링 결과 대입';
+      $('mapHint').textContent = n === 3
+        ? '품목마다 정산금 상위 N위 제약사를 매핑한 결과입니다. 「정산금 최대」는 딜러 정산 기준 1위, 「YK 우선」은 추가수수료(와이케이 수익)가 기준 이상인 제약사를 우선 배정하고 1위 대비 갭을 보여줍니다. 오른쪽 패널에서 제약사 목록·필터링요청, 아래 「다음」으로 필터링 진행.'
+        : '필터링 결과(거래가능유무)를 대입한 현실치입니다. 「불가 제외」는 불가만 빼고, 「가능 확정만」은 가능으로 확정된 제약사만으로 배정합니다. 조회전 제약사가 배정에 남아 있으면 4단계로 돌아가 추가 요청하세요. 오른쪽 「최적 조합」에서 N곳으로 압축할 수 있습니다.';
+      $('mxStage').style.display = n === 3 ? 'none' : '';
+      $('mxAvail').style.display = n === 3 ? 'none' : '';
+      $('prevMap').textContent = n === 3 ? '← 조제내역' : '← 필터링 진행';
+      $('nextMap').textContent = n === 3 ? '다음 → 필터링 진행' : '다음 → 보고서·제안서';
+      if (n === 3) { state.mx.stage = 'all'; }
+      else { if (state.mx.stage === 'all') state.mx.stage = 'nono'; if (cloudProj.on) loadAvail(true); $('cAvailNo').checked = true; state.heldComp = null; }
+      $('mxStage').querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-s') === state.mx.stage); });
+      if (state.result) {
+        if (state.view !== 'matrix') { state.view = 'matrix'; $('viewMatrix').classList.add('on'); $('viewItems').classList.remove('on'); $('viewCands').classList.remove('on'); }
+        (n === 3 ? $('tabSwitch') : $('tabCombo')).click();
+        drawRows();
+      }
+    } else {
+      panel.classList.remove('show');
+      if (n === 4) renderFilterStep();
+      if (n === 6) renderReportStep();
+    }
+    updateSteps();
+    try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) {}
+  }
+  document.querySelectorAll('#steps button').forEach(function (b) { b.addEventListener('click', function () { showStep(parseInt(b.getAttribute('data-step'), 10)); }); });
+  $('next1').addEventListener('click', function () { if (!requireClient()) return; showStep(2); });
+  $('prev2').addEventListener('click', function () { showStep(1); });
+  $('next2').addEventListener('click', function () { showStep(3); });
+  $('prevMap').addEventListener('click', function () { showStep(wizard.step === 3 ? 2 : 4); });
+  $('nextMap').addEventListener('click', function () { showStep(wizard.step === 3 ? 4 : 6); });
+  $('prev4').addEventListener('click', function () { showStep(3); });
+  $('next4').addEventListener('click', function () { showStep(5); });
+  $('prev6').addEventListener('click', function () { showStep(5); });
+  $('projName').addEventListener('input', updateSteps);
+  $('projSel').addEventListener('change', updateSteps);
+
+  /* ── 4단계: 필터링 진행 — 1차 매핑 상위 N위 범주의 제약사 목록 + 체크 요청 ── */
+  var ftSel = {};
+  function filterCompanies() {
+    var M = buildMatrix(Math.max(1, parseInt($('mxK').value, 10) || 10));
+    var first = {}; M.rows.forEach(function (r) { if (r.top[0]) first[r.top[0].comp] = (first[r.top[0].comp] || 0) + 1; });
+    return { M: M, list: M.comps.map(function (c) { return { name: c, potential: M.potential[c], appear: M.appear[c], first: first[c] || 0 }; }) };
+  }
+  function renderFilterStep() {
+    if (!state.result) return;
+    var cl = findClient(($('projName').value || '').trim());
+    if (cl && cl.m && !$('ftManager').value) $('ftManager').value = cl.m;
+    var dl = $('managerList'); dl.innerHTML = '';
+    var seen = {}; (state.clients || []).forEach(function (c) { if (c.m && !seen[c.m]) { seen[c.m] = 1; var o = document.createElement('option'); o.value = c.m; dl.appendChild(o); } });
+    var F = filterCompanies(); state.ftList = F.list;
+    var th = '<tr><th style="width:30px"><input type="checkbox" id="ftAllChk"></th><th style="width:40px">순위</th><th>제약사</th><th>추가수수료</th><th class="num">잠재 정산(월)</th><th class="num">등장 품목</th><th class="num">1위 품목</th><th>필터링 상태</th><th></th></tr>';
+    $('ftab').querySelector('thead').innerHTML = th;
+    var rows = F.list.map(function (a, i) {
+      var av = availFor(a.name), on = !!ftSel[a.name];
+      return '<tr class="' + (on ? 'sel' : '') + '" data-n="' + esc(a.name) + '"><td><input type="checkbox" class="ftChk"' + (on ? ' checked' : '') + '></td><td class="num">' + (i + 1) + '</td>'
+        + '<td><b>' + esc(a.name) + '</b></td><td>' + (extraBadge(a.name) || '<span class="mini">—</span>') + '</td>'
+        + '<td class="num">' + Math.round(a.potential).toLocaleString('ko-KR') + '</td><td class="num">' + a.appear + '</td><td class="num">' + a.first + '</td>'
+        + '<td>' + availBadge(a.name) + (av && av.note ? ' <span class="mini">' + esc(av.note) + '</span>' : '') + '</td>'
+        + '<td><button class="filtreq sbtn" data-one="' + esc(a.name) + '">단건 요청</button></td></tr>';
+    });
+    var tb = $('ftab').querySelector('tbody'); tb.innerHTML = rows.join('');
+    tb.querySelectorAll('.ftChk').forEach(function (cb) {
+      cb.addEventListener('change', function () { var tr = cb.closest('tr'); ftSel[tr.getAttribute('data-n')] = cb.checked; tr.classList.toggle('sel', cb.checked); ftStatus(); });
+    });
+    tb.querySelectorAll('[data-one]').forEach(function (b) { b.addEventListener('click', function () { requestFilters([b.getAttribute('data-one')]); }); });
+    $('ftAllChk').addEventListener('change', function () { var on = this.checked; F.list.forEach(function (a) { ftSel[a.name] = on; }); renderFilterStep(); });
+    ftStatus();
+  }
+  function ftStatus() {
+    var n = Object.keys(ftSel).filter(function (k) { return ftSel[k]; }).length;
+    var ok = 0, no = 0, pd = 0, none = 0;
+    (state.ftList || []).forEach(function (a) { var k = availKindFor(a.name); if (k === 'ok') ok++; else if (k === 'no') no++; else if (k === 'pending') pd++; else none++; });
+    $('ftStat').textContent = '체크 ' + n + '곳 · 가능 ' + ok + ' · 불가 ' + no + ' · 확인중 ' + pd + ' · 조회전 ' + none;
+  }
+  $('ftSelTop').addEventListener('click', function () { var N = Math.max(1, parseInt($('ftTopN').value, 10) || 5); ftSel = {}; (state.ftList || []).slice(0, N).forEach(function (a) { ftSel[a.name] = true; }); renderFilterStep(); });
+  $('ftSelAll').addEventListener('click', function () { ftSel = {}; (state.ftList || []).forEach(function (a) { ftSel[a.name] = true; }); renderFilterStep(); });
+  $('ftSelNone').addEventListener('click', function () { ftSel = {}; renderFilterStep(); });
+  $('ftRefresh').addEventListener('click', function () { loadAvail(false).then(renderFilterStep); });
+  $('ftRequest').addEventListener('click', function () { requestFilters(Object.keys(ftSel).filter(function (k) { return ftSel[k]; })); });
+  function requestFilters(names) {
+    var hosp = ($('projName').value || '').trim(), biz = ($('projBiz').value || '').trim();
+    if (!hosp) { alert('거래처를 먼저 선택해주세요.'); showStep(1); return; }
+    var todo = names.filter(function (n) { var a = availFor(n); return !(a && (a.kind === 'ok' || a.kind === 'pending')); });
+    var skip = names.length - todo.length;
+    if (!todo.length) { alert('요청할 제약사가 없습니다' + (skip ? ' (이미 가능/확인중 ' + skip + '곳)' : '') + '.'); return; }
+    var mgr = ($('ftManager').value || '').trim();
+    if (!confirm('필터링요청을 접수할까요?\n· 거래처: ' + hosp + (biz ? ' (' + biz + ')' : '') + '\n· 담당자: ' + (mgr || '(로그인 계정)') + '\n· 제약사 ' + todo.length + '곳: ' + todo.slice(0, 12).join(', ') + (todo.length > 12 ? ' …' : '') + (skip ? '\n· 건너뜀(이미 가능/확인중): ' + skip + '곳' : ''))) return;
+    var done = 0, fail = [];
+    var next = function (i) {
+      if (i >= todo.length) {
+        $('ftStat').textContent = '접수 완료 ' + done + '곳' + (fail.length ? ' · 실패: ' + fail.join(', ') : '');
+        loadAvail(true).then(renderFilterStep);
+        return;
+      }
+      postFilterReq(hosp, biz, todo[i], mgr).then(function (d) { if (d && d.ok) done++; else fail.push(todo[i]); })
+        .catch(function () { fail.push(todo[i]); })
+        .then(function () { $('ftStat').textContent = '접수 중… (' + (i + 1) + '/' + todo.length + ')'; next(i + 1); });
+    };
+    next(0);
+  }
+
+  /* ── 6단계: 보고서·제안서 ── */
+  function renderReportStep() {
+    if (!state.result) return;
+    var K = Math.max(1, parseInt($('mxK').value, 10) || 10);
+    var M = buildMatrix(K), S = M.stages;
+    var box = function (title, x, extra) {
+      return '<div class="box"><h3>' + title + '</h3>'
+        + '<div class="l"><span>최종 배정 정산(월)</span><b>' + won(x.total) + '</b></div>'
+        + '<div class="l"><span>배정 품목 / 매출</span><b>' + x.count + '품목 · ' + won(x.totalAmt) + '</b></div>'
+        + '<div class="l"><span>매출대비 수수료율</span><b>' + pctOf(x.total, x.totalAmt) + ' (전체 ' + pctOf(x.total, M.allAmt) + ')</b></div>'
+        + '<div class="l"><span>배정 제약사 수</span><b>' + Object.keys(x.assign).length + '곳</b></div>'
+        + '<div class="l"><span>저가 인센티브</span><b>' + won(x.inc) + '</b></div>'
+        + '<div class="l" style="color:#3730a3"><span>YK 추가수익(추가수수료)</span><b>' + won(x.ykRev) + '</b></div>'
+        + (extra || '') + '</div>';
+    };
+    var ykX = function (x) { return '<div class="l" style="color:var(--err)"><span>1위 대비 갭(딜러 정산)</span><b>−' + won(x.gap) + '</b></div><div class="l"><span>추가수수료 우선 배정</span><b>' + x.ykCnt + '품목</b></div>'; };
+    var html = box('1차 · 정산금 최대 (필터링 무시)', S.all_prof)
+      + box('1차 · YK 우선 (추가수수료 ' + state.mx.ykMin + '%↑)', S.all_yk, ykX(S.all_yk))
+      + box('2차 · 불가 제외 · 정산금 최대', S.nono_prof)
+      + box('2차 · 가능 확정만 · 정산금 최대', S.okonly_prof)
+      + box('2차 · 가능 확정만 · YK 우선', S.okonly_yk, ykX(S.okonly_yk));
+    try {
+      var Kc = Math.max(1, parseInt($('comboK').value, 10) || 5);
+      var prevA = $('cAvailNo').checked; $('cAvailNo').checked = true; state.heldComp = null;
+      var r = bestCombo(Kc, false);
+      $('cAvailNo').checked = prevA; state.heldComp = null;
+      html += '<div class="box"><h3>압축 조합 · 불가 제외 · ' + r.list.length + '곳</h3>'
+        + '<div class="l"><span>조합 정산(월)</span><b>' + won(r.totalProf) + '</b></div>'
+        + '<div class="l"><span>커버</span><b>' + r.covered + '/' + r.totalHelds + '품목 · ' + won(r.coveredAmt) + '</b></div>'
+        + '<div class="l"><span>수수료율</span><b>' + pctOf(r.totalProf, r.coveredAmt) + '</b></div>'
+        + '<div class="l"><span>제약사</span><b style="font-weight:600; text-align:right">' + r.list.map(function (a) { return esc(a.name) + '(' + a.cnt + ')'; }).join(', ') + '</b></div>'
+        + '<div class="mini" style="margin-top:6px">개수는 5단계 오른쪽 「최적 조합」의 제약사 개수(현재 ' + Kc + ')를 따릅니다</div></div>';
+    } catch (e) {}
+    $('repBoxes').innerHTML = html;
+  }
+  $('repSave').addEventListener('click', function () { $('projSave').click(); });
+  $('repCombo').addEventListener('click', function () { showStep(5); $('comboModeOpt').checked = true; $('comboModeFull').checked = false; $('tabCombo').click(); });
+
+  showStep(1);
   loadExtraFee();
   refreshCloudList(''); /* 사이트(로그인)에서 열리면 드라이브 프로젝트 목록으로 전환 */
   loadClients();
@@ -2114,18 +2417,18 @@
   ['q', 'fKind', 'fIng', 'cLow', 'cSame', 'cHigh', 'cExc', 'cMatched', 'cBestOnly'].forEach(function (id) { $(id).addEventListener('input', drawRows); });
   $('viewItems').addEventListener('click', function () {
     state.view = 'items';
-    this.classList.add('on'); $('viewCands').classList.remove('on'); $('viewMatrix').classList.remove('on'); $('mxCtl').style.display = 'none';
+    this.classList.add('on'); $('viewCands').classList.remove('on'); $('viewMatrix').classList.remove('on');
     buildHead(); drawRows();
   });
   $('viewCands').addEventListener('click', function () {
     state.view = 'cands';
-    this.classList.add('on'); $('viewItems').classList.remove('on'); $('viewMatrix').classList.remove('on'); $('mxCtl').style.display = 'none';
+    this.classList.add('on'); $('viewItems').classList.remove('on'); $('viewMatrix').classList.remove('on');
     $('tblFoot').innerHTML = '';
     buildHead(); drawRows();
   });
   $('viewMatrix').addEventListener('click', function () {
     state.view = 'matrix';
-    this.classList.add('on'); $('viewItems').classList.remove('on'); $('viewCands').classList.remove('on'); $('mxCtl').style.display = 'inline-flex';
+    this.classList.add('on'); $('viewItems').classList.remove('on'); $('viewCands').classList.remove('on');
     if (!state.avail && cloudProj.on) loadAvail(true);
     drawRows();
   });
@@ -2136,6 +2439,12 @@
     state.mx.stage = b.getAttribute('data-s'); if (state.view === 'matrix') drawRows();
   });
   $('mxAvail').addEventListener('click', function () { loadAvail(false); });
+  $('mxMode').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    this.querySelectorAll('button').forEach(function (x) { x.classList.remove('on'); }); b.classList.add('on');
+    state.mx.mode = b.getAttribute('data-m'); if (state.view === 'matrix') drawRows();
+  });
+  $('ykMin').addEventListener('input', function () { if (state.view === 'matrix') drawRows(); });
 
   $('btnDown').addEventListener('click', function () {
     var r = state.result; if (!r) return;
