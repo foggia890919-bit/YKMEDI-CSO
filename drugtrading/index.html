@@ -398,7 +398,8 @@
         <div class="row" id="pharmNameRow" style="display:none"><input type="search" id="pharmName" placeholder="약국(거래처)명 — 필터링요청에 기재됩니다"></div>
         <div class="row" id="comboRow" style="display:none">
           <span class="plab">조합 방식<small>몇 곳으로 묶을지</small></span>
-          <label class="chk" style="margin:0; font-size:12px" title="정산금 기준으로 가장 유리한 제약사 N곳 조합"><input type="checkbox" id="comboModeOpt" checked>제약사 최적화</label>
+          <label class="chk" style="margin:0; font-size:12px" title="가장 유리한 제약사 N곳 조합"><input type="checkbox" id="comboModeOpt" checked>제약사 최적화</label>
+          <select id="comboObj" title="무엇을 최대로 할지" style="margin-top:0; padding:4px 6px; font-size:12px; border:1px solid var(--line); border-radius:6px; font-family:inherit"><option value="prof">영업사원 정산 최대</option><option value="yk">YK 추가수수료 최대</option><option value="sum">정산+추가수수료 합산 최대</option></select>
           <input type="number" id="comboK" min="1" max="99" value="5" title="제약사 개수" style="margin-top:0; width:58px; padding:4px 8px; font-size:12px; border:1px solid var(--line); border-radius:6px; font-family:inherit">
           <span class="mini">곳</span>
           <label class="chk" style="margin:0; font-size:12px" title="품목마다 약가가 동일하거나 낮은 후보 중 정산금이 가장 높은 1개만 남겨 제안서를 만듭니다"><input type="checkbox" id="comboModeFull">품목 전체 커버(제안서)</label>
@@ -1136,9 +1137,10 @@
       var incTotal = x.incentive > 0 ? Math.round(x.incentive * x.pQty) : 0;
       var byComp = m[x.pName] || (m[x.pName] = { amt: x.pAmt, comps: {} });
       var c = byComp.comps[comp];
-      if (!c) byComp.comps[comp] = { prof: profTotal, inc: incTotal };
+      var ykT = x.ykTotal || 0;
+      if (!c) byComp.comps[comp] = { prof: profTotal, inc: incTotal, yk: ykT };
       else {
-        if (profTotal > c.prof) c.prof = profTotal;
+        if (profTotal > c.prof) { c.prof = profTotal; c.yk = ykT; }
         if (incTotal > c.inc) c.inc = incTotal;
       }
     });
@@ -1178,15 +1180,19 @@
   /* 최적 조합: 정산금 기준 주력 K곳(그리디) + [전품목 커버] 빈 품목은 보완 제약사 추가.
      최종적으로 품목마다 조합 안에서 정산금이 가장 유리한 회사 1곳만 담당. */
   var comboCache = { key: '', res: null };
-  function bestCombo(K, fillAll) {
+  function comboObj() { return $('comboObj') ? $('comboObj').value : 'prof'; }
+  function bestCombo(K, fillAll, obj) {
+    obj = obj || comboObj();
     var hc = heldCompData();
-    var ckey = K + '|' + (fillAll ? 1 : 0) + '|' + state.heldCompKey + '|' + ($('minAmt').value || '') + '|' + (state.avail ? Object.keys(state.avail).length : 0);
+    var ckey = K + '|' + obj + '|' + (fillAll ? 1 : 0) + '|' + state.heldCompKey + '|' + ($('minAmt').value || '') + '|' + (state.avail ? Object.keys(state.avail).length : 0);
     if (comboCache.res && comboCache.key === ckey) return comboCache.res;
-    var res = bestComboRaw(hc, K, fillAll);
+    var res = bestComboRaw(hc, K, fillAll, obj);
     comboCache = { key: ckey, res: res };
     return res;
   }
-  function bestComboRaw(hc, K, fillAll) {
+  function bestComboRaw(hc, K, fillAll, obj) {
+    /* 목적함수: prof = 영업사원 정산, yk = YK 추가수수료, sum = 둘의 합 */
+    var cv = obj === 'yk' ? function (e) { return e.yk || 0; } : obj === 'sum' ? function (e) { return e.prof + (e.yk || 0); } : function (e) { return e.prof; };
     var helds = Object.keys(hc);
     var comps = {};
     helds.forEach(function (h) { for (var c in hc[h].comps) comps[c] = 1; });
@@ -1201,7 +1207,7 @@
         var gain = 0;
         helds.forEach(function (h) {
           var e = hc[h].comps[c];
-          if (e && e.prof > currentBest[h]) gain += e.prof - currentBest[h];
+          if (e && cv(e) > currentBest[h]) gain += cv(e) - currentBest[h];
         });
         if (gain > bestGain) { bestGain = gain; bestComp = c; }
       });
@@ -1211,7 +1217,7 @@
         var e = hc[h].comps[bestComp];
         if (!e) return;
         coveredSet[h] = true;
-        if (e.prof > currentBest[h]) currentBest[h] = e.prof;
+        if (cv(e) > currentBest[h]) currentBest[h] = cv(e);
       });
     }
     /* 1-b단계: 탐욕 결과를 수학적으로 다듬기.
@@ -1221,7 +1227,7 @@
     var method = '탐욕';
     if (chosen.length === K && K >= 2) {
       var hArr = helds, hN = hArr.length;
-      var profOf = {}; compList.forEach(function (c) { var arr = new Array(hN); for (var i = 0; i < hN; i++) { var e = hc[hArr[i]].comps[c]; arr[i] = e ? e.prof : 0; } profOf[c] = arr; });
+      var profOf = {}; compList.forEach(function (c) { var arr = new Array(hN); for (var i = 0; i < hN; i++) { var e = hc[hArr[i]].comps[c]; arr[i] = e ? cv(e) : 0; } profOf[c] = arr; });
       var valueOf = function (set) { var t = 0; for (var i = 0; i < hN; i++) { var m = 0; for (var j = 0; j < set.length; j++) { var v = profOf[set[j]][i]; if (v > m) m = v; } t += m; } return t; };
       var potential = {}; compList.forEach(function (c) { var t = 0, a = profOf[c]; for (var i = 0; i < hN; i++) t += a[i]; potential[c] = t; });
       var pool = compList.slice().sort(function (a, b) { return potential[b] - potential[a]; });
@@ -1262,7 +1268,7 @@
       }
       if (bestSet.join('|') !== chosen.join('|')) {
         chosen = bestSet.slice(); coveredSet = {}; currentBest = {};
-        helds.forEach(function (h) { currentBest[h] = 0; chosen.forEach(function (c) { var e = hc[h].comps[c]; if (e) { coveredSet[h] = true; if (e.prof > currentBest[h]) currentBest[h] = e.prof; } }); });
+        helds.forEach(function (h) { currentBest[h] = 0; chosen.forEach(function (c) { var e = hc[h].comps[c]; if (e) { coveredSet[h] = true; if (cv(e) > currentBest[h]) currentBest[h] = cv(e); } }); });
       }
     }
     var mainCount = chosen.length;
@@ -1277,7 +1283,7 @@
             var e = hc[h].comps[c];
             if (!e) return;
             if (!coveredSet[h]) cov++;
-            if (e.prof > currentBest[h]) gain += e.prof - currentBest[h];
+            if (cv(e) > currentBest[h]) gain += cv(e) - currentBest[h];
           });
           if (cov > fCov || (cov === fCov && cov > 0 && gain > fGain)) { fCov = cov; fGain = gain; fComp = c; }
         });
@@ -1287,19 +1293,19 @@
           var e = hc[h].comps[fComp];
           if (!e) return;
           coveredSet[h] = true;
-          if (e.prof > currentBest[h]) currentBest[h] = e.prof;
+          if (cv(e) > currentBest[h]) currentBest[h] = cv(e);
         });
       }
     }
     /* 최종 배정: 품목마다 조합 내 정산금 최고 회사 담당 (정산 0이어도 후보가 있으면 커버)
        → 이후 최소 처방매출 미만 회사의 품목은 조합 내 매출 큰 회사로 합침 */
     var perComp = {};
-    chosen.forEach(function (c) { perComp[c] = { name: c, cnt: 0, prof: 0, amt: 0, inc: 0 }; });
-    var covered = 0, coveredAmt = 0, totalProf = 0, totalInc = 0, rows = [];
+    chosen.forEach(function (c) { perComp[c] = { name: c, cnt: 0, prof: 0, amt: 0, inc: 0, yk: 0 }; });
+    var covered = 0, coveredAmt = 0, totalProf = 0, totalInc = 0, totalYk = 0, rows = [];
     helds.forEach(function (h) {
       var top = chosen.filter(function (c) { return !!hc[h].comps[c]; })
-        .map(function (c) { var e = hc[h].comps[c]; return { comp: c, prof: e.prof, inc: e.inc, extraPct: (extraFor(c) || {}).pct || 0 }; })
-        .sort(function (x, y) { return y.prof - x.prof; });
+        .map(function (c) { var e = hc[h].comps[c]; return { comp: c, prof: e.prof, yk: e.yk || 0, val: cv(e), inc: e.inc, extraPct: (extraFor(c) || {}).pct || 0 }; })
+        .sort(function (x, y) { return y.val - x.val; });
       rows.push({ h: h, amt: hc[h].amt, top: top, pick: top[0] || null });
     });
     var mergeRes = consolidate(rows, 'pick', function () { return true; }, { minAmt: parseFloat($('minAmt').value) || 0, yk: false, ykMin: 0 });
@@ -1307,8 +1313,8 @@
       if (!r.pick) return;
       var maxInc = 0; r.top.forEach(function (t) { if (t.inc > maxInc) maxInc = t.inc; });
       var pc = perComp[r.pick.comp];
-      pc.cnt++; pc.prof += r.pick.prof; pc.amt += r.amt; pc.inc += maxInc;
-      covered++; coveredAmt += r.amt; totalProf += r.pick.prof; totalInc += maxInc;
+      pc.cnt++; pc.prof += r.pick.prof; pc.amt += r.amt; pc.inc += maxInc; pc.yk += r.pick.yk || 0;
+      covered++; coveredAmt += r.amt; totalProf += r.pick.prof; totalInc += maxInc; totalYk += r.pick.yk || 0;
     });
     /* 뒤에 뽑힌 회사가 품목을 다 가져가 담당 0이 된 회사는 목록에서 제외 */
     var listOut = chosen.map(function (c) { return perComp[c]; }).filter(function (a) { return a.cnt > 0; });
@@ -1316,7 +1322,7 @@
       list: listOut,
       covered: covered, coveredAmt: coveredAmt, totalProf: totalProf, totalInc: totalInc,
       totalHelds: helds.length, mainCount: Math.min(mainCount, listOut.length),
-      merged: mergeRes.moved, under: mergeRes.under, method: method
+      merged: mergeRes.moved, under: mergeRes.under, method: method, obj: obj, totalYk: totalYk
     };
   }
 
@@ -1506,7 +1512,7 @@
       step: wizard.step,
       kind: state.kind,
       ftSel: ftSel,
-      mx: { K: $('mxK').value, mode: state.mx.mode, ykMin: $('ykMin').value, minAmt: $('minAmt').value, stage: state.mx.stage, manager: ($('ftManager').value || '').trim(), price: priceKey() },
+      mx: { K: $('mxK').value, mode: state.mx.mode, ykMin: $('ykMin').value, minAmt: $('minAmt').value, stage: state.mx.stage, comboObj: comboObj(), comboK: $('comboK').value, manager: ($('ftManager').value || '').trim(), price: priceKey() },
       savedAt: new Date().toISOString()
     };
   }
@@ -1541,6 +1547,8 @@
       if (proj.mx.K) $('mxK').value = proj.mx.K;
       if (proj.mx.ykMin !== undefined) $('ykMin').value = proj.mx.ykMin;
       if (proj.mx.minAmt !== undefined) $('minAmt').value = proj.mx.minAmt;
+      if (proj.mx.comboObj) $('comboObj').value = proj.mx.comboObj;
+      if (proj.mx.comboK) $('comboK').value = proj.mx.comboK;
       if (proj.mx.mode) { state.mx.mode = proj.mx.mode; $('mxMode').querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-m') === proj.mx.mode); }); }
       if (proj.mx.manager) $('ftManager').value = proj.mx.manager;
       if (proj.mx.price !== undefined) { $('cLow').checked = proj.mx.price.indexOf('L') !== -1; $('cSame').checked = proj.mx.price.indexOf('S') !== -1; $('cHigh').checked = proj.mx.price.indexOf('H') !== -1; }
@@ -2058,14 +2066,19 @@
     try {
       var Kc = Math.max(1, parseInt($('comboK').value, 10) || 5);
       var prevA = $('cAvailNo').checked; $('cAvailNo').checked = true; state.heldComp = null;
-      var r = bestCombo(Kc, false);
+      var objs = [['prof', '영업사원 정산 최대'], ['yk', 'YK 추가수수료 최대'], ['sum', '정산+추가수수료 합산 최대']];
+      objs.forEach(function (o) {
+        var r = bestCombo(Kc, false, o[0]);
+        html += '<div class="box"><h3>압축 ' + Kc + '곳 · ' + o[1] + '</h3>'
+          + '<div class="l"><span>영업사원 정산(월)</span><b>' + won(r.totalProf) + '</b></div>'
+          + '<div class="l" style="color:#3730a3"><span>YK 추가수수료(월)</span><b>' + won(r.totalYk || 0) + '</b></div>'
+          + '<div class="l"><span>합산</span><b>' + won(r.totalProf + (r.totalYk || 0)) + '</b></div>'
+          + '<div class="l"><span>커버</span><b>' + r.covered + '/' + r.totalHelds + '품목 · ' + won(r.coveredAmt) + '</b></div>'
+          + '<div class="l"><span>수수료율(정산/매출)</span><b>' + pctOf(r.totalProf, r.coveredAmt) + '</b></div>'
+          + '<div class="l"><span>제약사</span><b style="font-weight:600; text-align:right">' + r.list.map(function (a) { return esc(a.name) + '(' + a.cnt + ')'; }).join(', ') + '</b></div>'
+          + '<div class="mini" style="margin-top:6px">' + (r.method || '') + ' · 불가 제외</div></div>';
+      });
       $('cAvailNo').checked = prevA; state.heldComp = null;
-      html += '<div class="box"><h3>압축 조합 · 불가 제외 · ' + r.list.length + '곳</h3>'
-        + '<div class="l"><span>조합 정산(월)</span><b>' + won(r.totalProf) + '</b></div>'
-        + '<div class="l"><span>커버</span><b>' + r.covered + '/' + r.totalHelds + '품목 · ' + won(r.coveredAmt) + '</b></div>'
-        + '<div class="l"><span>수수료율</span><b>' + pctOf(r.totalProf, r.coveredAmt) + '</b></div>'
-        + '<div class="l"><span>제약사</span><b style="font-weight:600; text-align:right">' + r.list.map(function (a) { return esc(a.name) + '(' + a.cnt + ')'; }).join(', ') + '</b></div>'
-        + '<div class="mini" style="margin-top:6px">개수는 「자세히 보기」 오른쪽 「최적 조합」의 제약사 개수(현재 ' + Kc + ')를 따릅니다</div></div>';
     } catch (e) {}
     $('repBoxes').innerHTML = html;
   }
@@ -2154,8 +2167,10 @@
       makerState.lastCombo = r.list.map(function (a) { return a.name; });
       makerState.lastComboNames = makerState.lastCombo;
       sub = r.list.length + '개 조합 · 커버 ' + r.covered + '/' + r.totalHelds + '품목 (후보 있는 품목 기준)' + ownFilterLabel();
-      lbl = '정산금 최대 기준 · ' + (r.method || '') + scopeLabel();
+      lbl = ({ prof: '영업사원 정산 최대', yk: 'YK 추가수수료 최대', sum: '정산+추가수수료 합산 최대' }[r.obj] || '') + ' · ' + (r.method || '') + scopeLabel();
       sum = '<div class="l" style="color:var(--blue)"><span>조합 예상 정산액(월)</span><b>₩' + Math.round(r.totalProf).toLocaleString('ko-KR') + '</b></div>'
+        + '<div class="l" style="color:#3730a3"><span>YK 추가수수료(월)</span><b>₩' + Math.round(r.totalYk || 0).toLocaleString('ko-KR') + '</b></div>'
+        + '<div class="l"><span>정산+추가수수료 합산</span><b>₩' + Math.round(r.totalProf + (r.totalYk || 0)).toLocaleString('ko-KR') + '</b></div>'
         + '<div class="l"><span>커버 처방금액</span><b>₩' + Math.round(r.coveredAmt).toLocaleString('ko-KR') + '</b></div>'
         + '<div class="l" style="color:var(--ok)"><span>저가대체 인센티브</span><b>₩' + Math.round(r.totalInc).toLocaleString('ko-KR') + '</b></div>'
         + '<div class="l"><span>조합 밖 품목</span><b>' + (r.totalHelds - r.covered).toLocaleString('ko-KR') + '품목</b></div>'
@@ -2169,7 +2184,7 @@
       div.innerHTML = '<span class="rank">' + (ri + 1) + '</span>'
         + '<div class="cname" title="' + esc(a.name) + '">' + esc(a.name) + availBadge(a.name) + extraBadge(a.name) + '</div>'
         + filtReqBtn(a.name, 'filtreq')
-        + '<div class="cinfo"><b>정산 ₩' + Math.round(a.prof).toLocaleString('ko-KR') + '</b> · 담당 ' + a.cnt + '품목'
+        + '<div class="cinfo"><b>정산 ₩' + Math.round(a.prof).toLocaleString('ko-KR') + '</b>' + (a.yk ? ' · <span style="color:#3730a3">YK ₩' + Math.round(a.yk).toLocaleString('ko-KR') + '</span>' : '') + ' · 담당 ' + a.cnt + '품목'
         + ' · 처방 ₩' + Math.round(a.amt).toLocaleString('ko-KR')
         + ' · 인센 ₩' + Math.round(a.inc).toLocaleString('ko-KR') + '</div>';
       div.onclick = function (e) {
@@ -2323,6 +2338,7 @@
   $('comboK').addEventListener('change', renderMakers);
   $('comboK').addEventListener('input', renderMakers);
   /* 두 모드는 배타 선택 */
+  $('comboObj').addEventListener('change', function () { state.heldComp = null; renderMakers(); });
   $('comboModeOpt').addEventListener('change', function () {
     if (this.checked) $('comboModeFull').checked = false; else $('comboModeFull').checked = true;
     renderMakers();
