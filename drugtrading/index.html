@@ -301,7 +301,12 @@
         <button data-s="okonly">가능 확정만</button>
       </div>
       <button class="sbtn" id="mxAvail" title="거래처명으로 필터링 결과(거래가능유무 시트)를 불러옵니다">🔎 필터링 결과 불러오기</button>
-      <label class="chk" style="font-weight:700" title="대체품 약가가 지금 조제단가보다 높은 후보는 대체 대상이 아니므로 모든 계산(매트릭스·스위칭·조합·엑셀)에서 제외"><input type="checkbox" id="cNoHigher" checked><span class="dot" style="background:var(--err)"></span>약가 상승 후보 제외</label>
+      <span class="chk" style="gap:8px; font-weight:700" title="지금 조제단가와 비교해 어떤 약가의 대체품까지 허용할지. 약국은 보통 낮음·동일, 병원은 높음도 허용 가능. 매트릭스·스위칭·조합·엑셀 전부에 적용">
+        <span>대체 약가</span>
+        <label style="display:inline-flex; align-items:center; gap:3px; cursor:pointer"><input type="checkbox" id="cLow" checked><span class="dot low"></span>낮음</label>
+        <label style="display:inline-flex; align-items:center; gap:3px; cursor:pointer"><input type="checkbox" id="cSame" checked><span class="dot same"></span>동일</label>
+        <label style="display:inline-flex; align-items:center; gap:3px; cursor:pointer"><input type="checkbox" id="cHigh"><span class="dot high"></span>높음</label>
+      </span>
     </span>
   </div>
   <details class="adv" id="advFilters"><summary>상세 필터·보기 옵션 (품목별 요약·전체 후보용)</summary>
@@ -317,9 +322,6 @@
       <option value="대체가능">대체가능만</option>
     </select>
     <select id="fIng"><option value="">주성분 전체</option></select>
-    <label class="chk"><input type="checkbox" id="cLow" checked><span class="dot low"></span>약가 낮음(저렴한 대체)</label>
-    <label class="chk"><input type="checkbox" id="cSame" checked><span class="dot same"></span>동일</label>
-    <label class="chk"><input type="checkbox" id="cHigh" checked><span class="dot high"></span>높음</label>
     <label class="chk"><input type="checkbox" id="cExc"><span class="dot" style="background:var(--warn)"></span>예외 품목 표시(중단·정산불가·가격미상 등)</label>
   </div>
   </details>
@@ -764,7 +766,7 @@
       state.csoSrc = state.rateParsed;
     }
     var cso = $('cCso').checked, cap = parseInt($('amtCap').value, 10) || 0;
-    var key = (cso ? '1' : '0') + ($('cNoHigher').checked ? 'H' : '') + ':' + cap + ':' + Object.keys(state.excluded).sort().join(',');
+    var key = (cso ? '1' : '0') + priceKey() + ':' + cap + ':' + Object.keys(state.excluded).sort().join(',');
     if (state.scopeKey === key && state.capOut) return;
     state.scopeKey = key;
     state.capOut = {};
@@ -777,7 +779,13 @@
     state.heldComp = null;
   }
   /* 대체 규칙: 후보 약가 > 보유 조제단가(단가 있을 때)이면 대체 불가 → 전 계산에서 제외 */
-  function priceOk(x) { return !($('cNoHigher').checked && x.basePrice > 0 && x.price > x.basePrice); }
+  function priceOk(x) {
+    if (!(x.basePrice > 0) || !(x.price > 0)) return true; /* 비교 기준 없으면 허용 */
+    if (x.price > x.basePrice) return $('cHigh').checked;
+    if (x.price < x.basePrice) return $('cLow').checked;
+    return $('cSame').checked;
+  }
+  function priceKey() { return ($('cLow').checked ? 'L' : '') + ($('cSame').checked ? 'S' : '') + ($('cHigh').checked ? 'H' : ''); }
   function isCso(code) { return !!($('cCso').checked && state.csoSet && state.csoSet[code]); }
   function scopeOut(code) { return isCso(code) || !!(state.capOut && state.capOut[code]); }
   function isOut(code) { return !!state.excluded[code] || scopeOut(code); }
@@ -1301,7 +1309,7 @@
       excluded: state.excluded,
       view: { proposal: !!state.proposalMode, matched: $('cMatched').checked, bestOnly: $('cBestOnly').checked, cso: $('cCso').checked, amtCap: $('amtCap').value, sortKey: itemsSort.key, sortAsc: itemsSort.asc },
       step: wizard.step,
-      mx: { K: $('mxK').value, mode: state.mx.mode, ykMin: $('ykMin').value, stage: state.mx.stage, manager: ($('ftManager').value || '').trim(), noHigher: $('cNoHigher').checked },
+      mx: { K: $('mxK').value, mode: state.mx.mode, ykMin: $('ykMin').value, stage: state.mx.stage, manager: ($('ftManager').value || '').trim(), price: priceKey() },
       savedAt: new Date().toISOString()
     };
   }
@@ -1336,7 +1344,8 @@
       if (proj.mx.ykMin !== undefined) $('ykMin').value = proj.mx.ykMin;
       if (proj.mx.mode) { state.mx.mode = proj.mx.mode; $('mxMode').querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-m') === proj.mx.mode); }); }
       if (proj.mx.manager) $('ftManager').value = proj.mx.manager;
-      if (proj.mx.noHigher !== undefined) $('cNoHigher').checked = !!proj.mx.noHigher;
+      if (proj.mx.price !== undefined) { $('cLow').checked = proj.mx.price.indexOf('L') !== -1; $('cSame').checked = proj.mx.price.indexOf('S') !== -1; $('cHigh').checked = proj.mx.price.indexOf('H') !== -1; }
+      else if (proj.mx.noHigher !== undefined) $('cHigh').checked = !proj.mx.noHigher;
     }
     wizard.resumeStep = proj.step || 3;
     projStatMsg('✓ 불러옴: ' + (name || '') + (proj.savedBy ? ' — 저장: ' + proj.savedBy : ''));
@@ -1481,7 +1490,7 @@
       if (state.result) panel.classList.add('show');
       $('mapTitle').textContent = n === 3 ? '3. 1차 매핑 — 품목별 1~N위 (요율표 + 추가수수료)' : '5. 2차 매핑 — 필터링 결과 대입';
       $('mapHint').textContent = n === 3
-        ? '품목마다 영업사원 정산(약가×기본요율×조제량) 상위 N위 제약사를 매핑한 결과입니다. 「리스트B」는 추가수수료를 보지 않고 정산 1위, 「리스트A」는 추가수수료(와이케이 몫)가 기준 이상인 제약사를 우선 배정하고 1위 대비 갭을 보여줍니다. 약가가 조제단가보다 높은 후보는 제외. 오른쪽 패널에서 제약사 목록·필터링요청, 아래 「다음」으로 필터링 진행.'
+        ? '품목마다 영업사원 정산(약가×기본요율×조제량) 상위 N위 제약사를 매핑한 결과입니다. 「리스트B」는 추가수수료를 보지 않고 정산 1위, 「리스트A」는 추가수수료(와이케이 몫)가 기준 이상인 제약사를 우선 배정하고 1위 대비 갭을 보여줍니다. 대체 약가 조건(낮음/동일/높음)은 위 체크로. 오른쪽 패널에서 제약사 목록·필터링요청, 아래 「다음」으로 필터링 진행.'
         : '필터링 결과(거래가능유무)를 대입한 현실치입니다. 「불가 제외」는 불가만 빼고, 「가능 확정만」은 가능으로 확정된 제약사만으로 배정합니다. 조회전 제약사가 배정에 남아 있으면 4단계로 돌아가 추가 요청하세요. 오른쪽 「최적 조합」에서 N곳으로 압축할 수 있습니다.';
       $('mxStage').style.display = n === 3 ? 'none' : '';
       $('mxAvail').style.display = n === 3 ? 'none' : '';
@@ -2464,7 +2473,7 @@
     next(0);
   });
   $('amtCap').addEventListener('input', function () { refreshScope(); renderMakers(); drawRows(); });
-  ['q', 'fKind', 'fIng', 'cLow', 'cSame', 'cHigh', 'cExc', 'cMatched', 'cBestOnly'].forEach(function (id) { $(id).addEventListener('input', drawRows); });
+  ['q', 'fKind', 'fIng', 'cExc', 'cMatched', 'cBestOnly'].forEach(function (id) { $(id).addEventListener('input', drawRows); });
   $('viewItems').addEventListener('click', function () {
     state.view = 'items';
     this.classList.add('on'); $('viewCands').classList.remove('on'); $('viewMatrix').classList.remove('on');
@@ -2495,7 +2504,7 @@
     state.mx.mode = b.getAttribute('data-m'); if (state.view === 'matrix') drawRows();
   });
   $('ykMin').addEventListener('input', function () { if (state.view === 'matrix') drawRows(); });
-  $('cNoHigher').addEventListener('change', function () { refreshScope(); state.heldComp = null; renderMakers(); drawRows(); });
+  ['cLow', 'cSame', 'cHigh'].forEach(function (id) { $(id).addEventListener('change', function () { refreshScope(); state.heldComp = null; renderMakers(); drawRows(); }); });
 
   $('btnDown').addEventListener('click', function () {
     var r = state.result; if (!r) return;
@@ -2599,7 +2608,7 @@
       ['비급여 품목은 저가약 대체조제 장려금(급여 청구) 대상이 아니므로 인센티브 0, 요율 정산액만 계산됩니다. 성분명 매칭은 코드 매칭보다 정확도가 낮으니 제형·함량을 확인하세요.'],
       ['주의: 실제 대체조제 시 생동성 인정품목 여부(생동/생산 열), 저함량 배수 조제 등은 심평원 고시 기준으로 최종 확인 필요.'],
       ['"제약사×품목 매트릭스" 시트: 가로 = 품목별 상위 N위 제약사의 정산금(요율표 요율 + 제약사별 추가수수료 적용), 세로 = 제약사별 합산. 최종 배정 = 화면에서 고른 단계(1단계 전부 / 2단계 불가 제외 / 2단계 가능 확정만) 기준으로 품목당 제약사 1곳(중복 없음).'],
-      ['대체 규칙: 후보 약가가 지금 조제단가보다 높은 품목은 대체 대상이 아니므로(「약가 상승 후보 제외」 기본 ON) 매트릭스·스위칭·조합·이 엑셀에서 모두 제외됩니다.'],
+      ['대체 약가 조건: 화면의 「대체 약가 낮음/동일/높음」 체크에 따라 후보를 허용합니다(기본 낮음·동일). 높음을 켜면 약가가 오르는 대체도 후보에 포함되며, 매트릭스·스위칭·조합·이 엑셀 전부에 같은 조건이 적용됩니다.'],
       ['추가수수료 = 영업 시트 ★YK추가수수료 탭. 노란색 칠한 제출처를 우선, 없으면 최고값의 왼쪽 열. 정산(요율%)은 영업사원 몫(기본요율)이고 추가수수료는 와이케이 몫으로 따로 표시됩니다.'],
       ['조제단가 열이 깨진 행(단가×수량 ≠ 조제금액)은 조제금액÷조제량을 단가로 씁니다.']
     ];
