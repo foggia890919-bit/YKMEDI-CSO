@@ -92,6 +92,9 @@
   .ptabs button.on { color: var(--blue); box-shadow: inset 0 -2px 0 var(--blue); background: #f6f9ff; }
   .crow .filtreq { cursor: pointer; border: 1px solid #c7d2fe; background: #eef2ff; color: #3730a3; border-radius: 6px; font-size: 10px; font-weight: 700; padding: 4px 6px; white-space: nowrap; line-height: 1.2; }
   .crow .filtreq:hover { background: #dbe3ff; border-color: #a5b4fc; }
+  .crow .filtreq.done { cursor: default; background: #fff2cc; border-color: #f2d98a; color: #7a5b00; }
+  .crow .filtreq.done.ok { background: #e3f3f0; border-color: #9fd3c7; color: #0f766e; }
+  .crow .filtreq.done.no { background: #fde8e8; border-color: #f5b5b5; color: #b42318; }
   /* 2줄 카드: 1줄 = 체크박스·이름·버튼, 2줄 = 금액 정보 (이름이 잘리지 않게) */
   .crow.sw { grid-template-columns: 22px 1fr auto; grid-template-rows: auto auto; row-gap: 2px; }
   .crow.sw input { grid-row: 1 / 3; }
@@ -1240,6 +1243,14 @@
     return null;
   }
   function availKindFor(comp) { var a = availFor(comp); return a ? a.kind : 'none'; }
+  /* 필터링요청 버튼 — 이미 요청(확인중)·가능·불가면 버튼 대신 상태 라벨 (중복 신청 방지) */
+  function filtReqBtn(comp, cls, label, title) {
+    var a = availFor(comp);
+    if (a && a.kind === 'pending') return '<span class="' + cls + ' done" title="필터링 요청됨 — 결과 대기 (' + esc(a.date || '') + ')">⏳ 요청됨</span>';
+    if (a && a.kind === 'ok') return '<span class="' + cls + ' done ok" title="거래가능 확인됨 (' + esc(a.date || '') + ')">O 가능</span>';
+    if (a && a.kind === 'no') return '<span class="' + cls + ' done no" title="거래불가 (' + esc(a.date || '') + ')">X 불가</span>';
+    return '<button class="' + cls + '" title="' + (title || '이 제약사 필터링요청 접수') + '">' + (label || '필터링요청') + '</button>';
+  }
   function availBadge(comp) {
     var a = availFor(comp);
     if (!a) return ' <span class="badge" style="background:#eef0f4;color:#667" title="아직 필터링(거래가능 조회) 요청 전">조회전</span>';
@@ -1287,6 +1298,9 @@
     var name = ($('projName').value || '').trim();
     var biz = ($('projBiz').value || '').trim();
     if (!name) { alert('필터링은 병원(거래처) 기준입니다.\n상단 프로젝트 바에 병원(거래처)명을 먼저 입력·저장해주세요.'); $('projName').focus(); return; }
+    var av0 = availFor(comp);
+    if (av0 && av0.kind === 'pending') { alert(comp + ' 은(는) 이미 필터링 요청되어 확인중입니다 (' + (av0.date || '') + ').\n결과가 오면 「거래가능 조회」로 갱신됩니다.'); return; }
+    if (av0 && av0.kind === 'ok') { alert(comp + ' 은(는) 이미 거래가능으로 확인된 제약사입니다.'); return; }
     if (!confirm('필터링요청을 접수할까요?\n· 병원(거래처): ' + name + (biz ? '\n· 사업자번호: ' + biz : '') + '\n· 제약사: ' + comp)) return;
     fetch('/api/availability', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1636,7 +1650,7 @@
       $('prevMap').textContent = n === 3 ? '← 조제내역' : '← 필터링 진행';
       $('nextMap').textContent = n === 3 ? '다음 → 필터링 진행' : '다음 → 보고서·제안서';
       if (n === 3) { state.mx.stage = 'all'; }
-      else { if (state.mx.stage === 'all') state.mx.stage = 'nono'; if (cloudProj.on) loadAvail(true); $('cAvailNo').checked = true; state.heldComp = null; }
+      else { if (state.mx.stage === 'all') state.mx.stage = 'nono'; if (($('projName').value || '').trim()) loadAvail(true); $('cAvailNo').checked = true; state.heldComp = null; }
       $('mxStage').querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-s') === state.mx.stage); });
       if (state.result) {
         if (state.view !== 'matrix') { state.view = 'matrix'; $('viewMatrix').classList.add('on'); $('viewItems').classList.remove('on'); $('viewCands').classList.remove('on'); }
@@ -1646,7 +1660,7 @@
     } else {
       panel.classList.remove('show');
       if (n === 2) autoLoadSources();
-      if (n === 4) renderFilterStep();
+      if (n === 4) { if (!state.avail && ($('projName').value || '').trim()) loadAvail(true).then(renderFilterStep); else renderFilterStep(); }
       if (n === 6) renderReportStep();
     }
     updateSteps();
@@ -1715,7 +1729,7 @@
         + '<td><b>' + esc(a.name) + '</b></td><td>' + (extraBadge(a.name) || '<span class="mini">—</span>') + '</td>'
         + '<td class="num">' + Math.round(a.potential).toLocaleString('ko-KR') + '</td><td class="num">' + a.appear + '</td><td class="num">' + a.first + '</td>'
         + '<td>' + availBadge(a.name) + (av && av.note ? ' <span class="mini">' + esc(av.note) + '</span>' : '') + '</td>'
-        + '<td><button class="filtreq sbtn" data-one="' + esc(a.name) + '">단건 요청</button></td></tr>';
+        + '<td>' + (av && av.kind !== 'none' ? '<span class="mini">' + (av.kind === 'pending' ? '요청됨' : '완료') + '</span>' : '<button class="filtreq sbtn" data-one="' + esc(a.name) + '">단건 요청</button>') + '</td></tr>';
     });
     var tb = $('ftab').querySelector('tbody'); tb.innerHTML = rows.join('');
     tb.querySelectorAll('.ftChk').forEach(function (cb) {
@@ -1892,12 +1906,12 @@
       div.className = 'crow sw';
       div.innerHTML = '<span class="rank">' + (ri + 1) + '</span>'
         + '<div class="cname" title="' + esc(a.name) + '">' + esc(a.name) + availBadge(a.name) + extraBadge(a.name) + '</div>'
-        + '<button class="filtreq" title="이 제약사 필터링요청 접수">필터링요청</button>'
+        + filtReqBtn(a.name, 'filtreq')
         + '<div class="cinfo"><b>정산 ₩' + Math.round(a.prof).toLocaleString('ko-KR') + '</b> · 담당 ' + a.cnt + '품목'
         + ' · 처방 ₩' + Math.round(a.amt).toLocaleString('ko-KR')
         + ' · 인센 ₩' + Math.round(a.inc).toLocaleString('ko-KR') + '</div>';
       div.onclick = function (e) {
-        if (e.target.closest('.filtreq')) { openFilterReq(a.name); return; }
+        if (e.target.closest('.filtreq')) { if (e.target.closest('button.filtreq')) openFilterReq(a.name); return; }
         /* 클릭 시 그 회사 기준으로 표 필터 (스위칭 체크와 연동) */
         state.proposalMode = false;
         makerState.swChecked = {};
@@ -1971,12 +1985,12 @@
       div.className = 'crow sw' + (on ? ' on' : '') + (ri === makerState.focus ? ' kfocus' : '');
       div.innerHTML = '<input type="checkbox"' + (on ? ' checked' : '') + '>'
         + '<div class="cname" title="' + esc(a.name) + '">' + esc(a.name) + availBadge(a.name) + extraBadge(a.name) + '</div>'
-        + '<button class="filtreq" title="이 제약사로 스위칭 검토 — 필터링요청 접수">필터링요청</button>'
+        + filtReqBtn(a.name, 'filtreq', '필터링요청', '이 제약사로 스위칭 검토 — 필터링요청 접수')
         + '<div class="cinfo"><b>₩' + Math.round(a.amt).toLocaleString('ko-KR') + '</b> · ' + a.cnt + '품목'
         + ' · 정산 ₩' + Math.round(a.prof).toLocaleString('ko-KR')
         + ' · 인센 ₩' + Math.round(a.inc).toLocaleString('ko-KR') + '</div>';
       div.onclick = function (e) {
-        if (e.target.closest('.filtreq')) { openFilterReq(a.name); return; }
+        if (e.target.closest('.filtreq')) { if (e.target.closest('button.filtreq')) openFilterReq(a.name); return; }
         makerState.focus = ri;
         state.proposalMode = false;
         makerState.swChecked[a.name] = !makerState.swChecked[a.name];
