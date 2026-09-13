@@ -128,7 +128,8 @@
   table.mx td.fix, table.mx th.fix { position: sticky; background: #fff; z-index: 1; }
   table.mx th.fix { background: var(--blue); z-index: 3; }
   table.mx tbody tr:hover td { background-color: #f3f7ff; } table.mx tbody tr:hover td.pick { background-color: #d2efdb; }
-  table.mx tfoot td { font-size: 11.5px; }
+  table.mx tfoot td { font-size: 11.5px; position: static; background: #eef2ff; }
+  table.mx tfoot td.fix { position: sticky; bottom: auto; }
   table.mx tfoot td.lab { text-align: left; white-space: nowrap; }
   .mxsum { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12.5px; align-items: center; margin: 0 0 8px; }
   .mxsum .st { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
@@ -804,9 +805,9 @@
     M.rows.forEach(function (row) {
       var pick = row['pick_' + st];
       var m = {}; row.top.forEach(function (t) { m[t.comp] = t; });
-      var tr = '<tr><td class="fix" style="left:0" title="' + esc(row.name) + '">' + esc(row.name) + '</td>'
-        + '<td class="fix num" style="left:220px">' + Math.round(row.amt).toLocaleString('ko-KR') + '</td>'
-        + '<td class="fix" style="left:300px">' + (pick ? '<b>' + esc(pick.comp) + '</b>' : (row.top.length ? '<span style="color:var(--err)">거래가능 없음</span>' : '<span style="color:#aaa">후보없음</span>')) + '</td>'
+      var tr = '<tr><td class="fix" style="left:0; max-width:220px" title="' + esc(row.name) + '">' + esc(row.name) + '</td>'
+        + '<td class="fix num" style="left:220px; max-width:80px">' + Math.round(row.amt).toLocaleString('ko-KR') + '</td>'
+        + '<td class="fix" style="left:300px; max-width:120px">' + (pick ? '<b>' + esc(pick.comp) + '</b>' : (row.top.length ? '<span style="color:var(--err)">거래가능 없음</span>' : '<span style="color:#aaa">후보없음</span>')) + '</td>'
         + '<td class="fix num" style="left:420px">' + (pick ? '<b>' + Math.round(pick.prof).toLocaleString('ko-KR') + '</b>' : '') + '</td>'
         + '<td class="fix num" style="left:520px">' + (pick ? pctOf(pick.prof, row.amt) : '') + '</td>';
       M.comps.forEach(function (c) {
@@ -821,7 +822,7 @@
     var ranks = M.comps.slice().sort(function (a, b) { return ((cur.assign[b] || {}).prof || 0) - ((cur.assign[a] || {}).prof || 0); });
     var rankOf = {}; ranks.forEach(function (c, i) { if ((cur.assign[c] || {}).prof > 0) rankOf[c] = i + 1; });
     var fr = function (label, fn, fixedVals) {
-      var tr = '<tr><td class="fix lab" style="left:0">' + label + '</td>';
+      var tr = '<tr><td class="fix lab" style="left:0; max-width:220px" title="' + label + '">' + label + '</td>';
       for (var i = 1; i < 5; i++) tr += '<td class="fix num" style="left:' + lefts[i] + 'px">' + (fixedVals && fixedVals[i] !== undefined ? fixedVals[i] : '') + '</td>';
       M.comps.forEach(function (c) { var v = fn(c); tr += '<td class="num">' + (v === '' || v === undefined ? '' : v) + '</td>'; });
       return tr + '</tr>';
