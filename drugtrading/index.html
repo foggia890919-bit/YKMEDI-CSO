@@ -1247,10 +1247,13 @@
       renderMakers(); drawRows();
     }).catch(function () { $('availStat').textContent = '조회 실패: 사이트(로그인)에서만 조회됩니다'; });
   }
-  function postFilterReq(name, biz, comp, requester) {
+  function postFilterReq(name, biz, comp, requester, info) {
+    var ex = extraFor(comp);
+    var route = { sub: ex && ex.pct > 0 ? ex.sub : (ex ? ex.sub : ''), extraPct: ex ? ex.pct : 0, kind: state.kind || '' };
+    if (info) { if (info.potential !== undefined) route.potential = Math.round(info.potential); if (info.rank !== undefined) route.rank = info.rank; }
     return fetch('/api/availability', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ category: '필터링', name: name, bizNo: biz, vendor: comp, requester: requester || '', note: '대체조제 스위칭 검토(대체조제 매핑 도구)' })
+      body: JSON.stringify({ category: '필터링', name: name, bizNo: biz, vendor: comp, requester: requester || '', route: route, note: '대체조제 스위칭 검토(대체조제 매핑 도구)' + (ex && ex.pct > 0 ? ' · 제출처 ' + ex.sub + ' +' + ex.pct + '%' : '') })
     }).then(function (r) { return r.json().catch(function () { return {}; }); });
   }
 
@@ -1725,7 +1728,8 @@
         autoSave(300);
         return;
       }
-      postFilterReq(hosp, biz, todo[i], mgr).then(function (d) { if (d && d.ok) done++; else fail.push(todo[i]); })
+      var infoRow = null; (state.ftList || []).forEach(function (a, idx) { if (a.name === todo[i]) infoRow = { potential: a.potential, rank: idx + 1 }; });
+      postFilterReq(hosp, biz, todo[i], mgr, infoRow).then(function (d) { if (d && d.ok) done++; else fail.push(todo[i]); })
         .catch(function () { fail.push(todo[i]); })
         .then(function () { $('ftStat').textContent = '접수 중… (' + (i + 1) + '/' + todo.length + ')'; next(i + 1); });
     };
