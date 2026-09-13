@@ -220,7 +220,8 @@
     <button data-step="3"><b>3</b>1차 매핑</button>
     <button data-step="4"><b>4</b>필터링 진행</button>
     <button data-step="5"><b>5</b>2차 매핑</button>
-    <button data-step="6"><b>6</b>보고서·제안서</button>
+    <button data-step="6"><b>6</b>제약사 확정</button>
+    <button data-step="7"><b>7</b>보고서·제안서</button>
   </nav>
 
   <section class="step" data-step="0">
@@ -468,14 +469,35 @@
   </section>
 
   <section class="step" data-step="6">
-  <div class="stephead"><h2>6. 보고서·제안서</h2><p>1차(이상치)와 2차(현실치) 숫자를 나란히 보고, 결과 엑셀(품목별 요약·조제내역+스위칭·제약사×품목 매트릭스 포함)을 내려받거나 드라이브에 저장합니다.</p></div>
+  <div class="stephead"><h2>6. 제약사 확정</h2><p>2차 매핑 결과를 보고 <b>제안서에 넣을 제약사</b>를 체크합니다. 체크한 제약사만으로 품목을 다시 배정한 숫자가 아래 요약에 나오고, 다음 단계의 보고서·엑셀은 이 확정 목록만 씁니다.</p></div>
+  <div class="ctlbar" style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:0 0 8px">
+    <label class="chk" title="필터링 결과가 거래가능(O)인 제약사만 표에 보입니다"><input type="checkbox" id="cfOnlyOk" checked><span>거래가능 제약사만 보기</span></label>
+    <label class="chk"><span>정렬</span><select id="cfSort" style="padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin-left:4px"><option value="amt">조제금액(배정 매출) 높은순</option><option value="prof">정산 높은순</option><option value="cnt">품목수 많은순</option><option value="ykRev">YK 추가수수료 높은순</option></select></label>
+    <span style="border-left:1px solid var(--line); height:20px"></span>
+    <button class="sbtn" id="cfAll">전체 선택</button>
+    <button class="sbtn" id="cfNone">해제</button>
+    <button class="sbtn" id="cfOk">거래가능만</button>
+    <button class="sbtn" id="cfCombo">최적 조합만</button>
+    <label class="chk"><span>표시 순서 상위</span><input type="number" id="cfTopN" min="1" max="50" value="10" style="width:52px; padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin:0 4px"><span>곳</span></label><button class="sbtn" id="cfTop">상위만 선택</button>
+    <span class="mini" id="cfStat" style="margin-left:auto"></span>
+  </div>
+  <div class="rep" id="cfSum"></div>
+  <div style="overflow:auto; border:1px solid var(--line); border-radius:10px">
+    <table class="ftab" id="cftab"><thead><tr><th style="width:36px"><input type="checkbox" id="cfHead"></th><th>순위</th><th>제약사</th><th>거래가능</th><th>추가수수료</th><th class="num">배정 품목</th><th class="num">배정 매출</th><th class="num">정산(월)</th><th class="num">YK 추가수수료</th><th class="num">수수료율</th><th class="num">확정 후 품목</th><th class="num">확정 후 정산</th></tr></thead><tbody></tbody></table>
+  </div>
+  <div class="mini" style="margin-top:6px">「배정」열은 2차 매핑(제약사 무제한) 기준, 「확정 후」열은 체크한 제약사만으로 품목을 다시 배정한 결과입니다. 확정 목록에서 빠진 제약사가 1위였던 품목은 확정 제약사 중 차선으로 넘어가고, 갈 곳이 없으면 「조합 밖」으로 남습니다.</div>
+  <div class="stepnav"><button class="pbtn" id="prev6">← 2차 매핑</button><button class="pbtn primary" id="next6">다음 → 보고서·제안서 (확정 적용)</button></div>
+  </section>
+
+  <section class="step" data-step="7">
+  <div class="stephead"><h2>7. 보고서·제안서</h2><p>1차(이상치)와 2차(현실치) 숫자를 나란히 보고, 결과 엑셀(품목별 요약·조제내역+스위칭·제약사×품목 매트릭스 포함)을 내려받거나 드라이브에 저장합니다.</p></div>
   <div class="rep" id="repBoxes"></div>
   <div class="actions">
     <button id="btnDown">📥 결과 엑셀 다운로드</button>
     <button class="pbtn" id="repSave" style="background:#fff; border:1px solid var(--line); color:#1c2333">💾 프로젝트 저장 (영업 시트)</button>
     <button class="pbtn" id="repCombo" style="background:#fff; border:1px solid var(--line); color:#1c2333">🏆 최적 조합으로 압축 보기</button>
   </div>
-  <div class="stepnav"><button class="pbtn" id="prev6">← 2차 매핑</button><span></span></div>
+  <div class="stepnav"><button class="pbtn" id="prev7">← 제약사 확정</button><span></span></div>
   </section>
 
   <p class="note">
@@ -910,6 +932,7 @@
 
   /* ── 제약사×품목 매트릭스: 품목별 상위 K 제약사 정산금(가로) + 제약사별 합산(세로) + 필터링 대입 최종 배정 ── */
   state.mx = { K: 10, stage: 'all', mode: 'prof', ykMin: 3, minAmt: 400000 };
+  state.confirm = { names: {} }; /* 6단계 제약사 확정 목록 */
   function mxAllowed(comp, stage) {
     if (stage === 'all') return true;
     var k = availKindFor(comp);
@@ -1400,6 +1423,7 @@
       pharmMap: state.pharmRows ? currentPharmMap() : null,
       pharmFileName: state.pharmFileName || '',
       checks: { own: makerState.checked, sw: makerState.swChecked },
+      confirm: state.confirm,
       excluded: state.excluded,
       view: { proposal: !!state.proposalMode, matched: $('cMatched').checked, bestOnly: $('cBestOnly').checked, cso: $('cCso').checked, amtCap: $('amtCap').value, sortKey: itemsSort.key, sortAsc: itemsSort.asc },
       step: wizard.step,
@@ -1415,6 +1439,7 @@
     $('projMemo').value = (proj.hospital && proj.hospital.memo) || '';
     makerState.checked = (proj.checks && proj.checks.own) || {};
     makerState.swChecked = (proj.checks && proj.checks.sw) || {};
+    state.confirm = (proj.confirm && proj.confirm.names) ? proj.confirm : { names: {} };
     state.excluded = proj.excluded || {};
     if (proj.view) {
       state.proposalMode = !!proj.view.proposal;
@@ -1651,7 +1676,7 @@
         : '필터링 결과(거래가능유무)를 대입한 현실치입니다. 「불가 제외」는 불가만 빼고, 「가능 확정만」은 가능으로 확정된 제약사만으로 배정합니다. 조회전 제약사가 배정에 남아 있으면 4단계로 돌아가 추가 요청하세요. 오른쪽 「최적 조합」에서 N곳으로 압축할 수 있습니다.';
       $('mxStageRow').style.display = n === 3 ? 'none' : '';
       $('prevMap').textContent = n === 3 ? '← 조제내역' : '← 필터링 진행';
-      $('nextMap').textContent = n === 3 ? '다음 → 필터링 진행' : '다음 → 보고서·제안서';
+      $('nextMap').textContent = n === 3 ? '다음 → 필터링 진행' : '다음 → 제약사 확정';
       if (n === 3) { state.mx.stage = 'all'; }
       else { if (state.mx.stage === 'all') state.mx.stage = 'nono'; if (($('projName').value || '').trim()) loadAvail(true); $('cAvailNo').checked = true; state.heldComp = null; }
       $('mxStage').querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-s') === state.mx.stage); });
@@ -1664,7 +1689,8 @@
       panel.classList.remove('show');
       if (n === 2) autoLoadSources();
       if (n === 4) { if (!state.avail && ($('projName').value || '').trim()) loadAvail(true).then(renderFilterStep); else renderFilterStep(); }
-      if (n === 6) renderReportStep();
+      if (n === 6) renderConfirmStep();
+      if (n === 7) renderReportStep();
     }
     updateSteps();
     try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) {}
@@ -1677,6 +1703,8 @@
   $('next2').addEventListener('click', function () { showStep(3); });
   $('prevMap').addEventListener('click', function () { showStep(wizard.step === 3 ? 2 : 4); });
   $('nextMap').addEventListener('click', function () { showStep(wizard.step === 3 ? 4 : 6); });
+  $('next6').addEventListener('click', function () { applyConfirm(); showStep(7); });
+  $('prev7').addEventListener('click', function () { showStep(6); });
   $('prev4').addEventListener('click', function () { showStep(3); });
   $('next4').addEventListener('click', function () { showStep(5); });
   $('prev6').addEventListener('click', function () { showStep(5); });
@@ -1780,6 +1808,99 @@
   }
 
   /* ── 6단계: 보고서·제안서 ── */
+  /* ── 6단계: 제약사 확정 — 확정 제약사 집합 안에서 품목 재배정 ── */
+  function confirmedNames() { return Object.keys(state.confirm.names).filter(function (k) { return state.confirm.names[k]; }); }
+  function assignWithin(names) {
+    var set = {}; names.forEach(function (n) { set[n] = true; });
+    var hc = heldCompData(), helds = Object.keys(hc), rows = [], per = {};
+    names.forEach(function (c) { per[c] = { name: c, cnt: 0, prof: 0, amt: 0, inc: 0 }; });
+    helds.forEach(function (h) {
+      var top = Object.keys(hc[h].comps).filter(function (c) { return set[c]; })
+        .map(function (c) { var e = hc[h].comps[c]; return { comp: c, prof: e.prof, inc: e.inc, extraPct: (extraFor(c) || {}).pct || 0 }; })
+        .sort(function (x, y) { return y.prof - x.prof; });
+      rows.push({ h: h, amt: hc[h].amt, top: top, pick: top[0] || null });
+    });
+    var mr = consolidate(rows, 'pick', function () { return true; }, { minAmt: parseFloat($('minAmt').value) || 0, yk: false, ykMin: 0 });
+    var covered = 0, coveredAmt = 0, totalProf = 0, totalInc = 0;
+    rows.forEach(function (r) {
+      if (!r.pick) return;
+      var maxInc = 0; r.top.forEach(function (t) { if (t.inc > maxInc) maxInc = t.inc; });
+      var pc = per[r.pick.comp]; pc.cnt++; pc.prof += r.pick.prof; pc.amt += r.amt; pc.inc += maxInc;
+      covered++; coveredAmt += r.amt; totalProf += r.pick.prof; totalInc += maxInc;
+    });
+    return { per: per, covered: covered, total: helds.length, coveredAmt: coveredAmt, totalProf: totalProf, totalInc: totalInc, merged: mr.moved, under: mr.under };
+  }
+  var cfRows = [];
+  function renderConfirmStep() {
+    if (!state.result) return;
+    var K = Math.max(1, parseInt($('mxK').value, 10) || 10);
+    var M = buildMatrix(K); state.mx.last = M;
+    var st = state.mx.stage === 'all' ? 'nono' : state.mx.stage, mode = state.mx.mode;
+    var cur = M.stages[st + '_' + mode];
+    cfRows = Object.keys(cur.assign).map(function (c) { var a = cur.assign[c]; return { name: c, cnt: a.cnt, amt: a.amt, prof: a.prof, ykRev: a.ykRev || 0 }; });
+    var anyOk = cfRows.some(function (r) { return availKindFor(r.name) === 'ok'; });
+    $('cfOnlyOk').checked = anyOk; /* 결과가 하나라도 있으면 거래가능만 보기 */
+    /* 기본 선택: 저장된 확정 > 거래가능 전부 > 최적 조합 > 전부 */
+    if (!confirmedNames().length) {
+      var names = anyOk ? cfRows.filter(function (r) { return availKindFor(r.name) === 'ok'; }).map(function (r) { return r.name; })
+        : (makerState.lastComboNames && makerState.lastComboNames.length ? makerState.lastComboNames : cfRows.map(function (r) { return r.name; }));
+      state.confirm.names = {}; names.forEach(function (n) { state.confirm.names[n] = true; });
+    }
+    drawConfirm();
+  }
+  function cfVisible() {
+    var key = $('cfSort').value, onlyOk = $('cfOnlyOk').checked;
+    return cfRows.filter(function (r) { return !onlyOk || availKindFor(r.name) === 'ok' || state.confirm.names[r.name]; })
+      .sort(function (a, b) { return (b[key] || 0) - (a[key] || 0); });
+  }
+  function drawConfirm() {
+    var names = confirmedNames();
+    var A = assignWithin(names);
+    var tb = $('cftab').querySelector('tbody'), vis = cfVisible();
+    tb.innerHTML = vis.map(function (r, i) {
+      var on = !!state.confirm.names[r.name], p = A.per[r.name];
+      return '<tr class="' + (on ? 'sel' : '') + '" data-n="' + esc(r.name) + '"><td><input type="checkbox" class="cfChk"' + (on ? ' checked' : '') + '></td><td class="num">' + (i + 1) + '</td>'
+        + '<td><b>' + esc(r.name) + '</b></td><td>' + availBadge(r.name) + '</td><td>' + (extraBadge(r.name) || '<span class="mini">—</span>') + '</td>'
+        + '<td class="num">' + r.cnt + '</td><td class="num">' + Math.round(r.amt).toLocaleString('ko-KR') + '</td><td class="num"><b>' + Math.round(r.prof).toLocaleString('ko-KR') + '</b></td>'
+        + '<td class="num" style="color:#3730a3">' + (r.ykRev ? Math.round(r.ykRev).toLocaleString('ko-KR') : '') + '</td><td class="num">' + pctOf(r.prof, r.amt) + '</td>'
+        + '<td class="num">' + (p ? p.cnt : '<span class="mini">—</span>') + '</td><td class="num">' + (p ? '<b style="color:var(--ok)">' + Math.round(p.prof).toLocaleString('ko-KR') + '</b>' : '') + '</td></tr>';
+    }).join('');
+    tb.querySelectorAll('tr').forEach(function (tr) {
+      var n = tr.getAttribute('data-n');
+      tr.querySelector('.cfChk').addEventListener('change', function () { state.confirm.names[n] = this.checked; drawConfirm(); autoSave(800); });
+    });
+    $('cfHead').checked = vis.length > 0 && vis.every(function (r) { return state.confirm.names[r.name]; });
+    var extraOut = 0; names.forEach(function (n) { if (!A.per[n] || !A.per[n].cnt) extraOut++; });
+    var okCnt = cfRows.filter(function (r) { return availKindFor(r.name) === 'ok'; }).length;
+    $('cfStat').textContent = '확정 ' + names.length + '곳 · 표시 ' + vis.length + '곳 / 후보 ' + cfRows.length + '곳 (거래가능 ' + okCnt + ')' + (extraOut ? ' · 배정 0품목 ' + extraOut + '곳' : '');
+    $('cfSum').innerHTML = '<div class="box"><h3>확정 ' + names.length + '곳으로 재배정</h3>'
+      + '<div class="l"><span>영업사원 정산 합계(월)</span><b>' + won(A.totalProf) + '</b></div>'
+      + '<div class="l"><span>커버</span><b>' + A.covered + '/' + A.total + '품목 · ' + won(A.coveredAmt) + '</b></div>'
+      + '<div class="l"><span>매출대비 수수료율</span><b>' + pctOf(A.totalProf, A.coveredAmt) + '</b></div>'
+      + '<div class="l"><span>저가 인센티브</span><b>' + won(A.totalInc) + '</b></div>'
+      + '<div class="l"><span>조합 밖 품목(확정 제약사에 후보 없음)</span><b>' + (A.total - A.covered) + '품목</b></div>'
+      + (A.merged ? '<div class="l" style="color:#b45309"><span>최소매출 미만 → 합침</span><b>' + A.merged + '품목</b></div>' : '') + '</div>'
+      + '<div class="box"><h3>2차 매핑(제약사 무제한) 비교</h3>'
+      + (function () { var st = state.mx.stage === 'all' ? 'nono' : state.mx.stage, cur = state.mx.last.stages[st + '_' + state.mx.mode];
+          return '<div class="l"><span>정산 합계</span><b>' + won(cur.total) + '</b></div><div class="l"><span>배정</span><b>' + cur.count + '품목 · ' + Object.keys(cur.assign).length + '곳</b></div>'
+            + '<div class="l" style="color:var(--err)"><span>확정으로 줄어드는 정산</span><b>−' + won(Math.max(0, cur.total - A.totalProf)) + '</b></div>'; })()
+      + '<div class="mini" style="margin-top:6px">제약사를 줄이면 갈 곳 없는 품목·차선 배정만큼 정산이 줄지만, 실제 거래·관리 가능한 조합이 됩니다.</div></div>';
+  }
+  function applyConfirm() {
+    var names = confirmedNames();
+    makerState.swChecked = {}; names.forEach(function (n) { makerState.swChecked[n] = true; });
+    state.proposalMode = false; state.heldComp = null;
+    if ($('cMatched')) $('cMatched').checked = true;
+  }
+  $('cfHead').addEventListener('change', function () { var on = this.checked; cfVisible().forEach(function (r) { state.confirm.names[r.name] = on; }); drawConfirm(); autoSave(800); });
+  $('cfAll').addEventListener('click', function () { cfVisible().forEach(function (r) { state.confirm.names[r.name] = true; }); drawConfirm(); autoSave(800); });
+  $('cfSort').addEventListener('change', drawConfirm);
+  $('cfOnlyOk').addEventListener('change', drawConfirm);
+  $('cfNone').addEventListener('click', function () { state.confirm.names = {}; drawConfirm(); autoSave(800); });
+  $('cfOk').addEventListener('click', function () { state.confirm.names = {}; cfRows.forEach(function (r) { if (availKindFor(r.name) === 'ok') state.confirm.names[r.name] = true; }); drawConfirm(); autoSave(800); });
+  $('cfCombo').addEventListener('click', function () { var l = makerState.lastComboNames || []; if (!l.length) { alert('5단계 오른쪽 「최적 조합」을 먼저 한 번 열어 조합을 만들어 주세요.'); return; } state.confirm.names = {}; l.forEach(function (n) { state.confirm.names[n] = true; }); drawConfirm(); autoSave(800); });
+  $('cfTop').addEventListener('click', function () { var n = Math.max(1, parseInt($('cfTopN').value, 10) || 10); var base = cfVisible(); state.confirm.names = {}; base.slice(0, n).forEach(function (r) { state.confirm.names[r.name] = true; }); drawConfirm(); autoSave(800); });
+
   function renderReportStep() {
     if (!state.result) return;
     var K = Math.max(1, parseInt($('mxK').value, 10) || 10);
@@ -1795,7 +1916,20 @@
         + (extra || '') + '</div>';
     };
     var ykX = function (x) { return '<div class="l" style="color:var(--err)"><span>1위 대비 갭(딜러 정산)</span><b>−' + won(x.gap) + '</b></div><div class="l"><span>추가수수료 우선 배정</span><b>' + x.ykCnt + '품목</b></div>'; };
-    var html = box('1차 · 리스트B (추가 고려 없음, 필터링 무시)', S.all_prof)
+    var html = '';
+    var cn = confirmedNames();
+    if (cn.length) {
+      var A = assignWithin(cn);
+      html += '<div class="box" style="border-color:var(--blue); grid-column:1/-1"><h3>✅ 확정 제약사 ' + cn.length + '곳 (6단계) — 제안서·엑셀 기준</h3>'
+        + '<div class="l"><span>영업사원 정산 합계(월)</span><b>' + won(A.totalProf) + '</b></div>'
+        + '<div class="l"><span>커버</span><b>' + A.covered + '/' + A.total + '품목 · ' + won(A.coveredAmt) + '</b></div>'
+        + '<div class="l"><span>매출대비 수수료율</span><b>' + pctOf(A.totalProf, A.coveredAmt) + '</b></div>'
+        + '<div class="l"><span>저가 인센티브</span><b>' + won(A.totalInc) + '</b></div>'
+        + '<div class="l"><span>제약사</span><b style="font-weight:600; text-align:right">' + cn.map(function (n) { var p = A.per[n]; return esc(n) + '(' + (p ? p.cnt : 0) + ')'; }).join(', ') + '</b></div></div>';
+    } else {
+      html += '<div class="box" style="border-color:var(--warn); grid-column:1/-1"><h3>⚠ 확정 제약사 없음</h3><div class="mini">6단계에서 제약사를 체크하지 않아 아래 숫자는 제약사 무제한 기준입니다. 「← 제약사 확정」으로 돌아가 체크하세요.</div></div>';
+    }
+    html += box('1차 · 리스트B (추가 고려 없음, 필터링 무시)', S.all_prof)
       + box('1차 · 리스트A (추가수수료 ' + state.mx.ykMin + '%↑ 우선)', S.all_yk, ykX(S.all_yk))
       + box('2차 · 불가 제외 · 리스트B', S.nono_prof)
       + box('2차 · 가능 확정만 · 리스트B', S.okonly_prof)
@@ -2741,6 +2875,19 @@
   $('btnDown').addEventListener('click', function () {
     var r = state.result; if (!r) return;
     var wb = XLSX.utils.book_new();
+
+    /* 확정 제약사(6단계) 시트 — 확정 목록으로 재배정한 제약사별 집계 */
+    var cnX = confirmedNames();
+    if (cnX.length) {
+      var AX = assignWithin(cnX);
+      var aoaC = [['순위', '제약사', '거래가능', '추가수수료(%)', '제출처', '배정 품목수', '배정 매출(조제금액)', '영업사원 정산(월)', '저가 인센티브', '매출대비 수수료율(%)']];
+      cnX.map(function (n) { return AX.per[n]; }).sort(function (a, b) { return b.prof - a.prof; }).forEach(function (p, i) {
+        var av = availFor(p.name), ex = extraFor(p.name);
+        aoaC.push([i + 1, p.name, av ? (av.kind === 'ok' ? 'O' : av.kind === 'no' ? 'X' : '확인중') : '조회전', ex && ex.pct > 0 ? ex.pct : '', ex && ex.pct > 0 ? ex.sub : '', p.cnt, Math.round(p.amt), Math.round(p.prof), Math.round(p.inc), p.amt > 0 ? Math.round(p.prof / p.amt * 1000) / 10 : '']);
+      });
+      aoaC.push([]); aoaC.push(['', '합계', '', '', '', AX.covered + '/' + AX.total + '품목', Math.round(AX.coveredAmt), Math.round(AX.totalProf), Math.round(AX.totalInc), AX.coveredAmt > 0 ? Math.round(AX.totalProf / AX.coveredAmt * 1000) / 10 : '']);
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoaC), '확정 제약사');
+    }
 
     /* 최종 결과물: 품목별 요약 — 화면 모드 그대로 (1차 필터·후보 나열/최유리) */
     var best0 = buildBestMap();
