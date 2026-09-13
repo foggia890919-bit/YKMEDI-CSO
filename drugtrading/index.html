@@ -1177,8 +1177,16 @@
 
   /* 최적 조합: 정산금 기준 주력 K곳(그리디) + [전품목 커버] 빈 품목은 보완 제약사 추가.
      최종적으로 품목마다 조합 안에서 정산금이 가장 유리한 회사 1곳만 담당. */
+  var comboCache = { key: '', res: null };
   function bestCombo(K, fillAll) {
     var hc = heldCompData();
+    var ckey = K + '|' + (fillAll ? 1 : 0) + '|' + state.heldCompKey + '|' + ($('minAmt').value || '') + '|' + (state.avail ? Object.keys(state.avail).length : 0);
+    if (comboCache.res && comboCache.key === ckey) return comboCache.res;
+    var res = bestComboRaw(hc, K, fillAll);
+    comboCache = { key: ckey, res: res };
+    return res;
+  }
+  function bestComboRaw(hc, K, fillAll) {
     var helds = Object.keys(hc);
     var comps = {};
     helds.forEach(function (h) { for (var c in hc[h].comps) comps[c] = 1; });
@@ -1205,6 +1213,57 @@
         coveredSet[h] = true;
         if (e.prof > currentBest[h]) currentBest[h] = e.prof;
       });
+    }
+    /* 1-b단계: 탐욕 결과를 수학적으로 다듬기.
+       · 조합 값 = Σ품목 max(조합 안 제약사 정산).
+       · 후보 풀(잠재 정산 상위)에서 K곳 조합 수가 작으면 전수 검사로 진짜 최댓값,
+         크면 탐욕 해에서 「안 1곳 ↔ 밖 1곳」 교환을 값이 오르는 동안 반복(국소 최적). */
+    var method = '탐욕';
+    if (chosen.length === K && K >= 2) {
+      var hArr = helds, hN = hArr.length;
+      var profOf = {}; compList.forEach(function (c) { var arr = new Array(hN); for (var i = 0; i < hN; i++) { var e = hc[hArr[i]].comps[c]; arr[i] = e ? e.prof : 0; } profOf[c] = arr; });
+      var valueOf = function (set) { var t = 0; for (var i = 0; i < hN; i++) { var m = 0; for (var j = 0; j < set.length; j++) { var v = profOf[set[j]][i]; if (v > m) m = v; } t += m; } return t; };
+      var potential = {}; compList.forEach(function (c) { var t = 0, a = profOf[c]; for (var i = 0; i < hN; i++) t += a[i]; potential[c] = t; });
+      var pool = compList.slice().sort(function (a, b) { return potential[b] - potential[a]; });
+      var comb = function (n, k) { var r = 1; for (var i = 1; i <= k; i++) r = r * (n - k + i) / i; return Math.round(r); };
+      var POOL_MAX = 24, LIMIT = 30000;
+      var poolN = Math.min(pool.length, POOL_MAX);
+      while (poolN > K && comb(poolN, K) > LIMIT) poolN--;
+      var bestSet = chosen.slice(), bestVal = valueOf(chosen);
+      if (comb(poolN, K) <= LIMIT && poolN >= K) {
+        /* 전수 검사 (풀 밖 제약사가 들어간 탐욕 해도 후보에 포함) */
+        var P = pool.slice(0, poolN), idx = [], i2;
+        for (i2 = 0; i2 < K; i2++) idx.push(i2);
+        var guard = 0;
+        while (guard++ < LIMIT + 5) {
+          var set = idx.map(function (i) { return P[i]; });
+          var v = valueOf(set);
+          if (v > bestVal) { bestVal = v; bestSet = set; }
+          var pos = K - 1; while (pos >= 0 && idx[pos] === poolN - K + pos) pos--;
+          if (pos < 0) break;
+          idx[pos]++; for (var q = pos + 1; q < K; q++) idx[q] = idx[q - 1] + 1;
+        }
+        method = '전수 최적 (상위 ' + poolN + '곳 풀)';
+      } else {
+        /* 교환 개선 */
+        var improved = true, rounds = 0, cand = pool.slice(0, Math.min(pool.length, 60));
+        while (improved && rounds++ < 30) {
+          improved = false;
+          for (var a = 0; a < bestSet.length && !improved; a++) {
+            for (var b = 0; b < cand.length; b++) {
+              if (bestSet.indexOf(cand[b]) !== -1) continue;
+              var trial = bestSet.slice(); trial[a] = cand[b];
+              var tv = valueOf(trial);
+              if (tv > bestVal + 0.5) { bestVal = tv; bestSet = trial; improved = true; break; }
+            }
+          }
+        }
+        method = '탐욕 + 교환 개선 (' + rounds + '회)';
+      }
+      if (bestSet.join('|') !== chosen.join('|')) {
+        chosen = bestSet.slice(); coveredSet = {}; currentBest = {};
+        helds.forEach(function (h) { currentBest[h] = 0; chosen.forEach(function (c) { var e = hc[h].comps[c]; if (e) { coveredSet[h] = true; if (e.prof > currentBest[h]) currentBest[h] = e.prof; } }); });
+      }
     }
     var mainCount = chosen.length;
     /* 2단계(전품목 커버): 아직 빈 품목을 가장 많이 채우는 회사부터 보완 추가 (동수면 정산금) */
@@ -1257,7 +1316,7 @@
       list: listOut,
       covered: covered, coveredAmt: coveredAmt, totalProf: totalProf, totalInc: totalInc,
       totalHelds: helds.length, mainCount: Math.min(mainCount, listOut.length),
-      merged: mergeRes.moved, under: mergeRes.under
+      merged: mergeRes.moved, under: mergeRes.under, method: method
     };
   }
 
@@ -2095,7 +2154,7 @@
       makerState.lastCombo = r.list.map(function (a) { return a.name; });
       makerState.lastComboNames = makerState.lastCombo;
       sub = r.list.length + '개 조합 · 커버 ' + r.covered + '/' + r.totalHelds + '품목 (후보 있는 품목 기준)' + ownFilterLabel();
-      lbl = '정산금 최대 기준' + scopeLabel();
+      lbl = '정산금 최대 기준 · ' + (r.method || '') + scopeLabel();
       sum = '<div class="l" style="color:var(--blue)"><span>조합 예상 정산액(월)</span><b>₩' + Math.round(r.totalProf).toLocaleString('ko-KR') + '</b></div>'
         + '<div class="l"><span>커버 처방금액</span><b>₩' + Math.round(r.coveredAmt).toLocaleString('ko-KR') + '</b></div>'
         + '<div class="l" style="color:var(--ok)"><span>저가대체 인센티브</span><b>₩' + Math.round(r.totalInc).toLocaleString('ko-KR') + '</b></div>'
