@@ -484,7 +484,7 @@
   </div>
   <div class="ctlbar" style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:0 0 8px">
     <label class="chk" title="필터링 결과가 거래가능(O)인 제약사만 표에 보입니다"><input type="checkbox" id="cfOnlyOk" checked><span>거래가능 제약사만 보기</span></label>
-    <label class="chk"><span>정렬</span><select id="cfSort" style="padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin-left:4px"><option value="amt">조제금액(배정 매출) 높은순</option><option value="prof">정산 높은순</option><option value="cnt">품목수 많은순</option><option value="ykRev">YK 추가수수료 높은순</option><option value="potential">잠재 정산(등장 전부) 높은순</option></select></label>
+    <label class="chk"><span>정렬</span><select id="cfSort" style="padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin-left:4px"><option value="amt">조제금액(배정 매출) 높은순</option><option value="prof">정산 높은순</option><option value="cnt">품목수 많은순</option><option value="ykRev">YK 추가수수료 높은순</option><option value="sum">합산(정산+추가수수료) 높은순</option><option value="potential">잠재 정산(등장 전부) 높은순</option></select></label>
     <span style="border-left:1px solid var(--line); height:20px"></span>
     <button class="sbtn" id="cfAll">전체 선택</button>
     <button class="sbtn" id="cfNone">해제</button>
@@ -495,7 +495,7 @@
   </div>
   <div class="rep" id="cfSum"></div>
   <div style="overflow:auto; border:1px solid var(--line); border-radius:10px">
-    <table class="ftab" id="cftab"><thead><tr><th style="width:36px"><input type="checkbox" id="cfHead"></th><th>순위</th><th>제약사</th><th>거래가능</th><th>추가수수료</th><th class="num">배정 품목</th><th class="num">배정 매출</th><th class="num">정산(월)</th><th class="num">YK 추가수수료</th><th class="num">수수료율</th><th class="num">확정 후 품목</th><th class="num">확정 후 매출</th><th class="num">확정 후 정산</th></tr></thead><tbody></tbody></table>
+    <table class="ftab" id="cftab"><thead><tr><th style="width:36px"><input type="checkbox" id="cfHead"></th><th>순위</th><th>제약사</th><th>거래가능</th><th>추가수수료</th><th class="num">배정 품목</th><th class="num">배정 매출</th><th class="num">정산(월)</th><th class="num">YK 추가수수료</th><th class="num">합산</th><th class="num">수수료율</th><th class="num">확정 후 품목</th><th class="num">확정 후 매출</th><th class="num">확정 후 정산</th></tr></thead><tbody></tbody></table>
   </div>
   <h3 style="margin:16px 0 6px; font-size:14px; display:flex; flex-wrap:wrap; gap:8px; align-items:center">품목별 1·2·3순위 <span class="mini">품목마다 대체 후보 1·2·3순위와 그 제약사의 거래가능 여부. 위에서 체크한 제약사 중 최선순위가 자동 선택(●)되고, 바꾸고 싶은 품목만 다른 순위를 눌러 고정할 수 있습니다.</span>
     <span style="flex:1"></span>
@@ -1951,8 +1951,9 @@
     var st = state.mx.stage === 'all' ? 'nono' : state.mx.stage, mode = state.mx.mode;
     var cur = M.stages[st + '_' + mode];
     /* 후보 = 상위 N위 범주에 한 번이라도 등장한 제약사 전부 (2차 배정이 0이어도 확정하면 품목을 받을 수 있음) */
-    cfRows = M.comps.map(function (c) { var a = cur.assign[c] || { cnt: 0, amt: 0, prof: 0, ykRev: 0 }; return { name: c, cnt: a.cnt, amt: a.amt, prof: a.prof, ykRev: a.ykRev || 0, potential: M.potential[c] || 0, appear: M.appear[c] || 0 }; });
+    cfRows = M.comps.map(function (c) { var a = cur.assign[c] || { cnt: 0, amt: 0, prof: 0, ykRev: 0 }; return { name: c, cnt: a.cnt, amt: a.amt, prof: a.prof, ykRev: a.ykRev || 0, sum: a.prof + (a.ykRev || 0), potential: M.potential[c] || 0, appear: M.appear[c] || 0 }; });
     var anyOk = cfRows.some(function (r) { return availKindFor(r.name) === 'ok'; });
+    if (!state.cfSortTouched) $('cfSort').value = state.mx.mode === 'sum' ? 'sum' : state.mx.mode === 'yk' ? 'ykRev' : 'amt';
     $('cfOnlyOk').checked = anyOk; /* 결과가 하나라도 있으면 거래가능만 보기 */
     /* 기본 선택: 저장된 확정 > 거래가능 전부 > 최적 조합 > 전부 */
     if (!confirmedNames().length) {
@@ -1981,7 +1982,7 @@
       return '<tr class="' + (on ? 'sel' : '') + '" data-n="' + esc(r.name) + '"><td><input type="checkbox" class="cfChk"' + (on ? ' checked' : '') + '></td><td class="num">' + (i + 1) + '</td>'
         + '<td><b>' + esc(r.name) + '</b></td><td>' + availBadge(r.name) + '</td><td>' + (extraBadge(r.name) || '<span class="mini">—</span>') + '</td>'
         + '<td class="num">' + r.cnt + '</td><td class="num">' + Math.round(r.amt).toLocaleString('ko-KR') + '</td><td class="num"><b>' + Math.round(r.prof).toLocaleString('ko-KR') + '</b></td>'
-        + '<td class="num" style="color:#3730a3">' + (r.ykRev ? Math.round(r.ykRev).toLocaleString('ko-KR') : '') + '</td><td class="num">' + pctOf(r.prof, r.amt) + '</td>'
+        + '<td class="num" style="color:#3730a3">' + (r.ykRev ? Math.round(r.ykRev).toLocaleString('ko-KR') : '') + '</td><td class="num"><b>' + Math.round(r.sum || r.prof).toLocaleString('ko-KR') + '</b></td><td class="num">' + pctOf(r.prof, r.amt) + '</td>'
         + '<td class="num">' + (p ? p.cnt : '<span class="mini">—</span>') + '</td><td class="num">' + (p ? Math.round(p.amt).toLocaleString('ko-KR') : '') + '</td><td class="num">' + (p ? '<b style="color:var(--ok)">' + Math.round(p.prof).toLocaleString('ko-KR') + '</b>' : '') + '</td></tr>';
     }).join('');
     tb.querySelectorAll('tr').forEach(function (tr) {
@@ -2044,7 +2045,7 @@
   }
   $('cfHead').addEventListener('change', function () { var on = this.checked; cfVisible().forEach(function (r) { state.confirm.names[r.name] = on; }); drawConfirm(); autoSave(800); });
   $('cfAll').addEventListener('click', function () { cfVisible().forEach(function (r) { state.confirm.names[r.name] = true; }); drawConfirm(); autoSave(800); });
-  $('cfSort').addEventListener('change', drawConfirm);
+  $('cfSort').addEventListener('change', function () { state.cfSortTouched = true; drawConfirm(); });
   $('cfPickReset').addEventListener('click', function () { state.confirm.itemPick = {}; state.heldComp = null; drawConfirm(); autoSave(800); });
   $('cfReq').addEventListener('click', function () { requestFilters(confirmedNames()); });
   $('cfRefresh').addEventListener('click', function () { loadAvail(false).then(function () { state.heldComp = null; renderConfirmStep(); }); });
