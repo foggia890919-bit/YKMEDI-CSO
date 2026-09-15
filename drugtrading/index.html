@@ -334,7 +334,7 @@
     <div class="ctlrow" id="rowMode"><span class="lab">배정 기준<small>어느 제약사를 1순위로</small></span>
       <div class="seg" id="mxMode" title="품목마다 이 기준이 가장 높은 제약사에 배정합니다. 품목별 1~N등, 제약사 표, 최적 조합이 전부 같은 기준을 씁니다">
         <button data-m="prof" class="on" title="영업사원 정산(약가×기본요율×조제량)이 가장 높은 제약사">정산 높은순 · 영업사원 정산</button>
-        <button data-m="yk" title="YK 추가수수료(약가×추가수수료%×조제량)가 가장 높은 제약사. 추가수수료 없는 품목은 정산 높은 곳">추가 높은순 · YK 추가수수료</button>
+        <button data-m="yk" title="추가수수료 %가 가장 높은 제약사. 같은 %면 합산요율(기본+추가)이 높은 곳, 그다음 금액">추가 높은순 · 추가수수료 %</button>
         <button data-m="sum" title="합산요율(기본요율+추가수수료 %)이 가장 높은 제약사. 직영 조직용">합산 높은순 · 합산요율</button>
       </div>
       <label class="chk" style="display:none"><span>추가수수료</span><input type="number" id="ykMin" min="0" max="20" step="0.5" value="3" style="width:56px; padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin:0 4px"><span>% 이상 우선</span></label>
@@ -975,14 +975,16 @@
     var yk = t.yk !== undefined ? (t.yk || 0) : (t.ykTotal || 0);
     var base = t.basePct !== undefined ? t.basePct : (t.pct || 0);
     var rate = base + (t.extraPct || 0);
-    if (mode === 'yk') return [yk, prof];
-    if (mode === 'sum') return [rate, prof + yk];
-    return [prof, yk];
+    /* 추가 높은순: 추가수수료 %가 높은 제약사 먼저, 같으면 합산요율, 그다음 금액 (약가가 비싸다고 앞서지 않게 %로 비교) */
+    if (mode === 'yk') return [t.extraPct || 0, rate, prof + yk];
+    if (mode === 'sum') return [rate, prof + yk, yk];
+    return [prof, yk, rate];
   }
-  function betterThan(a, b, mode) { /* a 가 b 보다 나은가 */
+  function betterThan(a, b, mode) { /* a 가 b 보다 나은가 (점수 배열을 앞에서부터 비교) */
     if (!b) return true;
     var sa = scoreOf(a, mode), sb = scoreOf(b, mode);
-    return sa[0] > sb[0] || (sa[0] === sb[0] && sa[1] > sb[1]);
+    for (var i = 0; i < sa.length; i++) { if (sa[i] > sb[i]) return true; if (sa[i] < sb[i]) return false; }
+    return false;
   }
   function mxAllowed(comp, stage) {
     if (stage === 'all') return true;
@@ -1996,7 +1998,7 @@
     state.result.pharm.slice().sort(function (a, b) { return b.amt - a.amt; }).forEach(function (d) {
       if (isOut(d.code)) return;
       var e = per[d.code]; if (!e) return;
-      var ranked = Object.keys(e).map(function (c) { return e[c]; }).sort(function (a, b) { var sa = scoreOf(a, mm2), sb = scoreOf(b, mm2); return (sb[0] - sa[0]) || (sb[1] - sa[1]); }).slice(0, N);
+      var ranked = Object.keys(e).map(function (c) { return e[c]; }).sort(function (a, b) { return betterThan(a, b, mm2) ? -1 : betterThan(b, a, mm2) ? 1 : 0; }).slice(0, N);
       rows.push({ code: d.code, name: d.name, amt: d.amt, ranked: ranked });
     });
     return rows;
@@ -2013,7 +2015,7 @@
     var cap = 500;
     $('qktab').querySelector('tbody').innerHTML = rows.slice(0, cap).map(function (r) {
       var tds = '';
-      for (var i = 0; i < N; i++) { var t = r.ranked[i]; var mtr = !t ? '' : state.mx.mode === 'yk' ? 'YK ' + Math.round(t.yk).toLocaleString('ko-KR') + '원 (' + t.extra + '%)' : state.mx.mode === 'sum' ? t.rate + '% (' + t.base + '+' + t.extra + ')' : '정산 ' + Math.round(t.prof).toLocaleString('ko-KR') + '원 (' + t.base + '%)'; tds += t ? '<td><b>' + esc(t.comp) + '</b> <span class="mini">' + mtr + '</span>' + availBadge(t.comp) + '</td>' : '<td class="mini">—</td>'; }
+      for (var i = 0; i < N; i++) { var t = r.ranked[i]; var mtr = !t ? '' : state.mx.mode === 'yk' ? '추가 ' + t.extra + '% · 합산 ' + t.rate + '% · YK ' + Math.round(t.yk).toLocaleString('ko-KR') + '원' : state.mx.mode === 'sum' ? t.rate + '% (' + t.base + '+' + t.extra + ')' : '정산 ' + Math.round(t.prof).toLocaleString('ko-KR') + '원 (' + t.base + '%)'; tds += t ? '<td><b>' + esc(t.comp) + '</b> <span class="mini">' + mtr + '</span>' + availBadge(t.comp) + '</td>' : '<td class="mini">—</td>'; }
       return '<tr><td title="' + esc(r.name) + '">' + esc(r.name) + '</td><td class="num">' + Math.round(r.amt).toLocaleString('ko-KR') + '</td>' + tds + '</tr>';
     }).join('') + (rows.length > cap ? '<tr><td colspan="' + (N + 2) + '" class="mini">표시 ' + cap + '행 초과분 생략 — 엑셀에 전체 포함</td></tr>' : '');
     var comps = quickComps(rows), names = Object.keys(comps);
@@ -2106,7 +2108,7 @@
     var stR = state.mx.stage === 'all' ? 'nono' : state.mx.stage;
     state.confirm.itemRanks = itemRows.map(function (row) {
       var mm = state.mx.mode;
-      var ranked = row.top.filter(function (t) { return mxAllowed(t.comp, stR); }).sort(function (a, b) { var sa = scoreOf(a, mm), sb = scoreOf(b, mm); return (sb[0] - sa[0]) || (sb[1] - sa[1]); }).slice(0, 3);
+      var ranked = row.top.filter(function (t) { return mxAllowed(t.comp, stR); }).sort(function (a, b) { return betterThan(a, b, mm) ? -1 : betterThan(b, a, mm) ? 1 : 0; }).slice(0, 3);
       return { code: row.code, name: row.name, amt: row.amt, ranked: ranked, assigned: assignBy[row.code] || '' };
     });
     var cap = 500, ir = state.confirm.itemRanks;
