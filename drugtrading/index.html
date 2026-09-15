@@ -334,8 +334,8 @@
     <div class="ctlrow" id="rowMode"><span class="lab">배정 기준<small>어느 제약사를 1순위로</small></span>
       <div class="seg" id="mxMode" title="품목마다 이 기준이 가장 높은 제약사에 배정합니다. 품목별 1~N등, 제약사 표, 최적 조합이 전부 같은 기준을 씁니다">
         <button data-m="prof" class="on" title="영업사원 정산(약가×기본요율×조제량)이 가장 높은 제약사">정산 높은순 · 영업사원 정산</button>
-        <button data-m="yk" title="추가수수료 %가 가장 높은 제약사. 같은 %면 합산요율(기본+추가)이 높은 곳, 그다음 금액">추가 높은순 · 추가수수료 %</button>
-        <button data-m="sum" title="합산요율(기본요율+추가수수료 %)이 가장 높은 제약사. 직영 조직용">합산 높은순 · 합산요율</button>
+        <button data-m="yk" title="추가수수료 금액(약가×추가수수료%×조제량)이 가장 높은 제약사">추가 높은순 · 추가수수료 금액</button>
+        <button data-m="sum" title="수수료 = (기본요율+추가수수료)×약가×조제량 이 가장 높은 제약사. 직영 조직용">합산 높은순 · (기본+추가)×약가</button>
       </div>
       <label class="chk" style="display:none"><span>추가수수료</span><input type="number" id="ykMin" min="0" max="20" step="0.5" value="3" style="width:56px; padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin:0 4px"><span>% 이상 우선</span></label>
     </div>
@@ -494,7 +494,7 @@
     <span class="mini" id="cfStat" style="margin-left:auto"></span>
   </div>
   <details class="cfSet" open style="margin:0 0 10px; border:1px solid #c7d2fe; border-radius:8px; background:#f8f9ff">
-    <summary style="cursor:pointer; padding:8px 12px; font-weight:700; font-size:13px">⚡ 품목별 1~N등 (설정의 기준: 정산 / YK 추가수수료 / 합산요율) → 등장 제약사 필터링요청 <span class="mini" id="qkStat" style="font-weight:500"></span></summary>
+    <summary style="cursor:pointer; padding:8px 12px; font-weight:700; font-size:13px">⚡ 품목별 1~N등 (설정의 기준: 정산 / 추가수수료 / 합산 수수료) → 등장 제약사 필터링요청 <span class="mini" id="qkStat" style="font-weight:500"></span></summary>
     <div style="padding:0 10px 10px">
       <div class="ctlbar" style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:0 0 8px">
         <label class="chk"><span>품목별</span><input type="number" id="qkN" min="1" max="10" value="5" style="width:48px; padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin:0 4px"><span>등까지</span></label>
@@ -506,7 +506,7 @@
       <div style="overflow:auto; border:1px solid var(--line); border-radius:8px; max-height:380px; background:#fff">
         <table class="ftab" id="qktab"><thead></thead><tbody></tbody></table>
       </div>
-      <div class="mini" style="margin-top:6px">기준은 「설정」의 배정 기준을 그대로 씁니다. 정산 = 약가×기본요율×조제량, YK 추가수수료 = 약가×추가수수료%×조제량, 합산요율 = 기본요율+추가수수료(%). 제약사별 최고 대체품 1개 기준, 제약사 옆에 거래가능 O/X·확인중·조회전.</div>
+      <div class="mini" style="margin-top:6px">기준은 「설정」의 배정 기준을 그대로 씁니다. 정산 = 약가×기본요율×조제량, 추가 = 약가×추가수수료%×조제량, 합산 수수료 = 약가×(기본요율+추가수수료)×조제량. 제약사별 최고 대체품 1개 기준, 제약사 옆에 거래가능 O/X·확인중·조회전.</div>
     </div>
   </details>
   <div class="rep" id="cfSum"></div>
@@ -975,9 +975,9 @@
     var yk = t.yk !== undefined ? (t.yk || 0) : (t.ykTotal || 0);
     var base = t.basePct !== undefined ? t.basePct : (t.pct || 0);
     var rate = base + (t.extraPct || 0);
-    /* 추가 높은순: 추가수수료 %가 높은 제약사 먼저, 같으면 합산요율, 그다음 금액 (약가가 비싸다고 앞서지 않게 %로 비교) */
-    if (mode === 'yk') return [t.extraPct || 0, rate, prof + yk];
-    if (mode === 'sum') return [rate, prof + yk, yk];
+    /* 전부 금액 기준. 정산 = 약가×기본요율×조제량, 추가 = 약가×추가수수료%×조제량, 합산 = 약가×(기본요율+추가수수료)×조제량 */
+    if (mode === 'yk') return [yk, prof + yk, rate];
+    if (mode === 'sum') return [prof + yk, rate, yk];
     return [prof, yk, rate];
   }
   function betterThan(a, b, mode) { /* a 가 b 보다 나은가 (점수 배열을 앞에서부터 비교) */
@@ -1077,7 +1077,7 @@
       var x = S[k + '_' + mode];
       return '<div class="st' + (k === st ? ' on' : '') + '"><span style="color:#667">' + stLbl[k] + '</span> <b>' + won(x.total) + '</b> · ' + x.count + '품목 · 매출 ' + won(x.totalAmt) + ' · 수수료율 <b>' + pctOf(x.total, x.totalAmt) + '</b> (전체 ' + pctOf(x.total, M.allAmt) + ')'
         + ' · <span style="color:#3730a3">YK 추가수수료 <b>' + won(x.ykRev) + '</b></span>' + (yk ? ' · <span style="color:#3730a3">1위 대비 갭 <b>' + won(x.gap) + '</b> · 우선배정 ' + x.ykCnt + '품목</span>' : '') + '</div>';
-    }).join('') + '<div class="st" style="border:0; color:#667">' + ({ prof: '정산 높은순 · ', yk: '추가 높은순(YK 추가수수료) · ', sum: '합산 높은순(합산요율) · ' }[mode] || '') + '정산 = 영업사원 몫(기본요율) · 제약사 ' + M.comps.length + '곳 · 품목 ' + M.rows.length + ' · 상위 ' + K + '위 범주 · 저가 인센티브 ' + won(cur.inc) + (minAmtLbl(cur)) + avail + '</div>';
+    }).join('') + '<div class="st" style="border:0; color:#667">' + ({ prof: '정산 높은순 · ', yk: '추가 높은순(추가수수료 금액) · ', sum: '합산 높은순((기본+추가)×약가) · ' }[mode] || '') + '정산 = 영업사원 몫(기본요율) · 제약사 ' + M.comps.length + '곳 · 품목 ' + M.rows.length + ' · 상위 ' + K + '위 범주 · 저가 인센티브 ' + won(cur.inc) + (minAmtLbl(cur)) + avail + '</div>';
 
     var tbl = $('tbl'); tbl.className = 'mx';
     $('tblCols').innerHTML = '';
@@ -2009,13 +2009,13 @@
     var N = Math.max(1, Math.min(10, parseInt($('qkN').value, 10) || 5));
     var rows = quickTop(N); state.quickRows = rows;
     var th = '<tr><th>약품명</th><th class="num">조제금액</th>';
-    var mlbl = { prof: '영업사원 정산', yk: 'YK 추가수수료', sum: '합산요율' }[state.mx.mode] || '';
+    var mlbl = { prof: '영업사원 정산', yk: '추가수수료 금액', sum: '수수료 (기본+추가)×약가' }[state.mx.mode] || '';
     for (var i = 1; i <= N; i++) th += '<th>' + i + '등 (' + mlbl + ')</th>';
     $('qktab').querySelector('thead').innerHTML = th + '</tr>';
     var cap = 500;
     $('qktab').querySelector('tbody').innerHTML = rows.slice(0, cap).map(function (r) {
       var tds = '';
-      for (var i = 0; i < N; i++) { var t = r.ranked[i]; var mtr = !t ? '' : state.mx.mode === 'yk' ? '추가 ' + t.extra + '% · 합산 ' + t.rate + '% · YK ' + Math.round(t.yk).toLocaleString('ko-KR') + '원' : state.mx.mode === 'sum' ? t.rate + '% (' + t.base + '+' + t.extra + ')' : '정산 ' + Math.round(t.prof).toLocaleString('ko-KR') + '원 (' + t.base + '%)'; tds += t ? '<td><b>' + esc(t.comp) + '</b> <span class="mini">' + mtr + '</span>' + availBadge(t.comp) + '</td>' : '<td class="mini">—</td>'; }
+      for (var i = 0; i < N; i++) { var t = r.ranked[i]; var mtr = !t ? '' : state.mx.mode === 'yk' ? '추가 ' + Math.round(t.yk).toLocaleString('ko-KR') + '원 (' + t.extra + '%)' : state.mx.mode === 'sum' ? '수수료 ' + Math.round(t.prof + t.yk).toLocaleString('ko-KR') + '원 (' + t.base + '+' + t.extra + '=' + t.rate + '%)' : '정산 ' + Math.round(t.prof).toLocaleString('ko-KR') + '원 (' + t.base + '%)'; tds += t ? '<td><b>' + esc(t.comp) + '</b> <span class="mini">' + mtr + '</span>' + availBadge(t.comp) + '</td>' : '<td class="mini">—</td>'; }
       return '<tr><td title="' + esc(r.name) + '">' + esc(r.name) + '</td><td class="num">' + Math.round(r.amt).toLocaleString('ko-KR') + '</td>' + tds + '</tr>';
     }).join('') + (rows.length > cap ? '<tr><td colspan="' + (N + 2) + '" class="mini">표시 ' + cap + '행 초과분 생략 — 엑셀에 전체 포함</td></tr>' : '');
     var comps = quickComps(rows), names = Object.keys(comps);
@@ -2080,7 +2080,7 @@
   });
   function cfSetSummary() {
     var st = { all: '필터링 무시', nono: '불가 제외', okonly: '가능 확정만' }[state.mx.stage] || '';
-    $('cfSetSum').textContent = ' · ' + ({ prof: '정산 높은순', yk: '추가 높은순(YK)', sum: '합산 높은순(합산요율)' }[state.mx.mode] || '') + ' · 최소매출 ' + won(parseFloat($('minAmt').value) || 0) + ' · 상위 ' + ($('mxK').value || 10) + '위 · 약가 ' + [$('cLow').checked ? '낮음' : '', $('cSame').checked ? '동일' : '', $('cHigh').checked ? '높음' : ''].filter(Boolean).join('·') + ' · ' + st;
+    $('cfSetSum').textContent = ' · ' + ({ prof: '정산 높은순', yk: '추가 높은순(추가수수료 금액)', sum: '합산 높은순((기본+추가)×약가)' }[state.mx.mode] || '') + ' · 최소매출 ' + won(parseFloat($('minAmt').value) || 0) + ' · 상위 ' + ($('mxK').value || 10) + '위 · 약가 ' + [$('cLow').checked ? '낮음' : '', $('cSame').checked ? '동일' : '', $('cHigh').checked ? '높음' : ''].filter(Boolean).join('·') + ' · ' + st;
   }
   function drawConfirm() {
     cfSetSummary();
@@ -2200,8 +2200,8 @@
       + box('1차 · 추가 높은순(YK) (필터링 무시)', S.all_yk, ykX(S.all_yk))
       + box('2차 · 불가 제외 · 정산 높은순', S.nono_prof)
       + box('2차 · 불가 제외 · 추가 높은순(YK)', S.nono_yk, ykX(S.nono_yk))
-      + box('2차 · 불가 제외 · 합산 높은순(합산요율)', S.nono_sum, '<div class="l"><span>합산(정산+추가수수료)</span><b>' + won(S.nono_sum.total + S.nono_sum.ykRev) + '</b></div>')
-      + box('2차 · 가능 확정만 · 현재 기준(' + ({ prof: '정산', yk: 'YK', sum: '합산요율' }[state.mx.mode] || '') + ')', S['okonly_' + state.mx.mode]);
+      + box('2차 · 불가 제외 · 합산 높은순((기본+추가)×약가)', S.nono_sum, '<div class="l"><span>합산(정산+추가수수료)</span><b>' + won(S.nono_sum.total + S.nono_sum.ykRev) + '</b></div>')
+      + box('2차 · 가능 확정만 · 현재 기준(' + ({ prof: '정산', yk: '추가', sum: '합산' }[state.mx.mode] || '') + ')', S['okonly_' + state.mx.mode]);
     try {
       var Kc = Math.max(1, parseInt($('comboK').value, 10) || 5);
       var prevA = $('cAvailNo').checked; $('cAvailNo').checked = true; state.heldComp = null;
@@ -3013,7 +3013,7 @@
       active++; tAmt += it.amt;
       if (it.istatus === '매칭') { mCnt++; mAmt += it.amt; tProf += it.profTotal; tInc += it.incTotal; }
     });
-    var footLabel = '합계 (' + active + '품목, ' + ({ prof: '정산 높은순', yk: '추가 높은순(YK)', sum: '합산 높은순(합산요율)' }[state.mx.mode] || '') + ', 상위 ' + mxOpts().K + '위, ' + ({ all: '필터링 무시', nono: '불가 제외', okonly: '가능 확정만' }[state.mx.stage] || '') + (state.itemsMerge && (parseFloat($('minAmt').value) || 0) > 0 ? ', 최소매출 합침 ' + state.itemsMerge.moved + '품목' + (state.itemsMerge.under.length ? '·미달 ' + state.itemsMerge.under.length + '곳' : '') : '') + ', 제외 반영' + scopeLabel().replace(/ · /g, ', ') + (state.proposalMode ? ', 제안서 기준: 약가 동일·낮음' : '') + (expand ? ', 최유리 기준' : '') + ')'
+    var footLabel = '합계 (' + active + '품목, ' + ({ prof: '정산 높은순', yk: '추가 높은순(추가수수료 금액)', sum: '합산 높은순((기본+추가)×약가)' }[state.mx.mode] || '') + ', 상위 ' + mxOpts().K + '위, ' + ({ all: '필터링 무시', nono: '불가 제외', okonly: '가능 확정만' }[state.mx.stage] || '') + (state.itemsMerge && (parseFloat($('minAmt').value) || 0) > 0 ? ', 최소매출 합침 ' + state.itemsMerge.moved + '품목' + (state.itemsMerge.under.length ? '·미달 ' + state.itemsMerge.under.length + '곳' : '') : '') + ', 제외 반영' + scopeLabel().replace(/ · /g, ', ') + (state.proposalMode ? ', 제안서 기준: 약가 동일·낮음' : '') + (expand ? ', 최유리 기준' : '') + ')'
       + (over ? ' · 표시 ' + CAP + '행 초과분 생략(엑셀에는 전체 포함)' : '');
     $('tblFoot').innerHTML = '<tr>'
       + '<td colspan="7">' + footLabel + '</td>'
