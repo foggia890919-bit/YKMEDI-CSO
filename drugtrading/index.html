@@ -1423,7 +1423,8 @@
     var name = ($('projName').value || '').trim();
     if (!name) { if (!silent) alert('상단 프로젝트 바에 병원(거래처)명을 먼저 입력해주세요.'); return Promise.resolve(); }
     $('availStat').textContent = '조회 중…';
-    return fetch('/api/availability?name=' + encodeURIComponent(name)).then(function (r) { return r.json(); }).then(function (d) {
+    /* sync=1: 서버가 직원 필터링 원본 시트(통계제출현황)를 먼저 끌어와 반영한 뒤 조회 (10분에 한 번 실제 실행) */
+    return fetch('/api/availability?name=' + encodeURIComponent(name) + '&sync=1').then(function (r) { return r.json(); }).then(function (d) {
       if (!d || !d.ok) {
         if (!silent2 && /quota|429|한도/i.test((d && d.error) || '')) { $('availStat').textContent = '구글 시트 조회 한도 — 3초 후 재시도…'; return new Promise(function (res) { setTimeout(function () { loadAvail(silent, true).then(res); }, 3000); }); }
         $('availStat').textContent = '조회 실패' + (d && d.error ? ': ' + d.error : '') + ' — 「거래가능 조회」로 다시 시도'; return;
@@ -1438,7 +1439,10 @@
       var ok = 0, no = 0, pd = 0;
       for (var k2 in map) { if (map[k2].kind === 'ok') ok++; else if (map[k2].kind === 'no') no++; else pd++; }
       var none = 0; try { switchAggs().forEach(function (a) { if (!availFor(a.name)) none++; }); } catch (e) {}
-      $('availStat').textContent = name + ': 가능 ' + ok + ' · 불가 ' + no + ' · 확인중 ' + pd + ' · 조회전 ' + none;
+      var sy = d.sync, syTxt = '';
+      if (sy && sy.ok) syTxt = sy.cached ? ' · 원본시트 반영됨' : ' · 원본시트 동기화(새 ' + (sy.added || 0) + '·채움 ' + (sy.filled || 0) + '·갱신 ' + (sy.updated || 0) + ')';
+      else if (sy && sy.error) syTxt = ' · 원본시트 연동 실패: ' + String(sy.error).slice(0, 80);
+      $('availStat').textContent = name + ': 가능 ' + ok + ' · 불가 ' + no + ' · 확인중 ' + pd + ' · 조회전 ' + none + syTxt;
       renderMakers(); drawRows();
     }).catch(function () { $('availStat').textContent = '조회 실패: 사이트(로그인)에서만 조회됩니다'; });
   }
