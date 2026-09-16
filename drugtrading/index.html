@@ -173,8 +173,12 @@
   table.mx td.best { outline: 2px dashed #c7d2fe; outline-offset: -2px; }
   /* 4단계 필터링 */
   .ftab { width: 100%; border-collapse: collapse; background: #fff; font-size: 12.5px; }
-  .ftab th { position: static; background: #f3f5f9; color: #334; font-weight: 700; padding: 8px 10px; border-bottom: 1px solid var(--line); cursor: default; }
+  .ftab th { position: relative; background: #f3f5f9; color: #334; font-weight: 700; padding: 8px 10px; border-bottom: 1px solid var(--line); cursor: default; }
   .ftab td { padding: 7px 10px; border-bottom: 1px solid #eef1f7; }
+  .ftab.rzon { table-layout: fixed; }
+  .ftab.rzon td, .ftab.rzon th { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ftab th .rz { position: absolute; right: -3px; top: 0; bottom: 0; width: 7px; cursor: col-resize; z-index: 1; }
+  .ftab th .rz:hover { background: #c7d2fe; }
   .ftab td.num { text-align: right; font-variant-numeric: tabular-nums; }
   .ftab tr.sel td { background: #f3f7ff; }
   .fwrap { background: #fff; border: 1px solid var(--line); border-radius: 10px; overflow: auto; max-height: 60vh; }
@@ -494,7 +498,7 @@
     <span class="mini" id="cfStat" style="margin-left:auto"></span>
   </div>
   <details class="cfSet" open style="margin:0 0 10px; border:1px solid #c7d2fe; border-radius:8px; background:#f8f9ff">
-    <summary style="cursor:pointer; padding:8px 12px; font-weight:700; font-size:13px">⚡ 품목별 1~N등 (설정의 기준: 정산 / 추가수수료 / 합산 수수료) → 등장 제약사 필터링요청 <span class="mini" id="qkStat" style="font-weight:500"></span></summary>
+    <summary style="cursor:pointer; padding:8px 12px; font-weight:700; font-size:13px">⚡ 품목별 1~N등 (합산 수수료 = 약가×(기본요율+추가수수료)×조제량 높은 순) → 등장 제약사 필터링요청 <span class="mini" id="qkStat" style="font-weight:500"></span></summary>
     <div style="padding:0 10px 10px">
       <div class="ctlbar" style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:0 0 8px">
         <label class="chk"><span>품목별</span><input type="number" id="qkN" min="1" max="10" value="5" style="width:48px; padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin:0 4px"><span>등까지</span></label>
@@ -506,7 +510,7 @@
       <div style="overflow:auto; border:1px solid var(--line); border-radius:8px; max-height:380px; background:#fff">
         <table class="ftab" id="qktab"><thead></thead><tbody></tbody></table>
       </div>
-      <div class="mini" style="margin-top:6px">기준은 「설정」의 배정 기준을 그대로 씁니다. 정산 = 약가×기본요율×조제량, 추가 = 약가×추가수수료%×조제량, 합산 수수료 = 약가×(기본요율+추가수수료)×조제량. 제약사별 최고 대체품 1개 기준, 제약사 옆에 거래가능 O/X·확인중·조회전.</div>
+      <div class="mini" style="margin-top:6px">등수는 설정의 배정 기준과 상관없이 항상 <b>합산 수수료 = 약가×(기본요율+추가수수료)×조제량</b>이 큰 순서입니다. 열 머리글 오른쪽 경계를 끌면 열 너비를 바꿀 수 있고(두 번 클릭하면 자동 너비), 너비는 이 브라우저에 기억됩니다.</div>
     </div>
   </details>
   <div class="rep" id="cfSum"></div>
@@ -1988,13 +1992,13 @@
       if (x.kind !== '대체가능' || x.status !== '정상' || !priceOk(x)) return;
       if (isOut(x.pCode)) return;
       var comp = compOf(x); if (!mxAllowed(comp, st)) return;
-      var mm = state.mx.mode;
+      var mm = 'sum'; /* 빠른 등수표는 설정과 무관하게 항상 합산 수수료 = 약가×(기본요율+추가수수료)×조제량 순 */
       var rate = (x.basePct !== undefined ? x.basePct : x.pct) + (x.extraPct || 0);
       var cand = { comp: comp, rate: rate, base: (x.basePct !== undefined ? x.basePct : x.pct), extra: x.extraPct || 0, extraPct: x.extraPct || 0, pct: (x.basePct !== undefined ? x.basePct : x.pct), prof: x.profTotal, yk: x.ykTotal || 0, prod: state.prodCol >= 0 ? String(x.cells[state.prodCol] === undefined ? '' : x.cells[state.prodCol]) : '' };
       var e = per[x.pCode] || (per[x.pCode] = {});
       if (betterThan(cand, e[comp], mm)) e[comp] = cand;
     });
-    var rows = [], mm2 = state.mx.mode;
+    var rows = [], mm2 = 'sum';
     state.result.pharm.slice().sort(function (a, b) { return b.amt - a.amt; }).forEach(function (d) {
       if (isOut(d.code)) return;
       var e = per[d.code]; if (!e) return;
@@ -2009,15 +2013,15 @@
     var N = Math.max(1, Math.min(10, parseInt($('qkN').value, 10) || 5));
     var rows = quickTop(N); state.quickRows = rows;
     var th = '<tr><th>약품명</th><th class="num">조제금액</th>';
-    var mlbl = { prof: '영업사원 정산', yk: '추가수수료 금액', sum: '수수료 (기본+추가)×약가' }[state.mx.mode] || '';
-    for (var i = 1; i <= N; i++) th += '<th>' + i + '등 (' + mlbl + ')</th>';
+    for (var i = 1; i <= N; i++) th += '<th>' + i + '등 · 수수료 (기본+추가)×약가</th>';
     $('qktab').querySelector('thead').innerHTML = th + '</tr>';
     var cap = 500;
     $('qktab').querySelector('tbody').innerHTML = rows.slice(0, cap).map(function (r) {
       var tds = '';
-      for (var i = 0; i < N; i++) { var t = r.ranked[i]; var mtr = !t ? '' : state.mx.mode === 'yk' ? '추가 ' + Math.round(t.yk).toLocaleString('ko-KR') + '원 (' + t.extra + '%)' : state.mx.mode === 'sum' ? '수수료 ' + Math.round(t.prof + t.yk).toLocaleString('ko-KR') + '원 (' + t.base + '+' + t.extra + '=' + t.rate + '%)' : '정산 ' + Math.round(t.prof).toLocaleString('ko-KR') + '원 (' + t.base + '%)'; tds += t ? '<td><b>' + esc(t.comp) + '</b> <span class="mini">' + mtr + '</span>' + availBadge(t.comp) + '</td>' : '<td class="mini">—</td>'; }
+      for (var i = 0; i < N; i++) { var t = r.ranked[i]; var mtr = !t ? '' : '수수료 ' + Math.round(t.prof + t.yk).toLocaleString('ko-KR') + '원 (' + t.base + '+' + t.extra + '=' + t.rate + '%)'; tds += t ? '<td><b>' + esc(t.comp) + '</b> <span class="mini">' + mtr + '</span>' + availBadge(t.comp) + '</td>' : '<td class="mini">—</td>'; }
       return '<tr><td title="' + esc(r.name) + '">' + esc(r.name) + '</td><td class="num">' + Math.round(r.amt).toLocaleString('ko-KR') + '</td>' + tds + '</tr>';
     }).join('') + (rows.length > cap ? '<tr><td colspan="' + (N + 2) + '" class="mini">표시 ' + cap + '행 초과분 생략 — 엑셀에 전체 포함</td></tr>' : '');
+    ftabResizable($('qktab'));
     var comps = quickComps(rows), names = Object.keys(comps);
     var ok = 0, pd = 0, no = 0, nn = 0; names.forEach(function (n) { var k = availKindFor(n); if (k === 'ok') ok++; else if (k === 'pending') pd++; else if (k === 'no') no++; else nn++; });
     $('qkStat').textContent = ' · 품목 ' + rows.length + ' · 1~' + N + '등 제약사 ' + names.length + '곳';
@@ -2132,6 +2136,7 @@
     var itb = $('cfItems').querySelector('tbody');
     itb.querySelectorAll('.ipRadio').forEach(function (rd) { rd.addEventListener('change', function () { state.confirm.itemPick[this.getAttribute('data-code')] = this.getAttribute('data-comp'); state.heldComp = null; drawConfirm(); autoSave(800); }); });
     itb.querySelectorAll('.ipReset').forEach(function (a) { a.addEventListener('click', function (e) { e.preventDefault(); delete state.confirm.itemPick[this.getAttribute('data-code')]; state.heldComp = null; drawConfirm(); autoSave(800); }); });
+    ftabResizable($('cftab')); ftabResizable($('cfItems'));
     var manualCnt = Object.keys(state.confirm.itemPick || {}).length;
     $('cfPickStat').textContent = manualCnt ? '직접 선택 ' + manualCnt + '품목 (노란 행)' : '전부 자동 선택';
     $('cfHead').checked = vis.length > 0 && vis.every(function (r) { return state.confirm.names[r.name]; });
@@ -2588,6 +2593,37 @@
       col.style.width = (colWidths[c.id] || defaultWidth(c.label)) + 'px';
       col.dataset.cid = c.id;
       cg.appendChild(col);
+    });
+  }
+  /* 필터링/확정 화면의 표(.ftab): 머리글 경계를 끌어 열 너비 조절. 표 id 별로 브라우저에 저장, 경계 두 번 클릭 = 자동 너비 */
+  var ftabW = (function () { try { return JSON.parse(localStorage.getItem('dt_ftabw') || '{}'); } catch (e) { return {}; } })();
+  function ftabResizable(tbl) {
+    if (!tbl) return;
+    var ths = tbl.querySelectorAll('thead th'); if (!ths.length) return;
+    var key = tbl.id || 'ftab', saved = ftabW[key] || [];
+    var cg = tbl.querySelector('colgroup'); if (cg) cg.remove();
+    tbl.classList.remove('rzon'); tbl.style.width = 'auto'; tbl.style.tableLayout = 'auto'; /* 자연 너비 측정 (내용이 안 잘리는 너비) */
+    var natural = Array.prototype.map.call(ths, function (th) { return Math.ceil(th.getBoundingClientRect().width); });
+    if (!natural[0]) { tbl.style.width = ''; tbl.style.tableLayout = ''; return; } /* 숨겨진 상태(닫힌 details 등) — 다음 렌더 때 다시 */
+    var ws = natural.map(function (w, i) { return saved[i] > 0 ? saved[i] : Math.min(460, Math.max(40, w + 2)); });
+    cg = document.createElement('colgroup');
+    ws.forEach(function (w) { var c = document.createElement('col'); c.style.width = w + 'px'; cg.appendChild(c); });
+    tbl.insertBefore(cg, tbl.firstChild);
+    var total = function () { return ws.reduce(function (a, b) { return a + b; }, 0); };
+    tbl.classList.add('rzon'); tbl.style.width = total() + 'px';
+    ths.forEach(function (th, i) {
+      var old = th.querySelector('.rz'); if (old) old.remove();
+      var rz = document.createElement('span'); rz.className = 'rz'; rz.title = '끌어서 너비 조절 · 두 번 클릭 = 자동 너비';
+      rz.addEventListener('mousedown', function (e) {
+        e.preventDefault(); e.stopPropagation();
+        var startX = e.clientX, startW = ws[i];
+        function mv(ev) { ws[i] = Math.max(40, startW + ev.clientX - startX); cg.children[i].style.width = ws[i] + 'px'; tbl.style.width = total() + 'px'; }
+        function up() { document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); ftabW[key] = ws.slice(); try { localStorage.setItem('dt_ftabw', JSON.stringify(ftabW)); } catch (e2) {} }
+        document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up);
+      });
+      rz.addEventListener('dblclick', function (e) { e.preventDefault(); e.stopPropagation(); if (ftabW[key]) { ftabW[key][i] = 0; try { localStorage.setItem('dt_ftabw', JSON.stringify(ftabW)); } catch (e2) {} } ftabResizable(tbl); });
+      rz.addEventListener('click', function (e) { e.stopPropagation(); });
+      th.appendChild(rz);
     });
   }
   function attachResizers(thead, cols) {
