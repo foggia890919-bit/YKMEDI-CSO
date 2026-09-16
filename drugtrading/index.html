@@ -535,6 +535,10 @@
   <section class="step" data-step="4">
   <div class="stephead"><h2>4. 보고서·제안서</h2><p>1차(이상치)와 2차(현실치) 숫자를 나란히 보고, 결과 엑셀(품목별 요약·조제내역+스위칭·제약사×품목 매트릭스 포함)을 내려받거나 드라이브에 저장합니다.</p></div>
   <div class="rep" id="repBoxes"></div>
+  <h3 style="margin:14px 0 6px; font-size:14px; display:flex; flex-wrap:wrap; gap:8px; align-items:center">스위칭 제안표 <span class="mini">3단계 최종 선택 그대로 — 기존 품목 옆에 스위칭 품목을 붙인 제안 양식 (결과 엑셀의 첫 시트 「스위칭 제안」과 같음)</span><span style="flex:1"></span><span class="mini" id="swStat"></span><button class="sbtn" id="swXlsx">📥 이 표만 엑셀</button></h3>
+  <div style="overflow:auto; border:1px solid var(--line); border-radius:10px; max-height:520px; background:#fff; margin-bottom:10px">
+    <table class="ftab" id="swtab"><thead></thead><tbody></tbody></table>
+  </div>
   <div class="actions">
     <button id="btnDown">📥 결과 엑셀 다운로드</button>
     <button class="pbtn" id="repSave" style="background:#fff; border:1px solid var(--line); color:#1c2333">💾 프로젝트 저장 (영업 시트)</button>
@@ -2113,7 +2117,8 @@
     var set = {}; names.forEach(function (n) { set[n] = true; });
     var itemRows = (state.mx.last ? state.mx.last.rows : []).slice().sort(function (a, b) { return b.amt - a.amt; });
     var assignBy = {}; /* 확정 후 배정: assignWithin 의 rows 는 품목명 기준 → 이름으로 매칭 */
-    if (A.rows) A.rows.forEach(function (r) { if (r.pick) assignBy[r.code] = r.pick.comp; });
+    var movedFrom = {}; /* 최소매출 미만이라 다른 제약사로 합쳐진 품목: 원래 1순위 제약사 */
+    if (A.rows) A.rows.forEach(function (r) { if (r.pick) { assignBy[r.code] = r.pick.comp; if (r.pick_from) movedFrom[r.code] = r.pick_from; } });
     var stR = state.mx.stage === 'all' ? 'nono' : state.mx.stage;
     state.confirm.itemRanks = itemRows.map(function (row) {
       var mm = state.mx.mode;
@@ -2136,7 +2141,7 @@
         return '<td' + (on ? '' : ' style="color:#99a"') + '><label style="cursor:' + (on ? 'pointer' : 'not-allowed') + '; display:inline-flex; align-items:center; gap:4px"><input type="radio" class="ipRadio" name="ip_' + esc(it.code) + '" data-code="' + esc(it.code) + '" data-comp="' + esc(t.comp) + '"' + (sel ? ' checked' : '') + (on ? '' : ' disabled') + '>' + (on ? '<b>' + esc(t.comp) + '</b>' : esc(t.comp)) + '</label>' + (t.extraPct ? ' <span class="badge xf">+' + t.extraPct + '%</span>' : '') + availBadge(t.comp) + '</td><td class="num"' + (on ? '' : ' style="color:#99a"') + ' title="' + ipAmtTitle(t) + '">' + Math.round(scoreOf(t, state.mx.mode)[0]).toLocaleString('ko-KR') + '</td>';
       };
       return '<tr' + (manual ? ' style="background:#fffbea"' : '') + '><td title="' + esc(it.name) + '">' + esc(it.name) + '</td><td class="num">' + Math.round(it.amt).toLocaleString('ko-KR') + '</td>' + cell(0) + cell(1) + cell(2)
-        + '<td>' + (it.assigned ? '<b>' + esc(it.assigned) + '</b>' + (manual ? ' <span class="mini" style="color:#b45309">직접</span> <a href="#" class="ipReset" data-code="' + esc(it.code) + '" title="자동 선택으로 되돌림">↺</a>' : ' <span class="mini">자동</span>') : '<span style="color:var(--err)">조합 밖</span>') + '</td></tr>';
+        + '<td>' + (it.assigned ? '<b>' + esc(it.assigned) + '</b>' + (manual ? ' <span class="mini" style="color:#b45309">직접</span> <a href="#" class="ipReset" data-code="' + esc(it.code) + '" title="자동 선택으로 되돌림">↺</a>' : movedFrom[it.code] ? ' <span class="mini" style="color:#b45309" title="' + esc(movedFrom[it.code]) + ' 에 배정된 매출이 설정의 최소매출(' + won(parseFloat($('minAmt').value) || 0) + ') 미만이라 매출이 큰 제약사로 합쳐짐. 그대로 두려면 그 제약사의 ● 를 눌러 직접 선택">최소매출 합침 ← ' + esc(movedFrom[it.code]) + '</span>' : ' <span class="mini">자동</span>') : '<span style="color:var(--err)">조합 밖</span>') + '</td></tr>';
     }).join('') + (ir.length > cap ? '<tr><td colspan="9" class="mini">표시 ' + cap + '행 초과분 생략 — 엑셀 「품목별 순위(확정)」 시트에 전체 포함</td></tr>' : '');
     var itb = $('cfItems').querySelector('tbody');
     itb.querySelectorAll('.ipRadio').forEach(function (rd) { rd.addEventListener('change', function () { state.confirm.itemPick[this.getAttribute('data-code')] = this.getAttribute('data-comp'); state.heldComp = null; drawConfirm(); autoSave(800); }); });
@@ -2246,7 +2251,54 @@
       $('cAvailNo').checked = prevA; state.heldComp = null;
     } catch (e) {}
     $('repBoxes').innerHTML = html;
+    try { renderSwitch(); } catch (e) { console.error(e); }
   }
+  /* ── 스위칭 제안표: 3단계 확정·최종 선택 그대로(buildBestMap = 확정 제약사 + 직접 선택 + 최소매출 합침) ── */
+  function swRows() {
+    var r = state.result; if (!r) return { rows: [], useSum: true };
+    var best = buildBestMap(), useSum = state.mx.mode !== 'prof', rows = [];
+    r.pharm.forEach(function (d) {
+      if (state.excluded[d.code] || scopeOut(d.code)) return;
+      var x = best[d.code]; if (!x) return;
+      var base = x.basePct !== undefined ? x.basePct : (x.pct || 0), ex = x.extraPct || 0;
+      rows.push({ code: d.code, name: d.name, maker: d.maker || '', qty: d.qty, amt: d.amt,
+        swName: state.prodCol >= 0 ? String(x.cells[state.prodCol] === undefined ? '' : x.cells[state.prodCol]) : '', swComp: compOf(x),
+        swPrice: x.price || 0, swAmt: Math.round((x.price || 0) * (d.qty || 0)),
+        base: base, extra: ex, rate: useSum ? Math.round((base + ex) * 100) / 100 : base,
+        fee: useSum ? (x.profTotal || 0) + (x.ykTotal || 0) : (x.profTotal || 0), prof: x.profTotal || 0, yk: x.ykTotal || 0,
+        from: best[d.code + '@from'] || '' });
+    });
+    rows.sort(function (a, b) { return b.amt - a.amt; });
+    return { rows: rows, useSum: useSum };
+  }
+  function swHead(useSum) { return ['기존 품목', '기존 조제액', '스위칭 품목', '스위칭 제약사', '스위칭 조제액', useSum ? '수수료율(%) 기본+추가' : '정산요율(%) 기본', useSum ? '수수료 금액(월)' : '정산 금액(월)']; }
+  function swAoa(S) {
+    var aoa = [['약품코드'].concat(swHead(S.useSum)).concat(['기존 제조회사', '조제량', '스위칭 약가', '기본요율(%)', '추가수수료(%)', '영업사원 정산(월)', 'YK 추가수수료(월)', '비고'])];
+    var tA = 0, tS = 0, tF = 0;
+    S.rows.forEach(function (w) { tA += w.amt; tS += w.swAmt; tF += w.fee; aoa.push([w.code, w.name, Math.round(w.amt), w.swName, w.swComp, w.swAmt, w.rate, Math.round(w.fee), w.maker, w.qty, w.swPrice, w.base, w.extra, Math.round(w.prof), Math.round(w.yk), w.from ? w.from + ' 배정 매출이 최소매출 미만이라 합쳐짐' : '']); });
+    aoa.push(['', '합계 (' + S.rows.length + '품목)', Math.round(tA), '', '', Math.round(tS), tA > 0 ? Math.round(tF / tA * 1000) / 10 : '', Math.round(tF)]);
+    return aoa;
+  }
+  function renderSwitch() {
+    if (!$('swtab')) return;
+    var S = swRows(), h = swHead(S.useSum), cap = 600, tA = 0, tS = 0, tF = 0;
+    S.rows.forEach(function (w) { tA += w.amt; tS += w.swAmt; tF += w.fee; });
+    $('swtab').querySelector('thead').innerHTML = '<tr>' + h.map(function (t, i) { return '<th' + (i === 1 || i >= 4 ? ' class="num"' : '') + '>' + t + '</th>'; }).join('') + '</tr>';
+    $('swtab').querySelector('tbody').innerHTML = S.rows.slice(0, cap).map(function (w) {
+      return '<tr><td title="' + esc(w.name) + (w.maker ? ' · ' + esc(w.maker) : '') + '">' + esc(w.name) + (w.maker ? ' <span class="mini">' + esc(w.maker) + '</span>' : '') + '</td><td class="num">' + Math.round(w.amt).toLocaleString('ko-KR') + '</td>'
+        + '<td title="' + esc(w.swName) + '">' + esc(w.swName) + '</td><td><b>' + esc(w.swComp) + '</b>' + (w.extra ? ' <span class="badge xf">+' + w.extra + '%</span>' : '') + availBadge(w.swComp) + (w.from ? ' <span class="mini" style="color:#b45309" title="' + esc(w.from) + ' 배정 매출이 최소매출 미만이라 합쳐짐">합침←' + esc(w.from) + '</span>' : '') + '</td>'
+        + '<td class="num">' + w.swAmt.toLocaleString('ko-KR') + '</td><td class="num" title="기본 ' + w.base + '% + 추가 ' + w.extra + '%">' + w.rate + '</td><td class="num"><b>' + Math.round(w.fee).toLocaleString('ko-KR') + '</b></td></tr>';
+    }).join('') + '<tr style="font-weight:700; background:#f3f5f9"><td>합계 ' + S.rows.length + '품목</td><td class="num">' + Math.round(tA).toLocaleString('ko-KR') + '</td><td></td><td></td><td class="num">' + Math.round(tS).toLocaleString('ko-KR') + '</td><td class="num">' + pctOf(tF, tA) + '</td><td class="num">' + Math.round(tF).toLocaleString('ko-KR') + '</td></tr>'
+      + (S.rows.length > cap ? '<tr><td colspan="7" class="mini">표시 ' + cap + '행 초과분 생략 — 엑셀에 전체 포함</td></tr>' : '');
+    $('swStat').textContent = '스위칭 ' + S.rows.length + '품목 · 기존 ' + won(tA) + ' → 스위칭 ' + won(tS) + ' · ' + (S.useSum ? '수수료 ' : '정산 ') + won(tF) + (S.useSum ? ' (기본+추가)' : ' (기본요율만 · 설정이 정산 높은순)');
+    ftabResizable($('swtab'));
+  }
+  $('swXlsx').addEventListener('click', function () {
+    var S = swRows(); if (!S.rows.length) { alert('스위칭 품목이 없습니다.'); return; }
+    var ws = XLSX.utils.aoa_to_sheet(swAoa(S)); ws['!cols'] = [{ wch: 11 }, { wch: 36 }, { wch: 12 }, { wch: 30 }, { wch: 16 }, { wch: 12 }, { wch: 10 }, { wch: 13 }, { wch: 16 }, { wch: 8 }, { wch: 9 }, { wch: 9 }, { wch: 9 }, { wch: 13 }, { wch: 13 }, { wch: 30 }];
+    var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, '스위칭 제안');
+    XLSX.writeFile(wb, '스위칭제안_' + (($('projName').value || '').trim() || '프로젝트') + '_' + new Date().toISOString().slice(0, 10) + '.xlsx');
+  });
   $('repSave').addEventListener('click', function () { saveProject(false); });
   $('repCombo').addEventListener('click', function () { showStep(9); $('comboModeOpt').checked = true; $('comboModeFull').checked = false; $('tabCombo').click(); });
 
@@ -2624,7 +2676,7 @@
     ws.forEach(function (w) { var c = document.createElement('col'); c.style.width = w + 'px'; cg.appendChild(c); });
     tbl.insertBefore(cg, tbl.firstChild);
     var total = function () { return ws.reduce(function (a, b) { return a + b; }, 0); };
-    tbl.classList.add('rzon'); tbl.style.width = total() + 'px';
+    tbl.classList.add('rzon'); tbl.style.tableLayout = 'fixed'; tbl.style.width = total() + 'px';
     ths.forEach(function (th, i) {
       var old = th.querySelector('.rz'); if (old) old.remove();
       var rz = document.createElement('span'); rz.className = 'rz'; rz.title = '끌어서 너비 조절 · 두 번 클릭 = 자동 너비';
@@ -2753,15 +2805,19 @@
       var comp = compOf(x);
       if (swSel && !makerState.swChecked[comp]) return;
       var e = per[x.pCode] || (per[x.pCode] = {});
-      if (!e[comp] || x.profTotal > e[comp].profTotal) e[comp] = x; /* 제약사당 정산 최고 1품목 */
+      if (betterThan(x, e[comp], state.mx.mode)) e[comp] = x; /* 제약사당 설정 기준(정산/추가/합산)으로 최고 1품목 */
     });
     return per;
   }
   function rankedCands(code, per, o) {
     var e = per[code]; if (!e) return [];
-    return Object.keys(e).map(function (c) { return e[c]; })
-      .sort(function (a, b) { return b.profTotal - a.profTotal; }).slice(0, o.K)
-      .filter(function (x) { var c = compOf(x); return mxAllowed(c, o.stage) && !(state.avail && availExcluded(c)); });
+    /* 후보 범위 = 매트릭스와 동일: 정산·추가·합산 각 기준 상위 K위의 합집합 */
+    var all = Object.keys(e).map(function (c) { return e[c]; }), seen = {}, out = [];
+    ['prof', 'yk', 'sum'].forEach(function (m) {
+      all.slice().sort(function (a, b) { return betterThan(a, b, m) ? -1 : betterThan(b, a, m) ? 1 : 0; }).slice(0, o.K)
+        .forEach(function (x) { var c = compOf(x); if (!seen[c]) { seen[c] = 1; out.push(x); } });
+    });
+    return out.filter(function (x) { var c = compOf(x); return mxAllowed(c, o.stage) && !(state.avail && availExcluded(c)); });
   }
   function pickOf(list, o) {
     var mode = o.sum ? 'sum' : o.yk ? 'yk' : 'prof', pick = null;
@@ -2773,7 +2829,7 @@
     var o = mxOpts(), per = candPerComp(), best = {}, rows = [];
     state.result.pharm.forEach(function (d) {
       if (!per[d.code]) return;
-      var top = rankedCands(d.code, per, o).map(function (x) { return { comp: compOf(x), extraPct: x.extraPct || 0, prof: x.profTotal, x: x }; });
+      var top = rankedCands(d.code, per, o).map(function (x) { return { comp: compOf(x), extraPct: x.extraPct || 0, basePct: x.basePct !== undefined ? x.basePct : x.pct, pct: x.pct, prof: x.profTotal || 0, yk: x.ykTotal || 0, inc: x.incTotal || 0, x: x }; });
       rows.push({ code: d.code, amt: d.amt, top: top, pick: pickOf(top, o), skip: !!state.excluded[d.code] || scopeOut(d.code) });
     });
     var cr = consolidate(rows.filter(function (r) { return !r.skip; }), 'pick', function () { return true; }, o);
@@ -3211,6 +3267,8 @@
   $('btnDown').addEventListener('click', function () {
     var r = state.result; if (!r) return;
     var wb = XLSX.utils.book_new();
+    /* 첫 시트: 스위칭 제안표 (기존 품목 ↔ 스위칭 품목, 3단계 최종 선택 그대로) */
+    try { var SW = swRows(); if (SW.rows.length) { var wsSW = XLSX.utils.aoa_to_sheet(swAoa(SW)); wsSW['!cols'] = [{ wch: 11 }, { wch: 36 }, { wch: 12 }, { wch: 30 }, { wch: 16 }, { wch: 12 }, { wch: 10 }, { wch: 13 }, { wch: 16 }, { wch: 8 }, { wch: 9 }, { wch: 9 }, { wch: 9 }, { wch: 13 }, { wch: 13 }, { wch: 30 }]; XLSX.utils.book_append_sheet(wb, wsSW, '스위칭 제안'); } } catch (e) { console.error(e); }
 
     /* 확정 제약사(6단계) 시트 — 확정 목록으로 재배정한 제약사별 집계 */
     var cnX = confirmedNames();
