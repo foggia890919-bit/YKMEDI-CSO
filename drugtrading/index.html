@@ -490,6 +490,9 @@
     <label class="chk" title="필터링 결과가 거래가능(O)인 제약사만 표에 보입니다"><input type="checkbox" id="cfOnlyOk" checked><span>거래가능 제약사만 보기</span></label>
     <span class="mini">표 머리글을 누르면 그 열로 정렬(다시 누르면 오름↔내림)</span>
     <span style="border-left:1px solid var(--line); height:20px"></span>
+    <input id="cfSearch" placeholder="제약사 검색" style="width:130px; padding:5px 8px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit" title="이름 일부를 입력하면 표에 그 제약사만 보입니다. Enter = 검색된 제약사 제외">
+    <button class="sbtn" id="cfExcl" style="border-color:var(--err); color:var(--err)" title="검색된 제약사의 체크를 풀어 조합에서 뺍니다. 그 제약사가 1순위였던 품목은 체크된 제약사 중 다음 순위로 자동으로 넘어갑니다">✕ 검색된 제약사 제외</button>
+    <span style="border-left:1px solid var(--line); height:20px"></span>
     <button class="sbtn" id="cfAll">전체 선택</button>
     <button class="sbtn" id="cfNone">해제</button>
     <button class="sbtn" id="cfOk">거래가능만</button>
@@ -2065,6 +2068,8 @@
   state.cfSort = { key: 'prof', dir: -1 };
   function cfVisible(A) {
     var key = state.cfSort.key, dir = state.cfSort.dir, onlyOk = $('cfOnlyOk').checked;
+    var q = ($('cfSearch').value || '').replace(/\s/g, '').toLowerCase();
+    var hit = function (r) { return !q || r.name.replace(/\s/g, '').toLowerCase().indexOf(q) !== -1; };
     var val = function (r) {
       if (key === 'name') return r.name;
       if (key === 'avail') return { ok: 0, pending: 1, none: 2, no: 3 }[availKindFor(r.name)] || 0;
@@ -2073,7 +2078,7 @@
       if (key === 'fcnt' || key === 'famt' || key === 'fprof') { var p = A && A.per[r.name]; return p ? (key === 'fcnt' ? p.cnt : key === 'famt' ? p.amt : p.prof) : -1; }
       return r[key] || 0;
     };
-    return cfRows.filter(function (r) { return !onlyOk || availKindFor(r.name) === 'ok' || state.confirm.names[r.name]; })
+    return cfRows.filter(function (r) { return hit(r) && (!onlyOk || availKindFor(r.name) === 'ok' || state.confirm.names[r.name]); })
       .sort(function (a, b) { var va = val(a), vb = val(b); if (typeof va === 'string') return (va < vb ? 1 : va > vb ? -1 : 0) * dir; return (va - vb) * dir; });
   }
   $('cftab').querySelector('thead').addEventListener('click', function (e) {
@@ -2173,6 +2178,15 @@
   $('cfReq').addEventListener('click', function () { requestFilters(confirmedNames()); });
   $('cfRefresh').addEventListener('click', function () { loadAvail(false).then(function () { state.heldComp = null; renderConfirmStep(); }); });
   $('cfOnlyOk').addEventListener('change', drawConfirm);
+  $('cfSearch').addEventListener('input', drawConfirm);
+  function cfExclude() {
+    var q = ($('cfSearch').value || '').trim(); if (!q) { alert('제외할 제약사 이름을 먼저 입력하세요.'); return; }
+    var vis = cfVisible(), n = 0; vis.forEach(function (r) { if (state.confirm.names[r.name]) { state.confirm.names[r.name] = false; n++; } });
+    if (!n) { alert('「' + q + '」에 해당하는 체크된 제약사가 없습니다.'); return; }
+    $('cfSearch').value = ''; state.heldComp = null; drawConfirm(); autoSave(800);
+  }
+  $('cfExcl').addEventListener('click', cfExclude);
+  $('cfSearch').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); cfExclude(); } });
   $('cfNone').addEventListener('click', function () { state.confirm.names = {}; drawConfirm(); autoSave(800); });
   $('cfOk').addEventListener('click', function () { state.confirm.names = {}; cfRows.forEach(function (r) { if (availKindFor(r.name) === 'ok') state.confirm.names[r.name] = true; }); drawConfirm(); autoSave(800); });
   $('cfCombo').addEventListener('click', function () { var l = makerState.lastComboNames || []; if (!l.length) { alert('「자세히 보기」의 오른쪽 「최적 조합」을 먼저 한 번 열어 조합을 만들어 주세요.'); return; } state.confirm.names = {}; l.forEach(function (n) { state.confirm.names[n] = true; }); drawConfirm(); autoSave(800); });
