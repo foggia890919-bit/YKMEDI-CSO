@@ -1445,8 +1445,8 @@
       for (var k2 in map) { if (map[k2].kind === 'ok') ok++; else if (map[k2].kind === 'no') no++; else pd++; }
       var none = 0; try { switchAggs().forEach(function (a) { if (!availFor(a.name)) none++; }); } catch (e) {}
       var sy = d.sync, syTxt = '';
-      if (sy && sy.ok) syTxt = sy.cached ? ' · 원본시트 반영됨' : ' · 원본시트 동기화(새 ' + (sy.added || 0) + '·채움 ' + (sy.filled || 0) + '·갱신 ' + (sy.updated || 0) + ')';
-      else if (sy && sy.error) syTxt = ' · 원본시트 연동 실패: ' + String(sy.error).slice(0, 80);
+      if (sy && sy.ok) syTxt = ' · 원본시트 마지막 반영 ' + String(sy.at || '').slice(0, 16);
+      else if (sy && sy.error) syTxt = ' · 원본시트 마지막 반영 실패: ' + String(sy.error).slice(0, 60);
       $('availStat').textContent = name + ': 가능 ' + ok + ' · 불가 ' + no + ' · 확인중 ' + pd + ' · 조회전 ' + none + syTxt;
       renderMakers(); drawRows();
     }).catch(function () { $('availStat').textContent = '조회 실패: 사이트(로그인)에서만 조회됩니다'; });
