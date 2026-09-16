@@ -518,7 +518,7 @@
   </details>
   <div class="rep" id="cfSum"></div>
   <div style="overflow:auto; border:1px solid var(--line); border-radius:10px">
-    <table class="ftab" id="cftab"><thead><tr><th style="width:36px"><input type="checkbox" id="cfHead"></th><th>순위</th><th data-k="name">제약사</th><th data-k="avail">거래가능</th><th data-k="extra">추가수수료</th><th class="num" data-k="cnt">배정 품목</th><th class="num" data-k="amt">배정 매출</th><th class="num" data-k="prof">정산(월)</th><th class="num" data-k="ykRev">YK 추가수수료</th><th class="num" data-k="sum">합산</th><th class="num" data-k="rate">수수료율</th><th class="num" data-k="fcnt">확정 후 품목</th><th class="num" data-k="famt">확정 후 매출</th><th class="num" data-k="fprof">확정 후 정산</th></tr></thead><tbody></tbody></table>
+    <table class="ftab" id="cftab"><thead><tr><th style="width:36px"><input type="checkbox" id="cfHead"></th><th>순위</th><th data-k="name">제약사</th><th data-k="avail">거래가능</th><th data-k="extra">추가수수료</th><th class="num" data-k="mcnt" title="이 제약사가 대체 후보(상위 N위)에 들어가는 품목 수 — 다른 제약사와 겹쳐도 전부 셈. 필터링 요청 우선순위용">매칭 품목</th><th class="num" data-k="mamt" title="매칭 품목들의 조제금액 합 (중복 무관)">매칭 매출</th><th class="num" data-k="mfee" title="이 제약사 혼자 매칭 품목을 전부 받았을 때의 수수료 (설정 기준: 정산 / 합산)">단독 수수료</th><th class="num" data-k="cnt">배정 품목</th><th class="num" data-k="amt">배정 매출</th><th class="num" data-k="prof">정산(월)</th><th class="num" data-k="ykRev">YK 추가수수료</th><th class="num" data-k="sum">합산</th><th class="num" data-k="rate">수수료율</th><th class="num" data-k="fcnt">확정 후 품목</th><th class="num" data-k="famt">확정 후 매출</th><th class="num" data-k="fprof">확정 후 정산</th></tr></thead><tbody></tbody></table>
   </div>
   <h3 style="margin:16px 0 6px; font-size:14px; display:flex; flex-wrap:wrap; gap:8px; align-items:center">품목별 1·2·3순위 <span class="mini">품목마다 대체 후보 1·2·3순위와 그 제약사의 거래가능 여부. 위에서 체크한 제약사 중 최선순위가 자동 선택(●)되고, 바꾸고 싶은 품목만 다른 순위를 눌러 고정할 수 있습니다.</span>
     <span style="flex:1"></span>
@@ -528,7 +528,7 @@
   <div style="overflow:auto; border:1px solid var(--line); border-radius:10px; max-height:420px">
     <table class="ftab" id="cfItems"><thead><tr><th>약품명</th><th class="num">조제금액</th><th>1순위</th><th class="num ipAmt">정산</th><th>2순위</th><th class="num ipAmt">정산</th><th>3순위</th><th class="num ipAmt">정산</th><th>최종 선택</th></tr></thead><tbody></tbody></table>
   </div>
-  <div class="mini" style="margin-top:6px">「배정」열은 2차 매핑(제약사 무제한) 기준, 「확정 후」열은 체크한 제약사만으로 품목을 다시 배정한 결과입니다. 확정 목록에서 빠진 제약사가 1위였던 품목은 확정 제약사 중 차선으로 넘어가고, 갈 곳이 없으면 「조합 밖」으로 남습니다.</div>
+  <div class="mini" style="margin-top:6px">「매칭 품목·매칭 매출·단독 수수료」는 다른 제약사와 겹쳐도 전부 센 값(그 제약사 혼자 다 받았을 때)이라 <b>필터링 요청 순서</b>를 정할 때 보는 열이고, 「배정」열은 제약사끼리 경쟁시켜 품목당 한 곳만 준 값입니다. 필터링 결과가 오기 전에는 매칭 품목 많은 순으로 정렬됩니다. 「배정」열은 2차 매핑(제약사 무제한) 기준, 「확정 후」열은 체크한 제약사만으로 품목을 다시 배정한 결과입니다. 확정 목록에서 빠진 제약사가 1위였던 품목은 확정 제약사 중 차선으로 넘어가고, 갈 곳이 없으면 「조합 밖」으로 남습니다.</div>
   <div class="stepnav"><button class="pbtn" id="prev6">← 조제내역</button><button class="pbtn primary" id="next6">다음 → 보고서·제안서 (확정 적용)</button></div>
   </section>
 
@@ -1017,7 +1017,7 @@
       var prod = state.prodCol >= 0 ? String(x.cells[state.prodCol] === undefined ? '' : x.cells[state.prodCol]) : '';
       if (!c || x.profTotal > c.prof) e.comps[comp] = { prof: x.profTotal, yk: x.ykTotal || 0, inc: x.incTotal || 0, prod: prod, pct: x.pct, price: x.price, extraPct: x.extraPct || 0, extraSub: x.extraSub || '' };
     });
-    var rows = [], potential = {}, appear = {};
+    var rows = [], potential = {}, appear = {}, pamt = {}, psum = {}; /* potential/psum: 그 제약사가 등장한 품목을 전부 받았을 때(중복 무관) 정산/합산, pamt: 그 품목들의 조제금액 */
     state.result.pharm.slice().sort(function (a, b) { return b.amt - a.amt; }).forEach(function (d) {
       if (isOut(d.code)) return;
       var e = per[d.code];
@@ -1028,7 +1028,7 @@
         all.slice().sort(cmp).slice(0, K).forEach(function (t) { if (!seen[t.comp]) { seen[t.comp] = 1; top.push(t); } });
       });
       top.sort(function (a, b) { return b.prof - a.prof; });
-      top.forEach(function (t) { potential[t.comp] = (potential[t.comp] || 0) + t.prof; appear[t.comp] = (appear[t.comp] || 0) + 1; });
+      top.forEach(function (t) { potential[t.comp] = (potential[t.comp] || 0) + t.prof; appear[t.comp] = (appear[t.comp] || 0) + 1; pamt[t.comp] = (pamt[t.comp] || 0) + d.amt; psum[t.comp] = (psum[t.comp] || 0) + t.prof + (t.yk || 0); });
       rows.push({ code: d.code, name: d.name, amt: d.amt, qty: d.qty, top: top });
     });
     var comps = Object.keys(potential).sort(function (a, b) { return potential[b] - potential[a]; });
@@ -1066,7 +1066,7 @@
       });
     });
     var allAmt = 0; rows.forEach(function (r) { allAmt += r.amt; });
-    return { rows: rows, comps: comps, potential: potential, appear: appear, stages: stages, allAmt: allAmt, K: K };
+    return { rows: rows, comps: comps, potential: potential, appear: appear, pamt: pamt, psum: psum, stages: stages, allAmt: allAmt, K: K };
   }
   function minAmtLbl(cur) {
     var m = parseFloat($('minAmt').value) || 0; if (!(m > 0)) return '';
@@ -2060,9 +2060,10 @@
     var st = state.mx.stage === 'all' ? 'nono' : state.mx.stage, mode = state.mx.mode;
     var cur = M.stages[st + '_' + mode];
     /* 후보 = 상위 N위 범주에 한 번이라도 등장한 제약사 전부 (2차 배정이 0이어도 확정하면 품목을 받을 수 있음) */
-    cfRows = M.comps.map(function (c) { var a = cur.assign[c] || { cnt: 0, amt: 0, prof: 0, ykRev: 0 }; return { name: c, cnt: a.cnt, amt: a.amt, prof: a.prof, ykRev: a.ykRev || 0, sum: a.prof + (a.ykRev || 0), potential: M.potential[c] || 0, appear: M.appear[c] || 0 }; });
+    cfRows = M.comps.map(function (c) { var a = cur.assign[c] || { cnt: 0, amt: 0, prof: 0, ykRev: 0 }; return { name: c, cnt: a.cnt, amt: a.amt, prof: a.prof, ykRev: a.ykRev || 0, sum: a.prof + (a.ykRev || 0), potential: M.potential[c] || 0, appear: M.appear[c] || 0, mcnt: M.appear[c] || 0, mamt: M.pamt[c] || 0, mprof: M.potential[c] || 0, msum: M.psum[c] || 0 }; });
     var anyOk = cfRows.some(function (r) { return availKindFor(r.name) === 'ok'; });
-    if (!state.cfSortTouched) state.cfSort = { key: state.mx.mode === 'sum' ? 'sum' : state.mx.mode === 'yk' ? 'ykRev' : 'prof', dir: -1 };
+    /* 기본 정렬: 필터링 결과가 아직 없으면 「매칭 품목」 많은 순(중복 무관 — 필터링 요청 우선순위), 결과가 있으면 설정 기준 */
+    if (!state.cfSortTouched) state.cfSort = { key: anyOk ? (state.mx.mode === 'sum' ? 'sum' : state.mx.mode === 'yk' ? 'ykRev' : 'prof') : 'mcnt', dir: -1 };
     $('cfOnlyOk').checked = anyOk; /* 결과가 하나라도 있으면 거래가능만 보기 */
     /* 기본 선택: 저장된 확정 > 거래가능 전부 > 최적 조합 > 전부 */
     if (!confirmedNames().length) {
@@ -2083,6 +2084,7 @@
       if (key === 'avail') return { ok: 0, pending: 1, none: 2, no: 3 }[availKindFor(r.name)] || 0;
       if (key === 'extra') return (extraFor(r.name) || {}).pct || 0;
       if (key === 'rate') return r.amt > 0 ? r.prof / r.amt : 0;
+      if (key === 'mfee') return state.mx.mode === 'prof' ? r.mprof : r.msum;
       if (key === 'fcnt' || key === 'famt' || key === 'fprof') { var p = A && A.per[r.name]; return p ? (key === 'fcnt' ? p.cnt : key === 'famt' ? p.amt : p.prof) : -1; }
       return r[key] || 0;
     };
@@ -2109,6 +2111,7 @@
       var on = !!state.confirm.names[r.name], p = A.per[r.name];
       return '<tr class="' + (on ? 'sel' : '') + '" data-n="' + esc(r.name) + '"><td><input type="checkbox" class="cfChk"' + (on ? ' checked' : '') + '></td><td class="num">' + (i + 1) + '</td>'
         + '<td><b>' + esc(r.name) + '</b></td><td>' + availBadge(r.name) + '</td><td>' + (extraBadge(r.name) || '<span class="mini">—</span>') + '</td>'
+        + '<td class="num"><b>' + r.mcnt + '</b></td><td class="num">' + Math.round(r.mamt).toLocaleString('ko-KR') + '</td><td class="num">' + Math.round(state.mx.mode === 'prof' ? r.mprof : r.msum).toLocaleString('ko-KR') + '</td>'
         + '<td class="num">' + r.cnt + '</td><td class="num">' + Math.round(r.amt).toLocaleString('ko-KR') + '</td><td class="num"><b>' + Math.round(r.prof).toLocaleString('ko-KR') + '</b></td>'
         + '<td class="num" style="color:#3730a3">' + (r.ykRev ? Math.round(r.ykRev).toLocaleString('ko-KR') : '') + '</td><td class="num"><b>' + Math.round(r.sum || r.prof).toLocaleString('ko-KR') + '</b></td><td class="num">' + pctOf(r.prof, r.amt) + '</td>'
         + '<td class="num">' + (p ? p.cnt : '<span class="mini">—</span>') + '</td><td class="num">' + (p ? Math.round(p.amt).toLocaleString('ko-KR') : '') + '</td><td class="num">' + (p ? '<b style="color:var(--ok)">' + Math.round(p.prof).toLocaleString('ko-KR') + '</b>' : '') + '</td></tr>';
@@ -3278,12 +3281,13 @@
     var cnX = confirmedNames();
     if (cnX.length) {
       var AX = assignWithin(cnX);
-      var aoaC = [['순위', '제약사', '거래가능', '추가수수료(%)', '제출처', '배정 품목수', '배정 매출(조제금액)', '영업사원 정산(월)', '저가 인센티브', '매출대비 수수료율(%)']];
+      var aoaC = [['순위', '제약사', '거래가능', '추가수수료(%)', '제출처', '매칭 품목수(중복 무관)', '매칭 매출', '단독 배정 시 정산', '단독 배정 시 합산', '배정 품목수', '배정 매출(조제금액)', '영업사원 정산(월)', '저가 인센티브', '매출대비 수수료율(%)']];
+      var cfBy = {}; cfRows.forEach(function (r) { cfBy[r.name] = r; });
       cnX.map(function (n) { return AX.per[n]; }).sort(function (a, b) { return b.prof - a.prof; }).forEach(function (p, i) {
-        var av = availFor(p.name), ex = extraFor(p.name);
-        aoaC.push([i + 1, p.name, av ? (av.kind === 'ok' ? 'O' : av.kind === 'no' ? 'X' : '확인중') : '조회전', ex && ex.pct > 0 ? ex.pct : '', ex && ex.pct > 0 ? ex.sub : '', p.cnt, Math.round(p.amt), Math.round(p.prof), Math.round(p.inc), p.amt > 0 ? Math.round(p.prof / p.amt * 1000) / 10 : '']);
+        var av = availFor(p.name), ex = extraFor(p.name), m = cfBy[p.name] || {};
+        aoaC.push([i + 1, p.name, av ? (av.kind === 'ok' ? 'O' : av.kind === 'no' ? 'X' : '확인중') : '조회전', ex && ex.pct > 0 ? ex.pct : '', ex && ex.pct > 0 ? ex.sub : '', m.mcnt || 0, Math.round(m.mamt || 0), Math.round(m.mprof || 0), Math.round(m.msum || 0), p.cnt, Math.round(p.amt), Math.round(p.prof), Math.round(p.inc), p.amt > 0 ? Math.round(p.prof / p.amt * 1000) / 10 : '']);
       });
-      aoaC.push([]); aoaC.push(['', '합계', '', '', '', AX.covered + '/' + AX.total + '품목', Math.round(AX.coveredAmt), Math.round(AX.totalProf), Math.round(AX.totalInc), AX.coveredAmt > 0 ? Math.round(AX.totalProf / AX.coveredAmt * 1000) / 10 : '']);
+      aoaC.push([]); aoaC.push(['', '합계', '', '', '', '', '', '', '', AX.covered + '/' + AX.total + '품목', Math.round(AX.coveredAmt), Math.round(AX.totalProf), Math.round(AX.totalInc), AX.coveredAmt > 0 ? Math.round(AX.totalProf / AX.coveredAmt * 1000) / 10 : '']);
       XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoaC), '확정 제약사');
       if (!state.confirm.itemRanks) { try { renderConfirmStep(); } catch (e) {} }
       var ranks = state.confirm.itemRanks || [];
