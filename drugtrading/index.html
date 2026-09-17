@@ -485,31 +485,41 @@
       <button class="sbtn" id="cfDetail" title="품목별 1~N위 제약사 전체 표 · 최적 조합 패널">🧮 자세히 보기 (제약사×품목 전체 표)</button>
     </div>
   </details>
-  <div class="ctlbar" style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:0 0 8px; padding:8px 10px; background:#f3f7ff; border:1px solid #c7d2fe; border-radius:8px">
-    <span class="lab" style="font-weight:700">필터링</span>
-    <button class="sbtn" id="cfReq" style="border-color:var(--blue); color:var(--blue)">📨 체크한 제약사 필터링요청 (조회전만)</button>
-    <button class="sbtn" id="cfRefresh">🔎 결과 새로고침</button>
-    <span class="mini" id="cfAvailStat"></span>
-  </div>
-  <div class="ctlbar" style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:0 0 8px">
-    <label class="chk" title="필터링 결과가 거래가능(O)인 제약사만 표에 보입니다"><input type="checkbox" id="cfOnlyOk" checked><span>거래가능 제약사만 보기</span></label>
-    <span class="mini">표 머리글을 누르면 그 열로 정렬(다시 누르면 오름↔내림)</span>
-    <span style="border-left:1px solid var(--line); height:20px"></span>
-    <input id="cfSearch" placeholder="제약사 검색" style="width:130px; padding:5px 8px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit" title="이름 일부를 입력하면 표에 그 제약사만 보입니다. Enter = 검색된 제약사 제외">
-    <button class="sbtn" id="cfExcl" style="border-color:var(--err); color:var(--err)" title="검색된 제약사의 체크를 풀어 조합에서 뺍니다. 그 제약사가 1순위였던 품목은 체크된 제약사 중 다음 순위로 자동으로 넘어갑니다">✕ 검색된 제약사 제외</button>
-    <span style="border-left:1px solid var(--line); height:20px"></span>
-    <button class="sbtn" id="cfAll" title="지금 표에 보이는 행만 체크합니다. 「거래가능 제약사만 보기」가 켜져 있으면 거래가능만 체크됩니다">표시된 전체 선택</button>
-    <button class="sbtn" id="cfAllOk" title="후보 제약사 중 거래불가만 빼고 전부 체크 — 가능한 최대 합산(상한)">불가 제외 전부 선택</button>
-    <button class="sbtn" id="cfNone">해제</button>
-    <button class="sbtn" id="cfOk">거래가능만</button>
-    <button class="sbtn" id="cfCombo">최적 조합만</button>
-    <label class="chk"><span>표시 순서 상위</span><input type="number" id="cfTopN" min="1" max="50" value="10" style="width:52px; padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin:0 4px"><span>곳</span></label><button class="sbtn" id="cfTop">상위만 선택</button>
-    <span style="border-left:1px solid var(--line); height:20px"></span>
-    <label class="chk" title="지금 체크된(거래가능) 제약사로 배정하고 남는 품목(조합 밖)을 가장 많이 받는 제약사부터 차례로 추가 체크합니다. 거래불가는 제외. 추가된 곳이 조회전이면 이어서 「체크한 제약사 필터링요청」을 누르세요"><span>➕ 나머지 최적화</span><input type="number" id="cfMoreN" min="1" max="30" value="5" style="width:52px; padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin:0 4px"><span>곳 추가</span></label><select id="cfMoreBy" style="padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit" title="추가할 제약사를 고르는 기준"><option value="fee">남은 품목 수수료 많은 순</option><option value="cnt">남은 품목 수 많은 순</option></select><button class="sbtn" id="cfMore" style="border-color:var(--ok); color:var(--ok)">남은 품목 많이 받는 순으로 추가</button>
-    <span class="mini" id="cfMoreStat"></span>
-    <span style="border-left:1px solid var(--line); height:20px"></span>
-    <label class="chk" title="체크를 전부 지우고 처음부터 다시 뽑습니다: 거래가능으로 회신된 제약사는 그대로 넣고, 남는 품목을 수수료 많이 받는 순으로 제약사를 최대 N곳까지 추가(거래불가 제외). 추가된 조회전 제약사는 「체크한 제약사 필터링요청」으로 접수"><span>🏆 최적 조합 자동</span><input type="number" id="cfAutoN" min="1" max="40" value="15" style="width:52px; padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin:0 4px"><span>곳까지</span></label><button class="sbtn" id="cfAuto" style="border-color:var(--blue); color:var(--blue); font-weight:700">거래가능 + 최적 추가로 처음부터 도출</button>
-    <span class="mini" id="cfStat" style="margin-left:auto"></span>
+  <style>
+    .cfsteps { display:flex; flex-direction:column; gap:6px; margin:0 0 10px }
+    .cfstep { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:7px 10px; border:1px solid var(--line); border-radius:8px; background:#fff }
+    .cfstep .stp { display:inline-flex; align-items:center; gap:6px; min-width:150px; font-weight:700; font-size:13px }
+    .cfstep .stp i { display:inline-flex; width:20px; height:20px; border-radius:50%; background:var(--blue); color:#fff; font-style:normal; font-size:12px; align-items:center; justify-content:center }
+    .cfstep .grp { display:inline-flex; flex-wrap:wrap; gap:6px; align-items:center; padding:3px 8px; border:1px dashed #c7d2fe; border-radius:6px }
+    .cfstep .grp > .gl { font-size:11.5px; color:#556; margin-right:2px }
+    .cfstep.hl { background:#f3f7ff; border-color:#c7d2fe }
+  </style>
+  <div class="cfsteps">
+    <div class="cfstep">
+      <span class="stp"><i>1</i>후보 고르기</span>
+      <span class="grp"><span class="gl">순서대로</span><label class="chk"><span>표시 순서 상위</span><input type="number" id="cfTopN" min="1" max="50" value="10" style="width:52px; padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin:0 4px"><span>곳</span></label><button class="sbtn" id="cfTop" title="지금 표에 정렬된 순서(기본: 매칭 품목 많은 순)대로 위에서 N곳만 체크">상위만 선택</button></span>
+      <span class="grp"><span class="gl">한번에</span><button class="sbtn" id="cfAllOk" title="후보 제약사 중 거래불가만 빼고 전부 체크 — 가능한 최대 합산(상한)">불가 제외 전부 선택</button><button class="sbtn" id="cfAll" title="지금 표에 보이는 행만 체크합니다. 「거래가능 제약사만 보기」가 켜져 있으면 거래가능만 체크됩니다">표시된 전체 선택</button><button class="sbtn" id="cfNone">전부 해제</button></span>
+      <span class="grp"><span class="gl">빼기</span><input id="cfSearch" placeholder="제약사 검색" style="width:130px; padding:5px 8px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit" title="이름 일부를 입력하면 표에 그 제약사만 보입니다. Enter = 검색된 제약사 제외"><button class="sbtn" id="cfExcl" style="border-color:var(--err); color:var(--err)" title="검색된 제약사의 체크를 풀어 조합에서 뺍니다. 그 제약사가 1순위였던 품목은 체크된 제약사 중 다음 순위로 자동으로 넘어갑니다">✕ 검색된 제약사 제외</button></span>
+    </div>
+    <div class="cfstep hl">
+      <span class="stp"><i>2</i>필터링 요청 · 결과</span>
+      <button class="sbtn" id="cfReq" style="border-color:var(--blue); color:var(--blue)">📨 체크한 제약사 필터링요청 (조회전만)</button>
+      <button class="sbtn" id="cfRefresh" title="사무실 결과입력·원본시트 반영분을 다시 읽어 거래가능/불가를 표에 대입">🔎 결과 새로고침</button>
+      <button class="sbtn" id="cfOk" title="거래가능으로 회신된 제약사만 체크로 남김">거래가능만 남기기</button>
+      <span class="mini" id="cfAvailStat"></span>
+    </div>
+    <div class="cfstep">
+      <span class="stp"><i>3</i>조합 만들기</span>
+      <span class="grp"><span class="gl">처음부터</span><label class="chk" title="체크를 전부 지우고 처음부터 다시 뽑습니다: 거래가능으로 회신된 제약사는 그대로 넣고, 남는 품목을 수수료 많이 받는 순으로 제약사를 최대 N곳까지 추가(거래불가 제외). 추가된 조회전 제약사는 「체크한 제약사 필터링요청」으로 접수"><span>🏆 최적 조합 자동</span><input type="number" id="cfAutoN" min="1" max="40" value="15" style="width:52px; padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin:0 4px"><span>곳까지</span></label><button class="sbtn" id="cfAuto" style="border-color:var(--blue); color:var(--blue); font-weight:700">거래가능 + 최적 추가로 도출</button></span>
+      <span class="grp"><span class="gl">지금 체크에 더하기</span><label class="chk" title="지금 체크된 제약사로 배정하고 남는 품목(조합 밖)을 가장 많이 받는 제약사부터 차례로 추가 체크합니다. 거래불가는 제외. 추가된 곳이 조회전이면 이어서 「체크한 제약사 필터링요청」을 누르세요"><span>➕ 나머지 최적화</span><input type="number" id="cfMoreN" min="1" max="30" value="5" style="width:52px; padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin:0 4px"><span>곳</span></label><select id="cfMoreBy" style="padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit" title="추가할 제약사를 고르는 기준"><option value="fee">남은 품목 수수료 많은 순</option><option value="cnt">남은 품목 수 많은 순</option></select><button class="sbtn" id="cfMore" style="border-color:var(--ok); color:var(--ok)">추가</button></span>
+      <span class="mini" id="cfMoreStat" style="flex-basis:100%"></span>
+    </div>
+    <div class="cfstep">
+      <span class="stp"><i>4</i>표 보기</span>
+      <label class="chk" title="필터링 결과가 거래가능(O)인 제약사만 표에 보입니다"><input type="checkbox" id="cfOnlyOk" checked><span>거래가능 제약사만 보기</span></label>
+      <span class="mini">머리글 클릭 = 그 열로 정렬 · 표 클릭 후 <b>↑↓</b> 이동, <b>스페이스</b> 체크·해제 · 행 아무 곳 클릭 = 체크</span>
+      <span class="mini" id="cfStat" style="margin-left:auto"></span>
+    </div>
   </div>
   <details class="cfSet" open style="margin:0 0 10px; border:1px solid #c7d2fe; border-radius:8px; background:#f8f9ff">
     <summary style="cursor:pointer; padding:8px 12px; font-weight:700; font-size:13px">⚡ 품목별 1~N등 (합산 수수료 = 약가×(기본요율+추가수수료)×조제량 높은 순) → 등장 제약사 필터링요청 <span class="mini" id="qkStat" style="font-weight:500"></span></summary>
@@ -528,7 +538,6 @@
     </div>
   </details>
   <div class="rep" id="cfSum"></div>
-  <div class="mini" style="margin:0 0 4px">키보드: 표를 한 번 클릭한 뒤 <b>↑ ↓</b> 로 이동, <b>스페이스</b>(또는 Enter)로 체크·해제, <b>Home/End</b> 처음·끝. 행 아무 곳이나 클릭해도 체크됩니다.</div>
   <div id="cfWrap" tabindex="0" style="overflow:auto; border:1px solid var(--line); border-radius:10px; outline:none" title="↑↓ 이동 · 스페이스 체크/해제">
     <table class="ftab" id="cftab"><thead><tr><th style="width:36px"><input type="checkbox" id="cfHead"></th><th>순위</th><th data-k="name">제약사</th><th data-k="avail">거래가능</th><th data-k="extra">추가수수료</th><th class="num" data-k="mcnt" title="이 제약사가 대체 후보(상위 N위)에 들어가는 품목 수 — 다른 제약사와 겹쳐도 전부 셈. 필터링 요청 우선순위용">매칭 품목</th><th class="num" data-k="mamt" title="매칭 품목들의 조제금액 합 (중복 무관)">매칭 매출</th><th class="num" data-k="mfee" title="이 제약사 혼자 매칭 품목을 전부 받았을 때의 수수료 (설정 기준: 정산 / 합산)">단독 수수료</th><th class="num" data-k="cnt">배정 품목</th><th class="num" data-k="amt">배정 매출</th><th class="num" data-k="prof">정산(월)</th><th class="num" data-k="ykRev">YK 추가수수료</th><th class="num" data-k="sum">합산</th><th class="num" data-k="rate">수수료율</th><th class="num" data-k="fcnt">확정 후 품목</th><th class="num" data-k="famt">확정 후 매출</th><th class="num" data-k="fprof">확정 후 정산</th></tr></thead><tbody></tbody></table>
   </div>
@@ -2315,7 +2324,7 @@
       + (r && r.chosen.length < add ? ' · 더 넣어도 합산이 늘지 않아 ' + r.chosen.length + '곳에서 멈춤' : '')
       + (pre ? ' · 조회전 ' + pre + '곳은 「체크한 제약사 필터링요청」으로 접수' : '');
   });
-  $('cfCombo').addEventListener('click', function () { var l = makerState.lastComboNames || []; if (!l.length) { alert('「자세히 보기」의 오른쪽 「최적 조합」을 먼저 한 번 열어 조합을 만들어 주세요.'); return; } state.confirm.names = {}; l.forEach(function (n) { state.confirm.names[n] = true; }); drawConfirm(); autoSave(800); });
+  if ($('cfCombo')) $('cfCombo').addEventListener('click', function () { var l = makerState.lastComboNames || []; if (!l.length) { alert('「자세히 보기」의 오른쪽 「최적 조합」을 먼저 한 번 열어 조합을 만들어 주세요.'); return; } state.confirm.names = {}; l.forEach(function (n) { state.confirm.names[n] = true; }); drawConfirm(); autoSave(800); });
   $('cfTop').addEventListener('click', function () { var n = Math.max(1, parseInt($('cfTopN').value, 10) || 10); var base = cfVisible(); state.confirm.names = {}; base.slice(0, n).forEach(function (r) { state.confirm.names[r.name] = true; }); drawConfirm(); autoSave(800); });
 
   function renderReportStep() {
