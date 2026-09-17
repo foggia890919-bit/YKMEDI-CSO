@@ -181,6 +181,11 @@
   .ftab th .rz:hover { background: #c7d2fe; }
   .ftab td.num { text-align: right; font-variant-numeric: tabular-nums; }
   .ftab tr.sel td { background: #f3f7ff; }
+  #cftab .cfChk { width: 18px; height: 18px; cursor: pointer; vertical-align: middle; }
+  #cftab tbody tr { cursor: pointer; }
+  #cftab tbody tr.cur td { box-shadow: inset 0 2px 0 var(--blue), inset 0 -2px 0 var(--blue); }
+  #cftab tbody tr.cur td:first-child { box-shadow: inset 2px 2px 0 var(--blue), inset 0 -2px 0 var(--blue); }
+  #cfWrap:focus-within #cftab tbody tr.cur td { background: #e8efff; }
   .fwrap { background: #fff; border: 1px solid var(--line); border-radius: 10px; overflow: auto; max-height: 60vh; }
   .kinds { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin: 0 0 14px; }
   .kind { background: #fff; border: 2px solid var(--line); border-radius: 12px; padding: 14px 16px; cursor: pointer; }
@@ -523,7 +528,8 @@
     </div>
   </details>
   <div class="rep" id="cfSum"></div>
-  <div style="overflow:auto; border:1px solid var(--line); border-radius:10px">
+  <div class="mini" style="margin:0 0 4px">키보드: 표를 한 번 클릭한 뒤 <b>↑ ↓</b> 로 이동, <b>스페이스</b>(또는 Enter)로 체크·해제, <b>Home/End</b> 처음·끝. 행 아무 곳이나 클릭해도 체크됩니다.</div>
+  <div id="cfWrap" tabindex="0" style="overflow:auto; border:1px solid var(--line); border-radius:10px; outline:none" title="↑↓ 이동 · 스페이스 체크/해제">
     <table class="ftab" id="cftab"><thead><tr><th style="width:36px"><input type="checkbox" id="cfHead"></th><th>순위</th><th data-k="name">제약사</th><th data-k="avail">거래가능</th><th data-k="extra">추가수수료</th><th class="num" data-k="mcnt" title="이 제약사가 대체 후보(상위 N위)에 들어가는 품목 수 — 다른 제약사와 겹쳐도 전부 셈. 필터링 요청 우선순위용">매칭 품목</th><th class="num" data-k="mamt" title="매칭 품목들의 조제금액 합 (중복 무관)">매칭 매출</th><th class="num" data-k="mfee" title="이 제약사 혼자 매칭 품목을 전부 받았을 때의 수수료 (설정 기준: 정산 / 합산)">단독 수수료</th><th class="num" data-k="cnt">배정 품목</th><th class="num" data-k="amt">배정 매출</th><th class="num" data-k="prof">정산(월)</th><th class="num" data-k="ykRev">YK 추가수수료</th><th class="num" data-k="sum">합산</th><th class="num" data-k="rate">수수료율</th><th class="num" data-k="fcnt">확정 후 품목</th><th class="num" data-k="famt">확정 후 매출</th><th class="num" data-k="fprof">확정 후 정산</th></tr></thead><tbody></tbody></table>
   </div>
   <h3 style="margin:16px 0 6px; font-size:14px; display:flex; flex-wrap:wrap; gap:8px; align-items:center">품목별 1·2·3순위 <span class="mini">품목마다 대체 후보 1·2·3순위와 그 제약사의 거래가능 여부. 위에서 체크한 제약사 중 최선순위가 자동 선택(●)되고, 바꾸고 싶은 품목만 다른 순위를 눌러 고정할 수 있습니다.</span>
@@ -2124,8 +2130,16 @@
     }).join('');
     tb.querySelectorAll('tr').forEach(function (tr) {
       var n = tr.getAttribute('data-n');
-      tr.querySelector('.cfChk').addEventListener('change', function () { state.confirm.names[n] = this.checked; drawConfirm(); autoSave(800); });
+      tr.querySelector('.cfChk').addEventListener('change', function () { state.cfCursor = n; state.confirm.names[n] = this.checked; drawConfirm(); autoSave(800); });
+      /* 행 아무 곳이나 클릭 = 체크 토글 (체크박스·링크·버튼 클릭은 제외) */
+      tr.addEventListener('click', function (e) {
+        if (e.target.closest('input, a, button, label')) return;
+        state.cfCursor = n; state.confirm.names[n] = !state.confirm.names[n]; drawConfirm(); autoSave(800);
+      });
     });
+    /* 키보드 커서 표시 (없거나 표에서 사라졌으면 첫 행) */
+    if (vis.length && !vis.some(function (r) { return r.name === state.cfCursor; })) state.cfCursor = vis[0].name;
+    tb.querySelectorAll('tr').forEach(function (tr) { tr.classList.toggle('cur', tr.getAttribute('data-n') === state.cfCursor); });
     /* 품목별 1·2·3순위: 매트릭스 top(상위 N위) 중 확정 제약사만, 정산 높은 순 */
     var set = {}; names.forEach(function (n) { set[n] = true; });
     var itemRows = (state.mx.last ? state.mx.last.rows : []).slice().sort(function (a, b) { return b.amt - a.amt; });
@@ -2206,6 +2220,29 @@
   $('cfExcl').addEventListener('click', cfExclude);
   $('cfSearch').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); cfExclude(); } });
   $('cfNone').addEventListener('click', function () { state.confirm.names = {}; drawConfirm(); autoSave(800); });
+  /* 확정 표 키보드 조작: ↑↓ 이동, 스페이스/Enter 체크 토글, Home/End, PageUp/PageDown */
+  $('cfWrap').addEventListener('keydown', function (e) {
+    if (e.target.closest('input[type=text], input[type=number], select, textarea')) return;
+    var rows = Array.prototype.slice.call($('cftab').querySelectorAll('tbody tr[data-n]')); if (!rows.length) return;
+    var names = rows.map(function (tr) { return tr.getAttribute('data-n'); });
+    var i = Math.max(0, names.indexOf(state.cfCursor)), j = i;
+    if (e.key === 'ArrowDown') j = Math.min(names.length - 1, i + 1);
+    else if (e.key === 'ArrowUp') j = Math.max(0, i - 1);
+    else if (e.key === 'PageDown') j = Math.min(names.length - 1, i + 10);
+    else if (e.key === 'PageUp') j = Math.max(0, i - 10);
+    else if (e.key === 'Home') j = 0;
+    else if (e.key === 'End') j = names.length - 1;
+    else if (e.key === ' ' || e.key === 'Enter') {
+      e.preventDefault(); var n = names[i]; state.confirm.names[n] = !state.confirm.names[n]; state.cfCursor = n; drawConfirm(); autoSave(800);
+      var tr2 = $('cftab').querySelector('tbody tr.cur'); if (tr2) tr2.scrollIntoView({ block: 'nearest' }); return;
+    } else return;
+    e.preventDefault();
+    state.cfCursor = names[j];
+    rows.forEach(function (tr, k) { tr.classList.toggle('cur', k === j); });
+    rows[j].scrollIntoView({ block: 'nearest' });
+  });
+  /* 표 클릭 시 포커스 → 바로 키보드 사용 가능 */
+  $('cfWrap').addEventListener('mousedown', function (e) { if (!e.target.closest('input, select, a, button')) setTimeout(function () { $('cfWrap').focus(); }, 0); });
   $('cfAllOk').addEventListener('click', function () {
     state.confirm.names = {}; cfRows.forEach(function (r) { if (availKindFor(r.name) !== 'no') state.confirm.names[r.name] = true; });
     if ($('cfOnlyOk').checked) $('cfOnlyOk').checked = false; /* 체크된 조회전 제약사도 보이게 */
