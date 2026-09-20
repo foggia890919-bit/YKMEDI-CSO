@@ -510,7 +510,7 @@
     </div>
     <div class="cfstep">
       <span class="stp"><i>3</i>조합 만들기</span>
-      <span class="grp" style="border-color:#f59e0b"><span class="gl">최고요율 프리셋</span><label class="chk" title="배정 기준을 「요율 높은순(기본+추가 %)」으로 바꾸고, 후보 범위를 상위 30위로 넓힌 뒤, 거래불가만 빼고 전부 체크합니다. 한 제약사에 배정된 처방매출이 아래 금액 미만이면 그 품목은 요율 차순위(기준 이상인 제약사)로 넘어갑니다"><span>한 제약사 처방</span><input type="number" id="cfPresetMin" min="0" step="10000" value="300000" style="width:80px; padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin:0 4px"><span>원 미만이면 차순위</span></label><button class="sbtn" id="cfPresetRate" style="border-color:#b45309; color:#b45309; font-weight:700">⚡ 최고요율로 세팅</button></span>
+      <span class="grp" style="border-color:#f59e0b"><span class="gl">최고요율 프리셋</span><label class="chk" title="배정 기준을 「요율 높은순(기본+추가 %)」으로 바꾸고, 후보 범위를 상위 30위로 넓힌 뒤, 거래불가만 빼고 전부 체크합니다. 한 제약사에 배정된 처방매출이 아래 금액 미만이면 그 품목은 요율 차순위(기준 이상인 제약사)로 넘어갑니다"><span>한 제약사 처방</span><input type="number" id="cfPresetMin" min="0" step="10000" value="300000" style="width:80px; padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin:0 4px"><span>원 미만이면 차순위</span></label><label class="chk" title="제약사를 이 수로 제한합니다. 거래가능 회신 제약사를 먼저 넣고, 요율 기준 배정에서 수수료가 가장 많이 늘어나는 제약사를 차례로 추가합니다. 0이면 제한 없이 불가 제외 전부"><span>제약사</span><input type="number" id="cfPresetN" min="0" max="40" value="10" style="width:52px; padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin:0 4px"><span>곳</span></label><button class="sbtn" id="cfPresetRate" style="border-color:#b45309; color:#b45309; font-weight:700">⚡ 최고요율로 세팅</button></span>
       <span class="grp"><span class="gl">처음부터</span><label class="chk" title="체크를 전부 지우고 처음부터 다시 뽑습니다: 거래가능으로 회신된 제약사는 그대로 넣고, 남는 품목을 수수료 많이 받는 순으로 제약사를 최대 N곳까지 추가(거래불가 제외). 추가된 조회전 제약사는 「체크한 제약사 필터링요청」으로 접수"><span>🏆 최적 조합 자동</span><input type="number" id="cfAutoN" min="1" max="40" value="15" style="width:52px; padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin:0 4px"><span>곳까지</span></label><button class="sbtn" id="cfAuto" style="border-color:var(--blue); color:var(--blue); font-weight:700">거래가능 + 최적 추가로 도출</button></span>
       <span class="grp"><span class="gl">지금 체크에 더하기</span><label class="chk" title="지금 체크된 제약사로 배정하고 남는 품목(조합 밖)을 가장 많이 받는 제약사부터 차례로 추가 체크합니다. 거래불가는 제외. 추가된 곳이 조회전이면 이어서 「체크한 제약사 필터링요청」을 누르세요"><span>➕ 나머지 최적화</span><input type="number" id="cfMoreN" min="1" max="30" value="5" style="width:52px; padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin:0 4px"><span>곳</span></label><select id="cfMoreBy" style="padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit" title="추가할 제약사를 고르는 기준"><option value="fee">남은 품목 수수료 많은 순</option><option value="cnt">남은 품목 수 많은 순</option></select><button class="sbtn" id="cfMore" style="border-color:var(--ok); color:var(--ok)">추가</button></span>
       <span class="mini" id="cfMoreStat" style="flex-basis:100%"></span>
@@ -2271,7 +2271,9 @@
     if ((parseInt($('mxK').value, 10) || 10) < 30) $('mxK').value = 30;
     state.cfSortTouched = false; state.heldComp = null;
     renderConfirmStep(); /* 매트릭스(후보 범위) 다시 계산 */
-    selectAllOk('⚡ 최고요율 세팅(요율 높은순 · 상위 ' + $('mxK').value + '위 · 최소매출 ' + won(min) + ') → ');
+    var N = Math.max(0, Math.min(40, parseInt($('cfPresetN').value, 10) || 0));
+    var prefix = '⚡ 최고요율 세팅(요율 높은순 · 상위 ' + $('mxK').value + '위 · 최소매출 ' + won(min) + (N ? ' · 제약사 ' + N + '곳' : '') + ') → ';
+    if (N) autoCombo(N, prefix); else selectAllOk(prefix);
     $('cfSettings').scrollIntoView({ block: 'nearest' });
   });
   $('cfOk').addEventListener('click', function () { state.confirm.names = {}; cfRows.forEach(function (r) { if (availKindFor(r.name) === 'ok') state.confirm.names[r.name] = true; }); drawConfirm(); autoSave(800); });
@@ -2323,8 +2325,8 @@
     var ce = ceilingAll();
     $('cfMoreStat').textContent = '추가 ' + r.chosen.length + '곳: ' + r.chosen.map(function (c) { return c.name + '(+' + c.gainCnt + '품목 · 합산 +' + won(c.gainFee) + ')'; }).join(', ') + ' → 합산 ' + won(r.total) + ' · 커버 ' + r.covered + '/' + r.all + ' · 남은 품목 ' + r.before + '→' + r.leftCnt + ' · 상한(불가 제외 ' + ce.n + '곳 전부) ' + won(ce.total) + (pre ? ' · 조회전 ' + pre + '곳은 「체크한 제약사 필터링요청」으로 접수' : '');
   });
-  $('cfAuto').addEventListener('click', function () {
-    var N = Math.max(1, Math.min(40, parseInt($('cfAutoN').value, 10) || 15));
+  /* 거래가능 회신 제약사 + 남는 품목 수수료 많은 순 추가 = 최대 N곳 */
+  function autoCombo(N, prefix) {
     var okNames = cfRows.filter(function (r) { return availKindFor(r.name) === 'ok'; }).map(function (r) { return r.name; });
     state.confirm.names = {}; okNames.forEach(function (n) { state.confirm.names[n] = true; });
     var add = Math.max(0, N - okNames.length);
@@ -2333,12 +2335,15 @@
     state.heldComp = null; drawConfirm(); autoSave(800);
     var A = assignWithin(confirmedNames()), ce = ceilingAll();
     var pre = r ? r.chosen.filter(function (c) { return !availFor(c.name); }).length : 0;
-    $('cfMoreStat').textContent = '거래가능 ' + okNames.length + '곳 + 추가 ' + (r ? r.chosen.length : 0) + '곳 = ' + confirmedNames().length + '곳 · 합산 ' + won(A.totalProf + (A.totalYk || 0)) + ' · 커버 ' + A.covered + '/' + A.total + '품목'
+    var used = 0; confirmedNames().forEach(function (n) { if (A.per[n] && A.per[n].cnt) used++; });
+    $('cfMoreStat').textContent = (prefix || '') + '거래가능 ' + okNames.length + '곳 + 추가 ' + (r ? r.chosen.length : 0) + '곳 = ' + confirmedNames().length + '곳(실제 배정 ' + used + '곳) · 합산 ' + won(A.totalProf + (A.totalYk || 0)) + ' · 커버 ' + A.covered + '/' + A.total + '품목'
+      + (A.merged ? ' · 최소매출 미만이라 차순위로 넘긴 품목 ' + A.merged + '개' : '')
       + ' · 상한(불가 제외 ' + ce.n + '곳 전부 체크) ' + won(ce.total) + ' · 커버 ' + ce.covered
       + (r && r.chosen.length ? ' · 추가: ' + r.chosen.map(function (c) { return c.name + '(+' + c.gainCnt + '품목 · 합산 +' + won(c.gainFee) + ')'; }).join(', ') : '')
       + (r && r.chosen.length < add ? ' · 더 넣어도 합산이 늘지 않아 ' + r.chosen.length + '곳에서 멈춤' : '')
       + (pre ? ' · 조회전 ' + pre + '곳은 「체크한 제약사 필터링요청」으로 접수' : '');
-  });
+  }
+  $('cfAuto').addEventListener('click', function () { autoCombo(Math.max(1, Math.min(40, parseInt($('cfAutoN').value, 10) || 15)), ''); });
   if ($('cfCombo')) $('cfCombo').addEventListener('click', function () { var l = makerState.lastComboNames || []; if (!l.length) { alert('「자세히 보기」의 오른쪽 「최적 조합」을 먼저 한 번 열어 조합을 만들어 주세요.'); return; } state.confirm.names = {}; l.forEach(function (n) { state.confirm.names[n] = true; }); drawConfirm(); autoSave(800); });
   $('cfTop').addEventListener('click', function () { var n = Math.max(1, parseInt($('cfTopN').value, 10) || 10); var base = cfVisible(); state.confirm.names = {}; base.slice(0, n).forEach(function (r) { state.confirm.names[r.name] = true; }); drawConfirm(); autoSave(800); });
 
