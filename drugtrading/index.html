@@ -344,7 +344,7 @@
       <div class="seg" id="mxMode" title="품목마다 이 기준이 가장 높은 제약사에 배정합니다. 품목별 1~N등, 제약사 표, 최적 조합이 전부 같은 기준을 씁니다">
         <button data-m="prof" class="on" title="영업사원 정산(약가×기본요율×조제량)이 가장 높은 제약사">정산 높은순 · 영업사원 정산</button>
         <button data-m="yk" title="추가수수료 금액(약가×추가수수료%×조제량)이 가장 높은 제약사">추가 높은순 · 추가수수료 금액</button>
-        <button data-m="sum" title="수수료 = (기본요율+추가수수료)×약가×조제량 이 가장 높은 제약사. 직영 조직용">합산 높은순 · (기본+추가)×약가</button>
+        <button data-m="sum" title="수수료 = (기본요율+추가수수료)×약가×조제량 이 가장 높은 제약사. 직영 조직용">합산 높은순 · (기본+추가)×약가</button><button data-m="rate" title="요율 %(기본요율+추가수수료)가 가장 높은 제약사. 약가·조제금액은 보지 않고 요율 숫자만 봅니다. 최고요율 조합을 볼 때">요율 높은순 · 기본+추가 %</button>
       </div>
       <label class="chk" style="display:none"><span>추가수수료</span><input type="number" id="ykMin" min="0" max="20" step="0.5" value="3" style="width:56px; padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin:0 4px"><span>% 이상 우선</span></label>
     </div>
@@ -1010,6 +1010,7 @@
     /* 전부 금액 기준. 정산 = 약가×기본요율×조제량, 추가 = 약가×추가수수료%×조제량, 합산 = 약가×(기본요율+추가수수료)×조제량 */
     if (mode === 'yk') return [yk, prof + yk, rate];
     if (mode === 'sum') return [prof + yk, rate, yk];
+    if (mode === 'rate') return [rate, prof + yk, yk]; /* 요율 % 자체가 최고인 곳 (약가·조제량 무관) */
     return [prof, yk, rate];
   }
   function betterThan(a, b, mode) { /* a 가 b 보다 나은가 (점수 배열을 앞에서부터 비교) */
@@ -1045,7 +1046,7 @@
       var all = e ? Object.keys(e.comps).map(function (c) { var v = e.comps[c]; return { comp: c, prof: v.prof, yk: v.yk, inc: v.inc, prod: v.prod, pct: v.pct, price: v.price, extraPct: v.extraPct, extraSub: v.extraSub }; }) : [];
       /* 후보 범위 = 정산 상위 K ∪ YK 추가수수료 상위 K ∪ 합산 상위 K (추가수수료 높은 제약사가 정산 순위에 밀려 잘리지 않게) */
       var seen = {}, top = [];
-      [function (a, b) { return b.prof - a.prof; }, function (a, b) { return (b.yk || 0) - (a.yk || 0); }, function (a, b) { return (b.prof + (b.yk || 0)) - (a.prof + (a.yk || 0)); }].forEach(function (cmp) {
+      [function (a, b) { return b.prof - a.prof; }, function (a, b) { return (b.yk || 0) - (a.yk || 0); }, function (a, b) { return (b.prof + (b.yk || 0)) - (a.prof + (a.yk || 0)); }, function (a, b) { return ((b.pct || 0) + (b.extraPct || 0)) - ((a.pct || 0) + (a.extraPct || 0)); }].forEach(function (cmp) {
         all.slice().sort(cmp).slice(0, K).forEach(function (t) { if (!seen[t.comp]) { seen[t.comp] = 1; top.push(t); } });
       });
       top.sort(function (a, b) { return b.prof - a.prof; });
@@ -1058,7 +1059,7 @@
     var ykMin = state.mx.ykMin, minAmt = parseFloat($('minAmt').value) || 0;
     var stages = {};
     ['all', 'nono', 'okonly'].forEach(function (st) {
-      ['prof', 'yk', 'sum'].forEach(function (mode) {
+      ['prof', 'yk', 'sum', 'rate'].forEach(function (mode) {
         var key = 'pick_' + st + '_' + mode;
         rows.forEach(function (r) {
           var pickP = null, pick = null;
@@ -1571,7 +1572,7 @@
   function setMode(m, silent) {
     state.mx.mode = m;
     $('mxMode').querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-m') === m); });
-    if ($('comboObj')) $('comboObj').value = m === 'sum' ? 'sum' : 'prof';
+    if ($('comboObj')) $('comboObj').value = (m === 'sum' || m === 'rate') ? 'sum' : 'prof';
     state.heldComp = null;
     if (!silent && state.result) { renderMakers(); drawRows(); }
   }
@@ -1995,7 +1996,7 @@
     var K = Math.max(1, parseInt($('mxK').value, 10) || 10);
     var M = state.mx.last && state.mx.last.K === K ? state.mx.last : buildMatrix(K);
     var st = state.mx.stage === 'all' ? 'nono' : state.mx.stage;
-    var o = { yk: state.mx.mode === 'yk', sum: state.mx.mode === 'sum', ykMin: parseFloat($('ykMin').value) || 0, minAmt: parseFloat($('minAmt').value) || 0 }; /* 배정 기준(리스트A/B/C)도 매트릭스와 동일 */
+    var o = { yk: state.mx.mode === 'yk', sum: state.mx.mode === 'sum', rate: state.mx.mode === 'rate', ykMin: parseFloat($('ykMin').value) || 0, minAmt: parseFloat($('minAmt').value) || 0 }; /* 배정 기준(리스트A/B/C)도 매트릭스와 동일 */
     var rows = [], per = {}, total = 0;
     names.forEach(function (c) { per[c] = { name: c, cnt: 0, prof: 0, amt: 0, inc: 0, yk: 0 }; });
     M.rows.forEach(function (r) {
@@ -2084,7 +2085,7 @@
     cfRows = M.comps.map(function (c) { var a = cur.assign[c] || { cnt: 0, amt: 0, prof: 0, ykRev: 0 }; return { name: c, cnt: a.cnt, amt: a.amt, prof: a.prof, ykRev: a.ykRev || 0, sum: a.prof + (a.ykRev || 0), potential: M.potential[c] || 0, appear: M.appear[c] || 0, mcnt: M.appear[c] || 0, mamt: M.pamt[c] || 0, mprof: M.potential[c] || 0, msum: M.psum[c] || 0 }; });
     var anyOk = cfRows.some(function (r) { return availKindFor(r.name) === 'ok'; });
     /* 기본 정렬: 필터링 결과가 아직 없으면 「매칭 품목」 많은 순(중복 무관 — 필터링 요청 우선순위), 결과가 있으면 설정 기준 */
-    if (!state.cfSortTouched) state.cfSort = { key: anyOk ? (state.mx.mode === 'sum' ? 'sum' : state.mx.mode === 'yk' ? 'ykRev' : 'prof') : 'mcnt', dir: -1 };
+    if (!state.cfSortTouched) state.cfSort = { key: anyOk ? ((state.mx.mode === 'sum' || state.mx.mode === 'rate') ? 'sum' : state.mx.mode === 'yk' ? 'ykRev' : 'prof') : 'mcnt', dir: -1 };
     $('cfOnlyOk').checked = anyOk; /* 결과가 하나라도 있으면 거래가능만 보기 */
     /* 기본 선택: 저장된 확정 > 거래가능 전부 > 최적 조합 > 전부 */
     if (!confirmedNames().length) {
@@ -2120,7 +2121,7 @@
   });
   function cfSetSummary() {
     var st = { all: '필터링 무시', nono: '불가 제외', okonly: '가능 확정만' }[state.mx.stage] || '';
-    $('cfSetSum').textContent = ' · ' + ({ prof: '정산 높은순', yk: '추가 높은순(추가수수료 금액)', sum: '합산 높은순((기본+추가)×약가)' }[state.mx.mode] || '') + ' · 최소매출 ' + won(parseFloat($('minAmt').value) || 0) + ' · 상위 ' + ($('mxK').value || 10) + '위 · 약가 ' + [$('cLow').checked ? '낮음' : '', $('cSame').checked ? '동일' : '', $('cHigh').checked ? '높음' : ''].filter(Boolean).join('·') + ' · ' + st;
+    $('cfSetSum').textContent = ' · ' + ({ prof: '정산 높은순', yk: '추가 높은순(추가수수료 금액)', sum: '합산 높은순((기본+추가)×약가)', rate: '요율 높은순(기본+추가 %)' }[state.mx.mode] || '') + ' · 최소매출 ' + won(parseFloat($('minAmt').value) || 0) + ' · 상위 ' + ($('mxK').value || 10) + '위 · 약가 ' + [$('cLow').checked ? '낮음' : '', $('cSame').checked ? '동일' : '', $('cHigh').checked ? '높음' : ''].filter(Boolean).join('·') + ' · ' + st;
   }
   function drawConfirm() {
     cfSetSummary();
@@ -2162,7 +2163,7 @@
       return { code: row.code, name: row.name, amt: row.amt, ranked: ranked, assigned: assignBy[row.code] || '' };
     });
     /* 등수 옆 금액은 설정의 기준을 그대로 따른다: 정산=기본요율×약가×조제량, 추가=추가수수료×약가×조제량, 합산=(기본+추가)×약가×조제량 */
-    var ipLabel = { prof: '정산', yk: '추가', sum: '수수료' }[state.mx.mode] || '정산';
+    var ipLabel = { prof: '정산', yk: '추가', sum: '수수료', rate: '요율%' }[state.mx.mode] || '정산';
     $('cfItems').querySelectorAll('th.ipAmt').forEach(function (th) { th.textContent = ipLabel; });
     var ipAmtTitle = function (t) {
       var base = t.basePct !== undefined ? t.basePct : (t.pct || 0), ex = t.extraPct || 0;
@@ -2278,7 +2279,7 @@
       left.forEach(function (r) { r.top.forEach(function (t) {
         if (set[t.comp] || !mxAllowed(t.comp, st) || availKindFor(t.comp) === 'no') return;
         var g = gains[t.comp] || (gains[t.comp] = { name: t.comp, cnt: 0, amt: 0, fee: 0 });
-        g.cnt++; g.amt += r.amt; g.fee += scoreOf(t, mode)[0];
+        g.cnt++; g.amt += r.amt; g.fee += scoreOf(t, mode === 'rate' ? 'sum' : mode)[0];
       }); });
       var cands = Object.keys(gains).map(function (c) { return gains[c]; }).sort(function (a, b) { return by === 'cnt' ? (b.cnt - a.cnt || b.fee - a.fee) : (b.fee - a.fee || b.cnt - a.cnt); }).slice(0, 6);
       var best = null, bestA = null, bestV = cur;
@@ -2362,7 +2363,7 @@
       + box('2차 · 불가 제외 · 정산 높은순', S.nono_prof)
       + box('2차 · 불가 제외 · 추가 높은순(YK)', S.nono_yk, ykX(S.nono_yk))
       + box('2차 · 불가 제외 · 합산 높은순((기본+추가)×약가)', S.nono_sum, '<div class="l"><span>합산(정산+추가수수료)</span><b>' + won(S.nono_sum.total + S.nono_sum.ykRev) + '</b></div>')
-      + box('2차 · 가능 확정만 · 현재 기준(' + ({ prof: '정산', yk: '추가', sum: '합산' }[state.mx.mode] || '') + ')', S['okonly_' + state.mx.mode]);
+      + box('2차 · 가능 확정만 · 현재 기준(' + ({ prof: '정산', yk: '추가', sum: '합산', rate: '요율' }[state.mx.mode] || '') + ')', S['okonly_' + state.mx.mode]);
     try {
       var Kc = Math.max(1, parseInt($('comboK').value, 10) || 5);
       var prevA = $('cAvailNo').checked; $('cAvailNo').checked = true; state.heldComp = null;
@@ -2885,6 +2886,7 @@
       stage: state.mx.stage || 'all',
       yk: state.mx.mode === 'yk',
       sum: state.mx.mode === 'sum',
+      rate: state.mx.mode === 'rate',
       ykMin: parseFloat($('ykMin').value) || 0,
       minAmt: parseFloat($('minAmt').value) || 0
     };
@@ -2905,7 +2907,7 @@
       var c = small[0], any = false;
       rows.forEach(function (r) {
         var p = r[key]; if (!p || p.comp !== c || r.fixed) return;
-        var alt = null, big = null, cmode = o.sum ? 'sum' : o.yk ? 'yk' : 'prof';
+        var alt = null, big = null, cmode = o.rate ? 'rate' : o.sum ? 'sum' : o.yk ? 'yk' : 'prof';
         for (var i = 0; i < r.top.length; i++) {
           var t = r.top[i];
           if (t.comp === c || !allowed(t.comp)) continue;
@@ -2943,14 +2945,14 @@
     var e = per[code]; if (!e) return [];
     /* 후보 범위 = 매트릭스와 동일: 정산·추가·합산 각 기준 상위 K위의 합집합 */
     var all = Object.keys(e).map(function (c) { return e[c]; }), seen = {}, out = [];
-    ['prof', 'yk', 'sum'].forEach(function (m) {
+    ['prof', 'yk', 'sum', 'rate'].forEach(function (m) {
       all.slice().sort(function (a, b) { return betterThan(a, b, m) ? -1 : betterThan(b, a, m) ? 1 : 0; }).slice(0, o.K)
         .forEach(function (x) { var c = compOf(x); if (!seen[c]) { seen[c] = 1; out.push(x); } });
     });
     return out.filter(function (x) { var c = compOf(x); return mxAllowed(c, o.stage) && !(state.avail && availExcluded(c)); });
   }
   function pickOf(list, o) {
-    var mode = o.sum ? 'sum' : o.yk ? 'yk' : 'prof', pick = null;
+    var mode = o.rate ? 'rate' : o.sum ? 'sum' : o.yk ? 'yk' : 'prof', pick = null;
     for (var i = 0; i < list.length; i++) if (betterThan(list[i], pick, mode)) pick = list[i];
     return pick;
   }
@@ -3256,7 +3258,7 @@
       active++; tAmt += it.amt;
       if (it.istatus === '매칭') { mCnt++; mAmt += it.amt; tProf += it.profTotal; tInc += it.incTotal; }
     });
-    var footLabel = '합계 (' + active + '품목, ' + ({ prof: '정산 높은순', yk: '추가 높은순(추가수수료 금액)', sum: '합산 높은순((기본+추가)×약가)' }[state.mx.mode] || '') + ', 상위 ' + mxOpts().K + '위, ' + ({ all: '필터링 무시', nono: '불가 제외', okonly: '가능 확정만' }[state.mx.stage] || '') + (state.itemsMerge && (parseFloat($('minAmt').value) || 0) > 0 ? ', 최소매출 합침 ' + state.itemsMerge.moved + '품목' + (state.itemsMerge.under.length ? '·미달 ' + state.itemsMerge.under.length + '곳' : '') : '') + ', 제외 반영' + scopeLabel().replace(/ · /g, ', ') + (state.proposalMode ? ', 제안서 기준: 약가 동일·낮음' : '') + (expand ? ', 최유리 기준' : '') + ')'
+    var footLabel = '합계 (' + active + '품목, ' + ({ prof: '정산 높은순', yk: '추가 높은순(추가수수료 금액)', sum: '합산 높은순((기본+추가)×약가)', rate: '요율 높은순(기본+추가 %)' }[state.mx.mode] || '') + ', 상위 ' + mxOpts().K + '위, ' + ({ all: '필터링 무시', nono: '불가 제외', okonly: '가능 확정만' }[state.mx.stage] || '') + (state.itemsMerge && (parseFloat($('minAmt').value) || 0) > 0 ? ', 최소매출 합침 ' + state.itemsMerge.moved + '품목' + (state.itemsMerge.under.length ? '·미달 ' + state.itemsMerge.under.length + '곳' : '') : '') + ', 제외 반영' + scopeLabel().replace(/ · /g, ', ') + (state.proposalMode ? ', 제안서 기준: 약가 동일·낮음' : '') + (expand ? ', 최유리 기준' : '') + ')'
       + (over ? ' · 표시 ' + CAP + '행 초과분 생략(엑셀에는 전체 포함)' : '');
     $('tblFoot').innerHTML = '<tr>'
       + '<td colspan="7">' + footLabel + '</td>'
