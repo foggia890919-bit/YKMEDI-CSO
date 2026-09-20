@@ -2260,7 +2260,7 @@
     state.heldComp = null; drawConfirm(); autoSave(800);
     var A = assignWithin(confirmedNames());
     var used = 0; confirmedNames().forEach(function (n) { if (A.per[n] && A.per[n].cnt) used++; });
-    $('cfMoreStat').textContent = (prefix || '') + '불가 제외 ' + confirmedNames().length + '곳 전부 체크 → 실제 배정 ' + used + '곳 · 매출 ' + won(A.coveredAmt) + ' · 수수료(합산) ' + won(A.totalProf + (A.totalYk || 0)) + ' · 커버 ' + A.covered + '/' + A.total + '품목' + (A.merged ? ' · 최소매출 미만이라 차순위로 넘긴 품목 ' + A.merged + '개' : '') + (prefix ? '' : ' (이게 지금 조건에서의 상한)');
+    $('cfMoreStat').textContent = (prefix || '') + '불가 제외 ' + confirmedNames().length + '곳 전부 체크 → 실제 배정 ' + used + '곳 · 매출 ' + won(A.coveredAmt) + ' · 수수료(합산) ' + won(A.totalProf + (A.totalYk || 0)) + ' · 매출대비 ' + pctOf(A.totalProf + (A.totalYk || 0), A.coveredAmt) + ' · 커버 ' + A.covered + '/' + A.total + '품목' + (A.merged ? ' · 최소매출 미만이라 차순위로 넘긴 품목 ' + A.merged + '개' : '') + (prefix ? '' : ' (이게 지금 조건에서의 상한)');
   }
   $('cfAllOk').addEventListener('click', function () { selectAllOk(''); });
   /* 최고요율 프리셋: 요율 높은순 + 최소매출(차순위 기준) + 후보 상위 30위 + 불가 제외 전부 선택 */
@@ -2308,12 +2308,12 @@
       chosen.push({ name: best.name, cnt: p.cnt, amt: p.amt, fee: p.prof + (p.yk || 0), gainFee: (bestA.totalProf + (bestA.totalYk || 0)) - (A.totalProf + (A.totalYk || 0)), gainCnt: bestA.covered - A.covered });
       names.push(best.name); set[best.name] = true; A = bestA; cur = bestV; left = leftOf(A);
     }
-    return { chosen: chosen, leftCnt: left.length, leftAmt: left.reduce(function (a, r) { return a + r.amt; }, 0), before: before, total: A.totalProf + (A.totalYk || 0), covered: A.covered, all: A.total };
+    return { chosen: chosen, leftCnt: left.length, leftAmt: left.reduce(function (a, r) { return a + r.amt; }, 0), before: before, total: A.totalProf + (A.totalYk || 0), amt: A.coveredAmt, covered: A.covered, all: A.total };
   }
   /* 상한: 거래불가만 빼고 전부 체크했을 때의 합산·커버 (필터링 대입·최소매출·약가 조건 그대로) */
   function ceilingAll() {
     var names = cfRows.filter(function (r) { return availKindFor(r.name) !== 'no'; }).map(function (r) { return r.name; });
-    var A = assignWithin(names); return { n: names.length, total: A.totalProf + (A.totalYk || 0), covered: A.covered, all: A.total };
+    var A = assignWithin(names); return { n: names.length, total: A.totalProf + (A.totalYk || 0), amt: A.coveredAmt, covered: A.covered, all: A.total };
   }
   $('cfMore').addEventListener('click', function () {
     var N = Math.max(1, Math.min(30, parseInt($('cfMoreN').value, 10) || 5));
@@ -2323,7 +2323,7 @@
     state.heldComp = null; drawConfirm(); autoSave(800);
     var pre = r.chosen.filter(function (c) { return !availFor(c.name); }).length;
     var ce = ceilingAll();
-    $('cfMoreStat').textContent = '추가 ' + r.chosen.length + '곳: ' + r.chosen.map(function (c) { return c.name + '(+' + c.gainCnt + '품목 · 합산 +' + won(c.gainFee) + ')'; }).join(', ') + ' → 수수료(합산) ' + won(r.total) + ' · 커버 ' + r.covered + '/' + r.all + ' · 남은 품목 ' + r.before + '→' + r.leftCnt + ' · 상한(불가 제외 ' + ce.n + '곳 전부) ' + won(ce.total) + (pre ? ' · 조회전 ' + pre + '곳은 「체크한 제약사 필터링요청」으로 접수' : '');
+    $('cfMoreStat').textContent = '추가 ' + r.chosen.length + '곳: ' + r.chosen.map(function (c) { return c.name + '(+' + c.gainCnt + '품목 · 합산 +' + won(c.gainFee) + ')'; }).join(', ') + ' → 매출 ' + won(r.amt) + ' · 수수료(합산) ' + won(r.total) + ' · 매출대비 ' + pctOf(r.total, r.amt) + ' · 커버 ' + r.covered + '/' + r.all + ' · 남은 품목 ' + r.before + '→' + r.leftCnt + ' · 상한(불가 제외 ' + ce.n + '곳 전부) 수수료 ' + won(ce.total) + ' · 매출대비 ' + pctOf(ce.total, ce.amt) + (pre ? ' · 조회전 ' + pre + '곳은 「체크한 제약사 필터링요청」으로 접수' : '');
   });
   /* 거래가능 회신 제약사 + 남는 품목 수수료 많은 순 추가 = 최대 N곳 */
   function autoCombo(N, prefix) {
@@ -2343,9 +2343,9 @@
     var A = assignWithin(confirmedNames()), ce = ceilingAll();
     var pre = r ? r.chosen.filter(function (c) { return !availFor(c.name); }).length : 0;
     var used = 0; confirmedNames().forEach(function (n) { if (A.per[n] && A.per[n].cnt) used++; });
-    $('cfMoreStat').textContent = (prefix || '') + okLabel + ' + 추가 ' + (r ? r.chosen.length : 0) + '곳 = ' + confirmedNames().length + '곳(실제 배정 ' + used + '곳) · 매출 ' + won(A.coveredAmt) + ' · 수수료(합산) ' + won(A.totalProf + (A.totalYk || 0)) + ' · 커버 ' + A.covered + '/' + A.total + '품목'
+    $('cfMoreStat').textContent = (prefix || '') + okLabel + ' + 추가 ' + (r ? r.chosen.length : 0) + '곳 = ' + confirmedNames().length + '곳(실제 배정 ' + used + '곳) · 매출 ' + won(A.coveredAmt) + ' · 수수료(합산) ' + won(A.totalProf + (A.totalYk || 0)) + ' · 매출대비 ' + pctOf(A.totalProf + (A.totalYk || 0), A.coveredAmt) + ' · 커버 ' + A.covered + '/' + A.total + '품목'
       + (A.merged ? ' · 최소매출 미만이라 차순위로 넘긴 품목 ' + A.merged + '개' : '')
-      + ' · 상한(불가 제외 ' + ce.n + '곳 전부 체크) ' + won(ce.total) + ' · 커버 ' + ce.covered
+      + ' · 상한(불가 제외 ' + ce.n + '곳 전부 체크) 수수료 ' + won(ce.total) + ' · 매출대비 ' + pctOf(ce.total, ce.amt) + ' · 커버 ' + ce.covered
       + (r && r.chosen.length ? ' · 추가: ' + r.chosen.map(function (c) { return c.name + '(+' + c.gainCnt + '품목 · 합산 +' + won(c.gainFee) + ')'; }).join(', ') : '')
       + (r && add && r.chosen.length < add ? ' · 더 넣어도 합산이 늘지 않아 ' + r.chosen.length + '곳에서 멈춤' : '')
       + (pre ? ' · 조회전 ' + pre + '곳은 「체크한 제약사 필터링요청」으로 접수' : '');
