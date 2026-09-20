@@ -493,28 +493,28 @@
     .cfstep .grp { display:inline-flex; flex-wrap:wrap; gap:6px; align-items:center; padding:3px 8px; border:1px dashed #c7d2fe; border-radius:6px }
     .cfstep .grp > .gl { font-size:11.5px; color:#556; margin-right:2px }
     .cfstep.hl { background:#f3f7ff; border-color:#c7d2fe }
+    #cfQuick { margin:0 0 10px; padding:6px 12px 8px; border:2px solid var(--blue); border-radius:10px; background:#f8faff }
+    #cfQuick .qrow { display:grid; grid-template-columns:96px 1fr; gap:8px; align-items:center; padding:7px 0; border-bottom:1px dashed #dde3ee }
+    #cfQuick .qrow:last-of-type { border-bottom:0 }
+    #cfQuick .ql { font-weight:700; font-size:13px; color:#1c2333 }
+    #cfQuickList span.co { display:block }
+    .cfstep { flex-direction:column; align-items:flex-start; gap:6px }
+    .cfstep .stp { min-width:0 }
+    .cfstep .grp { width:100%; box-sizing:border-box; border:0; border-left:3px solid #e0e6f5; border-radius:0; padding:2px 8px }
+    .cfstep .grp > .gl { min-width:120px; display:inline-block }
     #cfQuickN button { padding:5px 11px; font-size:13px; font-weight:700; border:1px solid var(--line); background:#fff; cursor:pointer; margin-left:-1px }
     #cfQuickN button:first-child { border-radius:6px 0 0 6px } #cfQuickN button:last-child { border-radius:0 6px 6px 0 }
     #cfQuickN button.on { background:var(--blue); color:#fff; border-color:var(--blue) }
     #cfQuickSum b { font-size:16px } #cfQuickSum .k { color:#556; margin-right:4px } #cfQuickSum .v { margin-right:14px }
     .cfRes { padding:2px 4px; font-size:11.5px; border:1px solid var(--line); border-radius:5px; font-family:inherit; margin-left:4px; background:#fff }
   </style>
-  <div id="cfQuick" style="margin:0 0 10px; padding:10px 12px; border:2px solid var(--blue); border-radius:10px; background:#f8faff">
-    <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center">
-      <label class="chk" style="font-weight:700" title="켜면 거래가능으로 회신된 제약사만 표에 보이고, 아래 제약사 수도 그 안에서 고릅니다. 끄면 조회전 제약사도 후보에 들어갑니다(거래불가는 항상 제외)"><input type="checkbox" id="cfOnlyOk" checked><span>거래가능 제약사만</span></label>
-      <span style="border-left:1px solid var(--line); height:20px"></span>
-      <span style="font-weight:700">제약사 수</span>
-      <span id="cfQuickN" class="seg">
-        <button data-n="1">1</button><button data-n="2">2</button><button data-n="3">3</button><button data-n="5">5</button><button data-n="7">7</button><button data-n="10">10</button><button data-n="15">15</button><button data-n="all">전체</button>
-      </span>
-      <span class="mini" id="cfQuickMode"></span>
-      <span style="flex:1"></span>
-      <button class="sbtn" id="cfRefresh" title="사무실 결과입력·원본시트 반영분을 다시 읽어 거래가능/불가를 대입">🔎 결과 새로고침</button>
-      <button class="sbtn" id="cfReq" style="border-color:var(--blue); color:var(--blue)">📨 체크한 제약사 필터링요청 (조회전만)</button>
-    </div>
-    <div id="cfQuickSum" style="margin-top:8px; font-size:14px"></div>
-    <div id="cfQuickList" class="mini" style="margin-top:4px; line-height:1.9"></div>
-    <div class="mini" style="margin-top:4px; color:#667">제약사 수를 누르면 그 수만큼 수수료가 가장 많이 나오는 제약사를 골라 체크하고, 조건(거래가능만·배정 기준·최소매출·후보 범위)을 바꿀 때마다 다시 계산됩니다. 표에서 체크를 직접 바꾸면 그때부터는 수동 선택입니다. <span id="cfAvailStat"></span></div>
+  <div id="cfQuick">
+    <div class="qrow"><span class="ql">거래가능만</span><div><label class="chk" style="font-weight:700" title="켜면 거래가능으로 회신된 제약사만 표에 보이고, 아래 제약사 수도 그 안에서 고릅니다. 끄면 조회전 제약사도 후보에 들어갑니다(거래불가는 항상 제외)"><input type="checkbox" id="cfOnlyOk" checked><span>거래가능 제약사만 (끄면 조회전 포함, 불가는 항상 제외)</span></label></div></div>
+    <div class="qrow"><span class="ql">제약사 수</span><div><span id="cfQuickN" class="seg"><button data-n="1">1</button><button data-n="2">2</button><button data-n="3">3</button><button data-n="5">5</button><button data-n="7">7</button><button data-n="10">10</button><button data-n="15">15</button><button data-n="all">전체</button></span> <span class="mini" id="cfQuickMode"></span></div></div>
+    <div class="qrow"><span class="ql">결과</span><div id="cfQuickSum"></div></div>
+    <div class="qrow"><span class="ql">선택 제약사</span><div id="cfQuickList" class="mini"></div></div>
+    <div class="qrow"><span class="ql">필터링</span><div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center"><button class="sbtn" id="cfReq" style="border-color:var(--blue); color:var(--blue)">📨 체크한 제약사 필터링요청 (조회전만)</button><button class="sbtn" id="cfRefresh" title="사무실 결과입력·원본시트 반영분을 다시 읽어 거래가능/불가를 대입">🔎 결과 새로고침</button><span class="mini" id="cfAvailStat"></span></div></div>
+    <div class="mini" style="margin-top:6px; color:#667">제약사 수를 누르면 그 수만큼 수수료가 가장 많이 나오는 제약사를 골라 체크합니다. 조건(거래가능만·배정 기준·최소매출·후보 범위)이나 회신이 바뀌면 다시 계산되고, 표에서 체크를 직접 바꾸면 수동 선택이 됩니다.</div>
   </div>
   <details id="cfAdv" style="margin:0 0 10px">
   <summary style="cursor:pointer; font-size:13px; color:#556; padding:4px 0">고급 조작 (후보 고르기 · 조합 만들기 · 프리셋 · 표 보기)</summary>
@@ -2300,7 +2300,7 @@
     $('cfQuickMode').textContent = '· 기준 ' + modeLbl + ' · 최소매출 ' + won(parseFloat($('minAmt').value) || 0) + (state.quickN == null ? ' · 수동 선택' : '');
     $('cfQuickSum').innerHTML = '<span class="k">매출</span><b class="v">' + won(A.coveredAmt) + '</b><span class="k">수수료(합산)</span><b class="v" style="color:var(--blue)">' + won(fee) + '</b><span class="k">매출대비</span><b class="v">' + pctOf(fee, A.coveredAmt) + '</b><span class="k">커버</span><b class="v">' + A.covered + '/' + A.total + '품목</b><span class="k">제약사</span><b class="v">' + used.length + '곳' + (names.length !== used.length ? ' (체크 ' + names.length + ')' : '') + '</b>' + (A.merged ? '<span class="mini">최소매출 미만 → 차순위 ' + A.merged + '품목</span>' : '');
     var per = used.map(function (n) { var p = A.per[n]; return { n: n, amt: p.amt, fee: p.prof + (p.yk || 0), cnt: p.cnt }; }).sort(function (a, b) { return b.fee - a.fee; });
-    $('cfQuickList').innerHTML = per.length ? per.map(function (p, i) { return '<span style="display:inline-block; margin:0 10px 0 0"><b>' + (i + 1) + '. ' + esc(p.n) + '</b>' + availBadge(p.n) + ' <span style="color:#556">' + p.cnt + '품목 · 매출 ' + won(p.amt) + ' · 수수료 ' + won(p.fee) + '</span></span>'; }).join('') : '<span style="color:#667">선택된 제약사가 없습니다. 위에서 제약사 수를 누르세요.</span>';
+    $('cfQuickList').innerHTML = per.length ? per.map(function (p, i) { return '<span class="co"><b>' + (i + 1) + '. ' + esc(p.n) + '</b>' + availBadge(p.n) + ' <span style="color:#556">' + p.cnt + '품목 · 매출 ' + won(p.amt) + ' · 수수료 ' + won(p.fee) + ' · 매출대비 ' + pctOf(p.fee, p.amt) + '</span></span>'; }).join('') : '<span style="color:#667">선택된 제약사가 없습니다. 위에서 제약사 수를 누르세요.</span>';
   }
   $('cfQuickN').addEventListener('click', function (e) { var b = e.target.closest('button[data-n]'); if (!b) return; quickApply(b.getAttribute('data-n')); });
   /* 관리자: 표의 거래가능 칸에서 결과 바로 입력 → CSO 시트 기록(대기 요청 있으면 채우고 담당자 통보, 없으면 새 행) */
