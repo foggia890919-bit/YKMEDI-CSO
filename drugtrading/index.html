@@ -563,7 +563,7 @@
   </details>
   <div class="rep" id="cfSum"></div>
   <div id="cfWrap" tabindex="0" style="overflow:auto; border:1px solid var(--line); border-radius:10px; outline:none" title="↑↓ 이동 · 스페이스 체크/해제">
-    <table class="ftab" id="cftab"><thead><tr><th style="width:36px"><input type="checkbox" id="cfHead"></th><th>순위</th><th data-k="name">제약사</th><th data-k="avail">거래가능</th><th data-k="extra">추가수수료</th><th class="num" data-k="mcnt" title="이 제약사가 대체 후보(상위 N위)에 들어가는 품목 수 — 다른 제약사와 겹쳐도 전부 셈. 필터링 요청 우선순위용">매칭 품목</th><th class="num" data-k="mamt" title="매칭 품목들의 조제금액 합 (중복 무관)">매칭 매출</th><th class="num" data-k="mfee" title="이 제약사 혼자 매칭 품목을 전부 받았을 때의 수수료 (설정 기준: 정산 / 합산)">단독 수수료</th><th class="num" data-k="cnt">배정 품목</th><th class="num" data-k="amt">배정 매출</th><th class="num" data-k="prof">정산(월)</th><th class="num" data-k="ykRev">YK 추가수수료</th><th class="num" data-k="sum">합산</th><th class="num" data-k="rate">수수료율</th><th class="num" data-k="fcnt">확정 후 품목</th><th class="num" data-k="famt">확정 후 매출</th><th class="num" data-k="fprof">확정 후 정산</th></tr></thead><tbody></tbody></table>
+    <table class="ftab" id="cftab"><thead><tr><th style="width:36px"><input type="checkbox" id="cfHead"></th><th>순위</th><th data-k="name">제약사</th><th data-k="avail">거래가능</th><th data-k="extra">추가수수료</th><th class="num" data-k="mcnt" title="이 제약사가 대체 후보(상위 N위)에 들어가는 품목 수 — 다른 제약사와 겹쳐도 전부 셈. 필터링 요청 우선순위용">매칭 품목</th><th class="num" data-k="mamt" title="매칭 품목들의 조제금액 합 (중복 무관)">매칭 매출</th><th class="num" data-k="mfee" title="이 제약사 혼자 매칭 품목을 전부 받았을 때의 수수료 (설정 기준: 정산 / 합산)">단독 수수료</th><th class="num" data-k="cnt" title="체크한 제약사끼리 경쟁시켜 품목당 한 곳만 배정한 결과 — 체크를 바꿀 때마다 다시 계산. 체크 안 된 제약사는 —">배정 품목</th><th class="num" data-k="amt" title="배정된 품목의 조제금액 합 (체크 기준)">배정 매출</th><th class="num" data-k="prof" title="배정된 품목의 영업사원 정산(월)">정산(월)</th><th class="num" data-k="ykRev" title="배정된 품목의 YK 추가수수료(월)">YK 추가수수료</th><th class="num" data-k="sum" title="정산 + YK 추가수수료">합산</th><th class="num" data-k="rate" title="정산 ÷ 배정 매출">수수료율</th></tr></thead><tbody></tbody></table>
   </div>
   <h3 style="margin:16px 0 6px; font-size:14px; display:flex; flex-wrap:wrap; gap:8px; align-items:center">품목별 1·2·3순위 <span class="mini">품목마다 대체 후보 1·2·3순위와 그 제약사의 거래가능 여부. 위에서 체크한 제약사 중 최선순위가 자동 선택(●)되고, 바꾸고 싶은 품목만 다른 순위를 눌러 고정할 수 있습니다.</span>
     <span style="flex:1"></span>
@@ -573,7 +573,7 @@
   <div style="overflow:auto; border:1px solid var(--line); border-radius:10px; max-height:420px">
     <table class="ftab" id="cfItems"><thead><tr><th>약품명</th><th class="num">조제금액</th><th>1순위</th><th class="num ipAmt">정산</th><th>2순위</th><th class="num ipAmt">정산</th><th>3순위</th><th class="num ipAmt">정산</th><th>최종 선택</th></tr></thead><tbody></tbody></table>
   </div>
-  <div class="mini" style="margin-top:6px">「매칭 품목·매칭 매출·단독 수수료」는 다른 제약사와 겹쳐도 전부 센 값(그 제약사 혼자 다 받았을 때)이라 <b>필터링 요청 순서</b>를 정할 때 보는 열이고, 「배정」열은 제약사끼리 경쟁시켜 품목당 한 곳만 준 값입니다. 필터링 결과가 오기 전에는 매칭 품목 많은 순으로 정렬됩니다. 「배정」열은 2차 매핑(제약사 무제한) 기준, 「확정 후」열은 체크한 제약사만으로 품목을 다시 배정한 결과입니다. 확정 목록에서 빠진 제약사가 1위였던 품목은 확정 제약사 중 차선으로 넘어가고, 갈 곳이 없으면 「조합 밖」으로 남습니다.</div>
+  <div class="mini" style="margin-top:6px">「매칭 품목·매칭 매출·단독 수수료」는 다른 제약사와 겹쳐도 전부 센 값(그 제약사 혼자 다 받았을 때)이라 <b>필터링 요청 순서</b>를 정할 때 보는 열이고, 「배정」열은 제약사끼리 경쟁시켜 품목당 한 곳만 준 값입니다. 필터링 결과가 오기 전에는 매칭 품목 많은 순으로 정렬됩니다. 「배정」열은 지금 체크한 제약사만으로 품목을 다시 배정한 결과라 체크를 바꿀 때마다 바뀝니다(체크 안 된 제약사는 —). 확정 목록에서 빠진 제약사가 1위였던 품목은 확정 제약사 중 차선으로 넘어가고, 갈 곳이 없으면 「조합 밖」으로 남습니다.</div>
   <div class="stepnav"><button class="pbtn" id="prev6">← 조제내역</button><button class="pbtn primary" id="next6">다음 → 보고서·제안서 (확정 적용)</button></div>
   </section>
 
@@ -2130,9 +2130,11 @@
       if (key === 'name') return r.name;
       if (key === 'avail') return { ok: 0, pending: 1, none: 2, no: 3 }[availKindFor(r.name)] || 0;
       if (key === 'extra') return (extraFor(r.name) || {}).pct || 0;
-      if (key === 'rate') return r.amt > 0 ? r.prof / r.amt : 0;
       if (key === 'mfee') return state.mx.mode === 'prof' ? r.mprof : r.msum;
-      if (key === 'fcnt' || key === 'famt' || key === 'fprof') { var p = A && A.per[r.name]; return p ? (key === 'fcnt' ? p.cnt : key === 'famt' ? p.amt : p.prof) : -1; }
+      if (key === 'cnt' || key === 'amt' || key === 'prof' || key === 'ykRev' || key === 'sum' || key === 'rate') { /* 배정 열 = 체크한 제약사 기준 (체크 안 됨 → 맨 아래) */
+        var p = A && A.per[r.name]; if (!p) return -1;
+        return key === 'cnt' ? p.cnt : key === 'amt' ? p.amt : key === 'prof' ? p.prof : key === 'ykRev' ? (p.yk || 0) : key === 'sum' ? p.prof + (p.yk || 0) : (p.amt > 0 ? p.prof / p.amt : 0);
+      }
       return r[key] || 0;
     };
     return cfRows.filter(function (r) { return hit(r) && (!onlyOk || availKindFor(r.name) === 'ok' || state.confirm.names[r.name]); })
@@ -2159,9 +2161,9 @@
       return '<tr class="' + (on ? 'sel' : '') + '" data-n="' + esc(r.name) + '"><td><input type="checkbox" class="cfChk"' + (on ? ' checked' : '') + '></td><td class="num">' + (i + 1) + '</td>'
         + '<td><b>' + esc(r.name) + '</b></td><td style="white-space:nowrap">' + availBadge(r.name) + resultSel(r.name) + '</td><td>' + (extraBadge(r.name) || '<span class="mini">—</span>') + '</td>'
         + '<td class="num"><b>' + r.mcnt + '</b></td><td class="num">' + Math.round(r.mamt).toLocaleString('ko-KR') + '</td><td class="num">' + Math.round(state.mx.mode === 'prof' ? r.mprof : r.msum).toLocaleString('ko-KR') + '</td>'
-        + '<td class="num">' + r.cnt + '</td><td class="num">' + Math.round(r.amt).toLocaleString('ko-KR') + '</td><td class="num"><b>' + Math.round(r.prof).toLocaleString('ko-KR') + '</b></td>'
-        + '<td class="num" style="color:#3730a3">' + (r.ykRev ? Math.round(r.ykRev).toLocaleString('ko-KR') : '') + '</td><td class="num"><b>' + Math.round(r.sum || r.prof).toLocaleString('ko-KR') + '</b></td><td class="num">' + pctOf(r.prof, r.amt) + '</td>'
-        + '<td class="num">' + (p ? p.cnt : '<span class="mini">—</span>') + '</td><td class="num">' + (p ? Math.round(p.amt).toLocaleString('ko-KR') : '') + '</td><td class="num">' + (p ? '<b style="color:var(--ok)">' + Math.round(p.prof).toLocaleString('ko-KR') + '</b>' : '') + '</td></tr>';
+        + (p ? '<td class="num">' + p.cnt + '</td><td class="num">' + Math.round(p.amt).toLocaleString('ko-KR') + '</td><td class="num"><b style="color:var(--ok)">' + Math.round(p.prof).toLocaleString('ko-KR') + '</b></td>'
+            + '<td class="num" style="color:#3730a3">' + (p.yk ? Math.round(p.yk).toLocaleString('ko-KR') : '') + '</td><td class="num"><b>' + Math.round(p.prof + (p.yk || 0)).toLocaleString('ko-KR') + '</b></td><td class="num">' + pctOf(p.prof, p.amt) + '</td>'
+          : '<td class="num mini" colspan="6" style="text-align:left; color:#8a93a6">— 체크하면 배정</td>') + '</tr>';
     }).join('');
     tb.querySelectorAll('tr').forEach(function (tr) {
       var n = tr.getAttribute('data-n');
@@ -2906,6 +2908,7 @@
     if (!tbl) return;
     var ths = tbl.querySelectorAll('thead th'); if (!ths.length) return;
     var key = tbl.id || 'ftab', saved = ftabW[key] || [];
+    if (saved.length && saved.length !== ths.length) saved = []; /* 열 구성이 바뀌면 저장된 너비는 버림 */
     var cg = tbl.querySelector('colgroup'); if (cg) cg.remove();
     tbl.classList.remove('rzon'); tbl.style.width = 'auto'; tbl.style.tableLayout = 'auto'; /* 자연 너비 측정 (내용이 안 잘리는 너비) */
     var natural = Array.prototype.map.call(ths, function (th) { return Math.ceil(th.getBoundingClientRect().width); });
