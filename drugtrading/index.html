@@ -513,6 +513,7 @@
     <div class="qrow"><span class="ql">제약사 수</span><div><span id="cfQuickN" class="seg"><button data-n="1">1</button><button data-n="2">2</button><button data-n="3">3</button><button data-n="5">5</button><button data-n="7">7</button><button data-n="10">10</button><button data-n="15">15</button><button data-n="all">전체</button></span> <span class="mini" id="cfQuickMode"></span></div></div>
     <div class="qrow"><span class="ql">결과</span><div id="cfQuickSum"></div></div>
     <div class="qrow"><span class="ql">선택 제약사</span><div id="cfQuickList" class="mini"></div></div>
+    <div class="qrow" id="cfResRow" style="display:none"><span class="ql">결과 입력<br><span class="mini" style="font-weight:400">관리자만</span></span><div id="cfResList" style="line-height:2"></div></div>
     <div class="qrow"><span class="ql">필터링</span><div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center"><button class="sbtn" id="cfReq" style="border-color:var(--blue); color:var(--blue)">📨 체크한 제약사 필터링요청 (조회전만)</button><button class="sbtn" id="cfRefresh" title="사무실 결과입력·원본시트 반영분을 다시 읽어 거래가능/불가를 대입">🔎 결과 새로고침</button><span class="mini" id="cfAvailStat"></span></div></div>
     <div class="mini" style="margin-top:6px; color:#667">제약사 수를 누르면 그 수만큼 수수료가 가장 많이 나오는 제약사를 골라 체크합니다. 조건(거래가능만·배정 기준·최소매출·후보 범위)이나 회신이 바뀌면 다시 계산되고, 표에서 체크를 직접 바꾸면 수동 선택이 됩니다.</div>
   </div>
@@ -2300,6 +2301,21 @@
     $('cfQuickMode').textContent = '· 기준 ' + modeLbl + ' · 최소매출 ' + won(parseFloat($('minAmt').value) || 0) + (state.quickN == null ? ' · 수동 선택' : '');
     $('cfQuickSum').innerHTML = '<span class="k">매출</span><b class="v">' + won(A.coveredAmt) + '</b><span class="k">수수료(합산)</span><b class="v" style="color:var(--blue)">' + won(fee) + '</b><span class="k">매출대비</span><b class="v">' + pctOf(fee, A.coveredAmt) + '</b><span class="k">커버</span><b class="v">' + A.covered + '/' + A.total + '품목</b><span class="k">제약사</span><b class="v">' + used.length + '곳' + (names.length !== used.length ? ' (체크 ' + names.length + ')' : '') + '</b>' + (A.merged ? '<span class="mini">최소매출 미만 → 차순위 ' + A.merged + '품목</span>' : '');
     var per = used.map(function (n) { var p = A.per[n]; return { n: n, amt: p.amt, fee: p.prof + (p.yk || 0), cnt: p.cnt }; }).sort(function (a, b) { return b.fee - a.fee; });
+    /* 관리자: 결과가 아직 없는(조회전·확인중) 제약사에 가능/불가 버튼 — 체크된 곳 먼저, 그다음 표 순서로 */
+    var isAdmin = !!(state.who && state.who.isAdmin);
+    $('cfResRow').style.display = isAdmin ? '' : 'none';
+    if (isAdmin) {
+      var seenR = {}, pend = [];
+      names.concat(cfVisible().map(function (r) { return r.name; })).forEach(function (n) { if (seenR[n]) return; seenR[n] = 1; var k = availKindFor(n); if (k !== 'ok' && k !== 'no') pend.push(n); });
+      var shown = pend.slice(0, 40);
+      $('cfResList').innerHTML = shown.length ? shown.map(function (n) {
+        return '<span style="display:inline-flex; align-items:center; gap:4px; margin:0 14px 4px 0"><b>' + esc(n) + '</b>' + availBadge(n)
+          + '<button class="sbtn resBtn" data-comp="' + esc(n) + '" data-s="거래가능" style="padding:2px 8px; border-color:var(--ok); color:var(--ok)">가능</button>'
+          + '<button class="sbtn resBtn" data-comp="' + esc(n) + '" data-s="거래불가" style="padding:2px 8px; border-color:var(--err); color:var(--err)">불가</button></span>';
+      }).join('') + (pend.length > shown.length ? '<span class="mini">외 ' + (pend.length - shown.length) + '곳은 표에서 입력</span>' : '')
+        : '<span class="mini" style="color:#667">결과를 기다리는 제약사가 없습니다.</span>';
+      $('cfResList').querySelectorAll('.resBtn').forEach(function (b) { b.addEventListener('click', function () { if (confirm(this.getAttribute('data-comp') + ' → ' + this.getAttribute('data-s') + ' 로 시트에 기록할까요?')) postResult(this.getAttribute('data-comp'), this.getAttribute('data-s')); }); });
+    }
     $('cfQuickList').innerHTML = per.length ? per.map(function (p, i) { return '<span class="co"><b>' + (i + 1) + '. ' + esc(p.n) + '</b>' + availBadge(p.n) + ' <span style="color:#556">' + p.cnt + '품목 · 매출 ' + won(p.amt) + ' · 수수료 ' + won(p.fee) + ' · 매출대비 ' + pctOf(p.fee, p.amt) + '</span></span>'; }).join('') : '<span style="color:#667">선택된 제약사가 없습니다. 위에서 제약사 수를 누르세요.</span>';
   }
   $('cfQuickN').addEventListener('click', function (e) { var b = e.target.closest('button[data-n]'); if (!b) return; quickApply(b.getAttribute('data-n')); });
