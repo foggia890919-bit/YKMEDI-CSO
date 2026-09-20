@@ -493,8 +493,32 @@
     .cfstep .grp { display:inline-flex; flex-wrap:wrap; gap:6px; align-items:center; padding:3px 8px; border:1px dashed #c7d2fe; border-radius:6px }
     .cfstep .grp > .gl { font-size:11.5px; color:#556; margin-right:2px }
     .cfstep.hl { background:#f3f7ff; border-color:#c7d2fe }
+    #cfQuickN button { padding:5px 11px; font-size:13px; font-weight:700; border:1px solid var(--line); background:#fff; cursor:pointer; margin-left:-1px }
+    #cfQuickN button:first-child { border-radius:6px 0 0 6px } #cfQuickN button:last-child { border-radius:0 6px 6px 0 }
+    #cfQuickN button.on { background:var(--blue); color:#fff; border-color:var(--blue) }
+    #cfQuickSum b { font-size:16px } #cfQuickSum .k { color:#556; margin-right:4px } #cfQuickSum .v { margin-right:14px }
+    .cfRes { padding:2px 4px; font-size:11.5px; border:1px solid var(--line); border-radius:5px; font-family:inherit; margin-left:4px; background:#fff }
   </style>
-  <div class="cfsteps">
+  <div id="cfQuick" style="margin:0 0 10px; padding:10px 12px; border:2px solid var(--blue); border-radius:10px; background:#f8faff">
+    <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center">
+      <label class="chk" style="font-weight:700" title="켜면 거래가능으로 회신된 제약사만 표에 보이고, 아래 제약사 수도 그 안에서 고릅니다. 끄면 조회전 제약사도 후보에 들어갑니다(거래불가는 항상 제외)"><input type="checkbox" id="cfOnlyOk" checked><span>거래가능 제약사만</span></label>
+      <span style="border-left:1px solid var(--line); height:20px"></span>
+      <span style="font-weight:700">제약사 수</span>
+      <span id="cfQuickN" class="seg">
+        <button data-n="1">1</button><button data-n="2">2</button><button data-n="3">3</button><button data-n="5">5</button><button data-n="7">7</button><button data-n="10">10</button><button data-n="15">15</button><button data-n="all">전체</button>
+      </span>
+      <span class="mini" id="cfQuickMode"></span>
+      <span style="flex:1"></span>
+      <button class="sbtn" id="cfRefresh" title="사무실 결과입력·원본시트 반영분을 다시 읽어 거래가능/불가를 대입">🔎 결과 새로고침</button>
+      <button class="sbtn" id="cfReq" style="border-color:var(--blue); color:var(--blue)">📨 체크한 제약사 필터링요청 (조회전만)</button>
+    </div>
+    <div id="cfQuickSum" style="margin-top:8px; font-size:14px"></div>
+    <div id="cfQuickList" class="mini" style="margin-top:4px; line-height:1.9"></div>
+    <div class="mini" style="margin-top:4px; color:#667">제약사 수를 누르면 그 수만큼 수수료가 가장 많이 나오는 제약사를 골라 체크하고, 조건(거래가능만·배정 기준·최소매출·후보 범위)을 바꿀 때마다 다시 계산됩니다. 표에서 체크를 직접 바꾸면 그때부터는 수동 선택입니다. <span id="cfAvailStat"></span></div>
+  </div>
+  <details id="cfAdv" style="margin:0 0 10px">
+  <summary style="cursor:pointer; font-size:13px; color:#556; padding:4px 0">고급 조작 (후보 고르기 · 조합 만들기 · 프리셋 · 표 보기)</summary>
+  <div class="cfsteps" style="margin-top:6px">
     <div class="cfstep">
       <span class="stp"><i>1</i>후보 고르기</span>
       <span class="grp"><span class="gl">순서대로</span><label class="chk"><span>표시 순서 상위</span><input type="number" id="cfTopN" min="1" max="50" value="10" style="width:52px; padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin:0 4px"><span>곳</span></label><button class="sbtn" id="cfTop" title="지금 표에 정렬된 순서(기본: 매칭 품목 많은 순)대로 위에서 N곳만 체크">상위만 선택</button></span>
@@ -502,11 +526,9 @@
       <span class="grp"><span class="gl">빼기</span><input id="cfSearch" placeholder="제약사 검색" style="width:130px; padding:5px 8px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit" title="이름 일부를 입력하면 표에 그 제약사만 보입니다. Enter = 검색된 제약사 제외"><button class="sbtn" id="cfExcl" style="border-color:var(--err); color:var(--err)" title="검색된 제약사의 체크를 풀어 조합에서 뺍니다. 그 제약사가 1순위였던 품목은 체크된 제약사 중 다음 순위로 자동으로 넘어갑니다">✕ 검색된 제약사 제외</button></span>
     </div>
     <div class="cfstep hl">
-      <span class="stp"><i>2</i>필터링 요청 · 결과</span>
-      <button class="sbtn" id="cfReq" style="border-color:var(--blue); color:var(--blue)">📨 체크한 제약사 필터링요청 (조회전만)</button>
-      <button class="sbtn" id="cfRefresh" title="사무실 결과입력·원본시트 반영분을 다시 읽어 거래가능/불가를 표에 대입">🔎 결과 새로고침</button>
+      <span class="stp"><i>2</i>필터링 결과</span>
       <button class="sbtn" id="cfOk" title="거래가능으로 회신된 제약사만 체크로 남김">거래가능만 남기기</button>
-      <span class="mini" id="cfAvailStat"></span>
+      <span class="mini">요청·새로고침은 위 파란 상자에 있습니다. 관리자는 표의 「거래가능」 칸에서 결과를 바로 입력할 수 있습니다.</span>
     </div>
     <div class="cfstep">
       <span class="stp"><i>3</i>조합 만들기</span>
@@ -517,11 +539,11 @@
     </div>
     <div class="cfstep">
       <span class="stp"><i>4</i>표 보기</span>
-      <label class="chk" title="필터링 결과가 거래가능(O)인 제약사만 표에 보입니다"><input type="checkbox" id="cfOnlyOk" checked><span>거래가능 제약사만 보기</span></label>
       <span class="mini">머리글 클릭 = 그 열로 정렬 · 표 클릭 후 <b>↑↓</b> 이동, <b>스페이스</b> 체크·해제 · 행 아무 곳 클릭 = 체크</span>
       <span class="mini" id="cfStat" style="margin-left:auto"></span>
     </div>
   </div>
+  </details>
   <details class="cfSet" open style="margin:0 0 10px; border:1px solid #c7d2fe; border-radius:8px; background:#f8f9ff">
     <summary style="cursor:pointer; padding:8px 12px; font-weight:700; font-size:13px">⚡ 품목별 1~N등 (합산 수수료 = 약가×(기본요율+추가수수료)×조제량 높은 순) → 등장 제약사 필터링요청 <span class="mini" id="qkStat" style="font-weight:500"></span></summary>
     <div style="padding:0 10px 10px">
@@ -2087,13 +2109,14 @@
     var anyOk = cfRows.some(function (r) { return availKindFor(r.name) === 'ok'; });
     /* 기본 정렬: 필터링 결과가 아직 없으면 「매칭 품목」 많은 순(중복 무관 — 필터링 요청 우선순위), 결과가 있으면 설정 기준 */
     if (!state.cfSortTouched) state.cfSort = { key: anyOk ? ((state.mx.mode === 'sum' || state.mx.mode === 'rate') ? 'sum' : state.mx.mode === 'yk' ? 'ykRev' : 'prof') : 'mcnt', dir: -1 };
-    $('cfOnlyOk').checked = anyOk; /* 결과가 하나라도 있으면 거래가능만 보기 */
+    if (!state.onlyOkTouched) $('cfOnlyOk').checked = anyOk; /* 결과가 하나라도 있으면 거래가능만 보기 — 사용자가 직접 바꾼 뒤엔 그대로 둠 */
     /* 기본 선택: 저장된 확정 > 거래가능 전부 > 최적 조합 > 전부 */
     if (!confirmedNames().length) {
       var names = anyOk ? cfRows.filter(function (r) { return availKindFor(r.name) === 'ok'; }).map(function (r) { return r.name; })
         : (makerState.lastComboNames && makerState.lastComboNames.length ? makerState.lastComboNames : cfRows.map(function (r) { return r.name; }));
       state.confirm.names = {}; names.forEach(function (n) { state.confirm.names[n] = true; });
     }
+    if (state.quickN != null) quickSelect(state.quickN); /* 빠른 세팅이 켜져 있으면 조건 변화(결과·기준·최소매출·범위)에 맞춰 다시 고름 */
     drawConfirm();
     try { renderQuick(); } catch (e) {}
   }
@@ -2133,7 +2156,7 @@
     tb.innerHTML = vis.map(function (r, i) {
       var on = !!state.confirm.names[r.name], p = A.per[r.name];
       return '<tr class="' + (on ? 'sel' : '') + '" data-n="' + esc(r.name) + '"><td><input type="checkbox" class="cfChk"' + (on ? ' checked' : '') + '></td><td class="num">' + (i + 1) + '</td>'
-        + '<td><b>' + esc(r.name) + '</b></td><td>' + availBadge(r.name) + '</td><td>' + (extraBadge(r.name) || '<span class="mini">—</span>') + '</td>'
+        + '<td><b>' + esc(r.name) + '</b></td><td style="white-space:nowrap">' + availBadge(r.name) + resultSel(r.name) + '</td><td>' + (extraBadge(r.name) || '<span class="mini">—</span>') + '</td>'
         + '<td class="num"><b>' + r.mcnt + '</b></td><td class="num">' + Math.round(r.mamt).toLocaleString('ko-KR') + '</td><td class="num">' + Math.round(state.mx.mode === 'prof' ? r.mprof : r.msum).toLocaleString('ko-KR') + '</td>'
         + '<td class="num">' + r.cnt + '</td><td class="num">' + Math.round(r.amt).toLocaleString('ko-KR') + '</td><td class="num"><b>' + Math.round(r.prof).toLocaleString('ko-KR') + '</b></td>'
         + '<td class="num" style="color:#3730a3">' + (r.ykRev ? Math.round(r.ykRev).toLocaleString('ko-KR') : '') + '</td><td class="num"><b>' + Math.round(r.sum || r.prof).toLocaleString('ko-KR') + '</b></td><td class="num">' + pctOf(r.prof, r.amt) + '</td>'
@@ -2141,11 +2164,12 @@
     }).join('');
     tb.querySelectorAll('tr').forEach(function (tr) {
       var n = tr.getAttribute('data-n');
-      tr.querySelector('.cfChk').addEventListener('change', function () { state.cfCursor = n; state.confirm.names[n] = this.checked; drawConfirm(); autoSave(800); });
-      /* 행 아무 곳이나 클릭 = 체크 토글 (체크박스·링크·버튼 클릭은 제외) */
+      tr.querySelector('.cfChk').addEventListener('change', function () { state.quickN = null; state.cfCursor = n; state.confirm.names[n] = this.checked; drawConfirm(); autoSave(800); });
+      var sel = tr.querySelector('.cfRes'); if (sel) sel.addEventListener('change', function () { postResult(n, this.value); });
+      /* 행 아무 곳이나 클릭 = 체크 토글 (체크박스·링크·버튼·결과 선택은 제외) */
       tr.addEventListener('click', function (e) {
-        if (e.target.closest('input, a, button, label')) return;
-        state.cfCursor = n; state.confirm.names[n] = !state.confirm.names[n]; drawConfirm(); autoSave(800);
+        if (e.target.closest('input, a, button, label, select')) return;
+        state.quickN = null; state.cfCursor = n; state.confirm.names[n] = !state.confirm.names[n]; drawConfirm(); autoSave(800);
       });
     });
     /* 키보드 커서 표시 (없거나 표에서 사라졌으면 첫 행) */
@@ -2185,6 +2209,7 @@
     itb.querySelectorAll('.ipRadio').forEach(function (rd) { rd.addEventListener('change', function () { state.confirm.itemPick[this.getAttribute('data-code')] = this.getAttribute('data-comp'); state.heldComp = null; drawConfirm(); autoSave(800); }); });
     itb.querySelectorAll('.ipReset').forEach(function (a) { a.addEventListener('click', function (e) { e.preventDefault(); delete state.confirm.itemPick[this.getAttribute('data-code')]; state.heldComp = null; drawConfirm(); autoSave(800); }); });
     ftabResizable($('cftab')); ftabResizable($('cfItems'));
+    try { renderQuickSummary(); } catch (e) { console.error(e); }
     var manualCnt = Object.keys(state.confirm.itemPick || {}).length;
     $('cfPickStat').textContent = manualCnt ? '직접 선택 ' + manualCnt + '품목 (노란 행)' : '전부 자동 선택';
     $('cfHead').checked = vis.length > 0 && vis.every(function (r) { return state.confirm.names[r.name]; });
@@ -2214,23 +2239,23 @@
     state.proposalMode = false; state.heldComp = null;
     if ($('cMatched')) $('cMatched').checked = true;
   }
-  $('cfHead').addEventListener('change', function () { var on = this.checked; cfVisible().forEach(function (r) { state.confirm.names[r.name] = on; }); drawConfirm(); autoSave(800); });
-  $('cfAll').addEventListener('click', function () { cfVisible().forEach(function (r) { state.confirm.names[r.name] = true; }); drawConfirm(); autoSave(800); });
+  $('cfHead').addEventListener('change', function () { state.quickN = null; var on = this.checked; cfVisible().forEach(function (r) { state.confirm.names[r.name] = on; }); drawConfirm(); autoSave(800); });
+  $('cfAll').addEventListener('click', function () { state.quickN = null; cfVisible().forEach(function (r) { state.confirm.names[r.name] = true; }); drawConfirm(); autoSave(800); });
 
   $('cfPickReset').addEventListener('click', function () { state.confirm.itemPick = {}; state.heldComp = null; drawConfirm(); autoSave(800); });
   $('cfReq').addEventListener('click', function () { requestFilters(confirmedNames()); });
   $('cfRefresh').addEventListener('click', function () { loadAvail(false).then(function () { state.heldComp = null; renderConfirmStep(); }); });
-  $('cfOnlyOk').addEventListener('change', drawConfirm);
+  $('cfOnlyOk').addEventListener('change', function () { state.onlyOkTouched = true; if (state.quickN != null) quickApply(state.quickN); else drawConfirm(); });
   $('cfSearch').addEventListener('input', drawConfirm);
   function cfExclude() {
-    var q = ($('cfSearch').value || '').trim(); if (!q) { alert('제외할 제약사 이름을 먼저 입력하세요.'); return; }
+    state.quickN = null; var q = ($('cfSearch').value || '').trim(); if (!q) { alert('제외할 제약사 이름을 먼저 입력하세요.'); return; }
     var vis = cfVisible(), n = 0; vis.forEach(function (r) { if (state.confirm.names[r.name]) { state.confirm.names[r.name] = false; n++; } });
     if (!n) { alert('「' + q + '」에 해당하는 체크된 제약사가 없습니다.'); return; }
     $('cfSearch').value = ''; state.heldComp = null; drawConfirm(); autoSave(800);
   }
   $('cfExcl').addEventListener('click', cfExclude);
   $('cfSearch').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); cfExclude(); } });
-  $('cfNone').addEventListener('click', function () { state.confirm.names = {}; drawConfirm(); autoSave(800); });
+  $('cfNone').addEventListener('click', function () { state.quickN = null; state.confirm.names = {}; drawConfirm(); autoSave(800); });
   /* 확정 표 키보드 조작: ↑↓ 이동, 스페이스/Enter 체크 토글, Home/End, PageUp/PageDown */
   $('cfWrap').addEventListener('keydown', function (e) {
     if (e.target.closest('input[type=text], input[type=number], select, textarea')) return;
@@ -2244,7 +2269,7 @@
     else if (e.key === 'Home') j = 0;
     else if (e.key === 'End') j = names.length - 1;
     else if (e.key === ' ' || e.key === 'Enter') {
-      e.preventDefault(); var n = names[i]; state.confirm.names[n] = !state.confirm.names[n]; state.cfCursor = n; drawConfirm(); autoSave(800);
+      e.preventDefault(); var n = names[i]; state.quickN = null; state.confirm.names[n] = !state.confirm.names[n]; state.cfCursor = n; drawConfirm(); autoSave(800);
       var tr2 = $('cftab').querySelector('tbody tr.cur'); if (tr2) tr2.scrollIntoView({ block: 'nearest' }); return;
     } else return;
     e.preventDefault();
@@ -2254,6 +2279,47 @@
   });
   /* 표 클릭 시 포커스 → 바로 키보드 사용 가능 */
   $('cfWrap').addEventListener('mousedown', function (e) { if (!e.target.closest('input, select, a, button')) setTimeout(function () { $('cfWrap').focus(); }, 0); });
+  /* ── 빠른 세팅: 거래가능만 ☐ + 제약사 수 → 수수료 최대 N곳 자동 선택, 조건 바뀔 때마다 재계산 ── */
+  function quickPool() {
+    var onlyOk = $('cfOnlyOk').checked;
+    return cfRows.filter(function (r) { var k = availKindFor(r.name); return onlyOk ? k === 'ok' : k !== 'no'; }).map(function (r) { return r.name; });
+  }
+  function quickSelect(N) { /* 체크만 바꾼다 (그리기는 호출측) */
+    var pool = quickPool(); state.confirm.names = {};
+    if (N === 'all') { pool.forEach(function (n) { state.confirm.names[n] = true; }); return; }
+    var only = {}; pool.forEach(function (n) { only[n] = true; });
+    var r = remainOptimize(parseInt(N, 10) || 1, 'fee', only);
+    r.chosen.forEach(function (c) { state.confirm.names[c.name] = true; });
+  }
+  function quickApply(N) { state.quickN = N; quickSelect(N); state.heldComp = null; drawConfirm(); autoSave(800); }
+  function renderQuickSummary() {
+    var names = confirmedNames(), A = assignWithin(names), fee = A.totalProf + (A.totalYk || 0);
+    var used = names.filter(function (n) { return A.per[n] && A.per[n].cnt; });
+    $('cfQuickN').querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', state.quickN != null && String(state.quickN) === b.getAttribute('data-n')); });
+    var modeLbl = { prof: '정산 높은순', yk: '추가 높은순', sum: '합산 높은순', rate: '요율 높은순' }[state.mx.mode] || '';
+    $('cfQuickMode').textContent = '· 기준 ' + modeLbl + ' · 최소매출 ' + won(parseFloat($('minAmt').value) || 0) + (state.quickN == null ? ' · 수동 선택' : '');
+    $('cfQuickSum').innerHTML = '<span class="k">매출</span><b class="v">' + won(A.coveredAmt) + '</b><span class="k">수수료(합산)</span><b class="v" style="color:var(--blue)">' + won(fee) + '</b><span class="k">매출대비</span><b class="v">' + pctOf(fee, A.coveredAmt) + '</b><span class="k">커버</span><b class="v">' + A.covered + '/' + A.total + '품목</b><span class="k">제약사</span><b class="v">' + used.length + '곳' + (names.length !== used.length ? ' (체크 ' + names.length + ')' : '') + '</b>' + (A.merged ? '<span class="mini">최소매출 미만 → 차순위 ' + A.merged + '품목</span>' : '');
+    var per = used.map(function (n) { var p = A.per[n]; return { n: n, amt: p.amt, fee: p.prof + (p.yk || 0), cnt: p.cnt }; }).sort(function (a, b) { return b.fee - a.fee; });
+    $('cfQuickList').innerHTML = per.length ? per.map(function (p, i) { return '<span style="display:inline-block; margin:0 10px 0 0"><b>' + (i + 1) + '. ' + esc(p.n) + '</b>' + availBadge(p.n) + ' <span style="color:#556">' + p.cnt + '품목 · 매출 ' + won(p.amt) + ' · 수수료 ' + won(p.fee) + '</span></span>'; }).join('') : '<span style="color:#667">선택된 제약사가 없습니다. 위에서 제약사 수를 누르세요.</span>';
+  }
+  $('cfQuickN').addEventListener('click', function (e) { var b = e.target.closest('button[data-n]'); if (!b) return; quickApply(b.getAttribute('data-n')); });
+  /* 관리자: 표의 거래가능 칸에서 결과 바로 입력 → CSO 시트 기록(대기 요청 있으면 채우고 담당자 통보, 없으면 새 행) */
+  function resultSel(comp) {
+    if (!(state.who && state.who.isAdmin)) return '';
+    var a = availFor(comp), cur = a ? (a.kind === 'ok' ? '거래가능' : a.kind === 'no' ? '거래불가' : '') : '';
+    return '<select class="cfRes" data-comp="' + esc(comp) + '" title="결과를 고르면 바로 시트에 기록됩니다"><option value=""' + (cur ? '' : ' selected') + '>' + (a ? '확인중' : '조회전') + '</option><option value="거래가능"' + (cur === '거래가능' ? ' selected' : '') + '>가능</option><option value="거래불가"' + (cur === '거래불가' ? ' selected' : '') + '>불가</option></select>';
+  }
+  function postResult(comp, status) {
+    var name = ($('projName').value || '').trim(), biz = ($('projBiz').value || '').trim();
+    if (!name) { alert('거래처(병원)명이 없습니다.'); return; }
+    $('cfAvailStat').textContent = comp + ' 결과 기록 중…';
+    fetch('/api/cso/admin/filter-ocr', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'apply', name: name, bizNo: biz, items: [{ vendor: comp, status: status || '회신전', raw: '대체조제 도구에서 직접 입력' }] }) })
+      .then(function (r) { return r.json(); }).then(function (d) {
+        if (!d || !d.ok) throw new Error((d && d.error) || '기록 실패');
+        var msg = '✅ ' + comp + ' → ' + (status || '확인중') + ' 시트에 기록됨' + (d.notified ? ' · 담당자 통보' : '');
+        return loadAvail(true).then(function () { $('cfAvailStat').textContent = msg; });
+      }).catch(function (e) { $('cfAvailStat').textContent = '기록 실패: ' + e.message; alert('결과 기록 실패: ' + e.message); });
+  }
   function selectAllOk(prefix) {
     state.confirm.names = {}; cfRows.forEach(function (r) { if (availKindFor(r.name) !== 'no') state.confirm.names[r.name] = true; });
     if ($('cfOnlyOk').checked) $('cfOnlyOk').checked = false; /* 체크된 조회전 제약사도 보이게 */
@@ -2262,9 +2328,9 @@
     var used = 0; confirmedNames().forEach(function (n) { if (A.per[n] && A.per[n].cnt) used++; });
     $('cfMoreStat').textContent = (prefix || '') + '불가 제외 ' + confirmedNames().length + '곳 전부 체크 → 실제 배정 ' + used + '곳 · 매출 ' + won(A.coveredAmt) + ' · 수수료(합산) ' + won(A.totalProf + (A.totalYk || 0)) + ' · 매출대비 ' + pctOf(A.totalProf + (A.totalYk || 0), A.coveredAmt) + ' · 커버 ' + A.covered + '/' + A.total + '품목' + (A.merged ? ' · 최소매출 미만이라 차순위로 넘긴 품목 ' + A.merged + '개' : '') + (prefix ? '' : ' (이게 지금 조건에서의 상한)');
   }
-  $('cfAllOk').addEventListener('click', function () { selectAllOk(''); });
+  $('cfAllOk').addEventListener('click', function () { state.quickN = null; selectAllOk(''); });
   /* 최고요율 프리셋: 요율 높은순 + 최소매출(차순위 기준) + 후보 상위 30위 + 불가 제외 전부 선택 */
-  $('cfPresetRate').addEventListener('click', function () {
+  $('cfPresetRate').addEventListener('click', function () { state.quickN = null;
     var min = Math.max(0, parseFloat($('cfPresetMin').value) || 0);
     state.modeTouched = true; setMode('rate', true);
     $('minAmt').value = min; state.mx.minAmt = min;
@@ -2276,7 +2342,7 @@
     if (N) autoCombo(N, prefix); else selectAllOk(prefix);
     $('cfSettings').scrollIntoView({ block: 'nearest' });
   });
-  $('cfOk').addEventListener('click', function () { state.confirm.names = {}; cfRows.forEach(function (r) { if (availKindFor(r.name) === 'ok') state.confirm.names[r.name] = true; }); drawConfirm(); autoSave(800); });
+  $('cfOk').addEventListener('click', function () { state.quickN = null; state.confirm.names = {}; cfRows.forEach(function (r) { if (availKindFor(r.name) === 'ok') state.confirm.names[r.name] = true; }); drawConfirm(); autoSave(800); });
   /* 나머지 최적화(탐욕 집합덮개): 체크된 제약사로 배정한 뒤 남는 품목을 가장 많이 받는 제약사를 한 곳씩 추가. 매번 남은 품목을 다시 세므로 서로 겹치지 않게 뽑힌다 */
   function remainOptimize(N, by, only) { /* only: 이 이름들만 후보로 (거래가능 안에서 상위 N곳 고를 때) */
     /* 탐욕 + 실제 검증: 남은 품목 기준 예상 이득 상위 후보 몇 곳을 실제로 넣어 재배정(assignWithin: 최소매출 합침·직접 선택 포함)해 보고,
@@ -2315,7 +2381,7 @@
     var names = cfRows.filter(function (r) { return availKindFor(r.name) !== 'no'; }).map(function (r) { return r.name; });
     var A = assignWithin(names); return { n: names.length, total: A.totalProf + (A.totalYk || 0), amt: A.coveredAmt, covered: A.covered, all: A.total };
   }
-  $('cfMore').addEventListener('click', function () {
+  $('cfMore').addEventListener('click', function () { state.quickN = null;
     var N = Math.max(1, Math.min(30, parseInt($('cfMoreN').value, 10) || 5));
     var r = remainOptimize(N, $('cfMoreBy').value);
     if (!r || !r.chosen.length) { $('cfMoreStat').textContent = '더 받을 수 있는 제약사가 없습니다 (남은 품목 ' + (r ? r.leftCnt : 0) + ').'; return; }
@@ -2350,9 +2416,9 @@
       + (r && add && r.chosen.length < add ? ' · 더 넣어도 합산이 늘지 않아 ' + r.chosen.length + '곳에서 멈춤' : '')
       + (pre ? ' · 조회전 ' + pre + '곳은 「체크한 제약사 필터링요청」으로 접수' : '');
   }
-  $('cfAuto').addEventListener('click', function () { autoCombo(Math.max(1, Math.min(40, parseInt($('cfAutoN').value, 10) || 15)), ''); });
+  $('cfAuto').addEventListener('click', function () { state.quickN = null; autoCombo(Math.max(1, Math.min(40, parseInt($('cfAutoN').value, 10) || 15)), ''); });
   if ($('cfCombo')) $('cfCombo').addEventListener('click', function () { var l = makerState.lastComboNames || []; if (!l.length) { alert('「자세히 보기」의 오른쪽 「최적 조합」을 먼저 한 번 열어 조합을 만들어 주세요.'); return; } state.confirm.names = {}; l.forEach(function (n) { state.confirm.names[n] = true; }); drawConfirm(); autoSave(800); });
-  $('cfTop').addEventListener('click', function () { var n = Math.max(1, parseInt($('cfTopN').value, 10) || 10); var base = cfVisible(); state.confirm.names = {}; base.slice(0, n).forEach(function (r) { state.confirm.names[r.name] = true; }); drawConfirm(); autoSave(800); });
+  $('cfTop').addEventListener('click', function () { state.quickN = null; var n = Math.max(1, parseInt($('cfTopN').value, 10) || 10); var base = cfVisible(); state.confirm.names = {}; base.slice(0, n).forEach(function (r) { state.confirm.names[r.name] = true; }); drawConfirm(); autoSave(800); });
 
   function renderReportStep() {
     if (!state.result) return;
