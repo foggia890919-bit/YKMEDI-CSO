@@ -2247,7 +2247,17 @@
 
   $('cfPickReset').addEventListener('click', function () { state.confirm.itemPick = {}; state.heldComp = null; drawConfirm(); autoSave(800); });
   $('cfReq').addEventListener('click', function () { requestFilters(confirmedNames()); });
-  $('cfRefresh').addEventListener('click', function () { loadAvail(false).then(function () { state.heldComp = null; renderConfirmStep(); }); });
+  $('cfRefresh').addEventListener('click', function () {
+    /* 관리자면 원본(통계제출현황) → 사본 복사 → CSO 반영을 먼저 돌리고(60초 안 재호출은 건너뜀) 결과를 읽는다. 관리자가 아니면 시트만 다시 읽음 */
+    var pre = (state.who && state.who.isAdmin)
+      ? (function () { $('cfAvailStat').textContent = '원본 시트 반영 중…'; return fetch('/api/cso/admin/ops-copy?quick=1', { method: 'POST' }).then(function (r) { return r.json(); }).then(function (d) { state.lastOpsCopy = d; }).catch(function () {}); })()
+      : Promise.resolve();
+    pre.then(function () { return loadAvail(false); }).then(function () {
+      state.heldComp = null; renderConfirmStep();
+      var d = state.lastOpsCopy; if (d && d.copy) { var sy = d.copy.sync || {}; $('cfAvailStat').textContent = ($('cfAvailStat').textContent || '') + (d.copy.skipped ? ' · 원본 반영: 1분 안 재실행 건너뜀' : d.ok ? ' · 원본 반영: 새 행 ' + (sy.added || 0) + ' · 결과 채움 ' + (sy.filled || 0) : ' · 원본 반영 실패: ' + (d.error || '')); }
+      state.lastOpsCopy = null;
+    });
+  });
   $('cfOnlyOk').addEventListener('change', function () { state.onlyOkTouched = true; if (state.quickN != null) quickApply(state.quickN); else drawConfirm(); });
   $('cfSearch').addEventListener('input', drawConfirm);
   function cfExclude() {
@@ -2330,7 +2340,8 @@
     if (isAdmin) {
       var seenR = {}, pend = [];
       names.concat(cfVisible().map(function (r) { return r.name; })).forEach(function (n) { if (seenR[n]) return; seenR[n] = 1; var k = availKindFor(n); if (k !== 'ok' && k !== 'no') pend.push(n); });
-      var shown = pend.slice(0, 40);
+      pend.sort(function (a, b) { return a.localeCompare(b, 'ko'); }); /* 가나다순 — 찾기 쉽게 */
+      var shown = pend.slice(0, 60);
       $('cfResList').innerHTML = shown.length ? shown.map(function (n) {
         return '<span style="display:inline-flex; align-items:center; gap:4px; margin:0 14px 4px 0"><b>' + esc(n) + '</b>' + availBadge(n)
           + '<button class="sbtn resBtn" data-comp="' + esc(n) + '" data-s="거래가능" style="padding:2px 8px; border-color:var(--ok); color:var(--ok)">가능</button>'
