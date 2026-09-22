@@ -573,7 +573,7 @@
     <button class="sbtn" id="cfPickReset" title="품목별로 직접 고른 선택을 모두 자동으로 되돌림">직접 선택 모두 해제</button>
   </h3>
   <div style="overflow:auto; border:1px solid var(--line); border-radius:10px; max-height:420px">
-    <table class="ftab" id="cfItems"><thead><tr><th>약품명</th><th class="num">조제금액</th><th>1순위</th><th class="num ipAmt">정산</th><th>2순위</th><th class="num ipAmt">정산</th><th>3순위</th><th class="num ipAmt">정산</th><th>최종 선택</th></tr></thead><tbody></tbody></table>
+    <table class="ftab" id="cfItems"><thead><tr><th>약품명</th><th title="조제내역에 적힌 기존 품목의 제조회사">기존 제약사</th><th class="num">조제금액</th><th>1순위</th><th class="num ipAmt">정산</th><th>2순위</th><th class="num ipAmt">정산</th><th>3순위</th><th class="num ipAmt">정산</th><th>최종 선택</th></tr></thead><tbody></tbody></table>
   </div>
   <div class="mini" style="margin-top:6px">「매칭 품목·매칭 매출·단독 수수료」는 다른 제약사와 겹쳐도 전부 센 값(그 제약사 혼자 다 받았을 때)이라 <b>필터링 요청 순서</b>를 정할 때 보는 열이고, 「배정」열은 제약사끼리 경쟁시켜 품목당 한 곳만 준 값입니다. 필터링 결과가 오기 전에는 매칭 품목 많은 순으로 정렬됩니다. 「배정」열은 지금 체크한 제약사만으로 품목을 다시 배정한 결과라 체크를 바꿀 때마다 바뀝니다(체크 안 된 제약사는 —). 확정 목록에서 빠진 제약사가 1위였던 품목은 확정 제약사 중 차선으로 넘어가고, 갈 곳이 없으면 「조합 밖」으로 남습니다.</div>
   <div class="stepnav"><button class="pbtn" id="prev6">← 조제내역</button><button class="pbtn primary" id="next6">다음 → 보고서·제안서 (확정 적용)</button></div>
@@ -1078,7 +1078,7 @@
       });
       top.sort(function (a, b) { return b.prof - a.prof; });
       top.forEach(function (t) { potential[t.comp] = (potential[t.comp] || 0) + t.prof; appear[t.comp] = (appear[t.comp] || 0) + 1; pamt[t.comp] = (pamt[t.comp] || 0) + d.amt; psum[t.comp] = (psum[t.comp] || 0) + t.prof + (t.yk || 0); });
-      rows.push({ code: d.code, name: d.name, amt: d.amt, qty: d.qty, top: top, ownOut: (!e && ownOut[d.code]) || '' });
+      rows.push({ code: d.code, name: d.name, maker: d.maker || '', amt: d.amt, qty: d.qty, top: top, ownOut: (!e && ownOut[d.code]) || '' });
     });
     var comps = Object.keys(potential).sort(function (a, b) { return potential[b] - potential[a]; });
     /* 단계(필터링 대입) × 모드(정산금 최대 / YK 우선) 별 최종 배정. 품목당 제약사 1곳.
@@ -2203,7 +2203,7 @@
       /* 후보가 전부 제외(거래불가 등)돼 순위가 비면, 제외된 후보를 흐리게라도 보여 준다 — 「왜 빠졌는지」가 보이도록 */
       var excluded = ranked.length ? [] : row.top.filter(function (t) { return !mxAllowed(t.comp, stR); }).sort(function (a, b) { return betterThan(a, b, mm) ? -1 : betterThan(b, a, mm) ? 1 : 0; }).slice(0, 3);
       var okUn = ranked.filter(function (t) { return availKindFor(t.comp) === 'ok' && !set[t.comp]; }).map(function (t) { return t.comp; }); /* 거래가능인데 체크가 안 돼 배정 못 받는 후보 */
-      return { code: row.code, name: row.name, amt: row.amt, ranked: ranked, excluded: excluded, assigned: assignBy[row.code] || '', okUnchecked: okUn, ownOut: row.ownOut || '' };
+      return { code: row.code, name: row.name, maker: row.maker || '', amt: row.amt, ranked: ranked, excluded: excluded, assigned: assignBy[row.code] || '', okUnchecked: okUn, ownOut: row.ownOut || '' };
     });
     /* 등수 옆 금액은 설정의 기준을 그대로 따른다: 정산=기본요율×약가×조제량, 추가=추가수수료×약가×조제량, 합산=(기본+추가)×약가×조제량 */
     var ipLabel = { prof: '정산', yk: '추가', sum: '수수료', rate: '요율%' }[state.mx.mode] || '정산';
@@ -2225,9 +2225,9 @@
         var on = !!set[t.comp], sel = it.assigned === t.comp;
         return '<td' + (on ? '' : ' style="color:#99a"') + '><label style="cursor:' + (on ? 'pointer' : 'not-allowed') + '; display:inline-flex; align-items:center; gap:4px"><input type="radio" class="ipRadio" name="ip_' + esc(it.code) + '" data-code="' + esc(it.code) + '" data-comp="' + esc(t.comp) + '"' + (sel ? ' checked' : '') + (on ? '' : ' disabled') + '>' + (on ? '<b>' + esc(t.comp) + '</b>' : esc(t.comp)) + '</label>' + (t.extraPct ? ' <span class="badge xf">+' + t.extraPct + '%</span>' : '') + availBadge(t.comp) + resultSel(t.comp) + '</td><td class="num"' + (on ? '' : ' style="color:#99a"') + ' title="' + ipAmtTitle(t) + '">' + Math.round(scoreOf(t, state.mx.mode)[0]).toLocaleString('ko-KR') + '</td>';
       };
-      return '<tr' + (manual ? ' style="background:#fffbea"' : '') + '><td title="' + esc(it.name) + '">' + esc(it.name) + '</td><td class="num">' + Math.round(it.amt).toLocaleString('ko-KR') + '</td>' + cell(0) + cell(1) + cell(2)
+      return '<tr' + (manual ? ' style="background:#fffbea"' : '') + '><td title="' + esc(it.name) + '">' + esc(it.name) + '</td><td class="mini" title="' + esc(it.maker) + '">' + esc(it.maker || '—') + '</td><td class="num">' + Math.round(it.amt).toLocaleString('ko-KR') + '</td>' + cell(0) + cell(1) + cell(2)
         + '<td style="white-space:normal">' + (it.assigned ? '<b>' + esc(it.assigned) + '</b>' + (manual ? ' <span class="mini" style="color:#b45309">직접</span> <a href="#" class="ipReset" data-code="' + esc(it.code) + '" title="자동 선택으로 되돌림">↺</a>' : movedFrom[it.code] ? ' <span class="mini" style="color:#b45309" title="' + esc(movedFrom[it.code]) + ' 에 배정된 매출이 설정의 최소매출(' + won(parseFloat($('minAmt').value) || 0) + ') 미만이라 매출이 큰 제약사로 합쳐짐. 그대로 두려면 그 제약사의 ● 를 눌러 직접 선택">최소매출 합침 ← ' + esc(movedFrom[it.code]) + '</span>' : ' <span class="mini">자동</span>') : (it.ownOut ? '<a href="#" class="ipOwn sbtn" data-maker="' + esc(it.ownOut) + '" style="padding:1px 7px; border-color:var(--err); color:var(--err); font-weight:700; text-decoration:none" title="보유 제조회사 패널에서 이 회사를 다시 체크해 품목을 포함">↩ 포함</a> <span class="mini" style="color:var(--err)">제조회사 「' + esc(it.ownOut) + '」 체크 해제로 제외</span>' : it.excluded && it.excluded.length && !it.ranked.length ? '<span style="color:var(--err)">후보 전부 제외 (' + it.excluded.map(function (x) { return esc(x.comp); }).join('·') + ')</span>' : '<span style="color:var(--err)">조합 밖</span>' + (it.okUnchecked && it.okUnchecked.length ? ' <span class="mini">가능인데 체크 안 됨 → </span>' + it.okUnchecked.map(function (c) { return '<a href="#" class="ipAdd" data-comp="' + esc(c) + '" title="이 제약사를 확정에 체크하면 이 품목이 배정됩니다">' + esc(c) + ' 체크</a>'; }).join(' · ') : ''))) + '</td></tr>';
-    }).join('') + (ir.length > cap ? '<tr><td colspan="9" class="mini">표시 ' + cap + '행 초과분 생략 — 엑셀 「품목별 순위(확정)」 시트에 전체 포함</td></tr>' : '');
+    }).join('') + (ir.length > cap ? '<tr><td colspan="10" class="mini">표시 ' + cap + '행 초과분 생략 — 엑셀 「품목별 순위(확정)」 시트에 전체 포함</td></tr>' : '');
     var itb = $('cfItems').querySelector('tbody');
     itb.querySelectorAll('.ipRadio').forEach(function (rd) { rd.addEventListener('change', function () { state.confirm.itemPick[this.getAttribute('data-code')] = this.getAttribute('data-comp'); state.heldComp = null; drawConfirm(); autoSave(800); }); });
     itb.querySelectorAll('.ipReset').forEach(function (a) { a.addEventListener('click', function (e) { e.preventDefault(); delete state.confirm.itemPick[this.getAttribute('data-code')]; state.heldComp = null; drawConfirm(); autoSave(800); }); });
