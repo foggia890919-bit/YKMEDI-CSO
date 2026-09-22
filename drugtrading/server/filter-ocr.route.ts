@@ -20,6 +20,13 @@ import { getSetting } from "@/lib/gateway/notify";
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
+/** Vercel 에 이미 있을 수 있는 Gemini 키 이름들을 전부 인식 (설정 탭 GEMINI_API_KEY 도 허용) */
+function geminiKey(): string {
+  return process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_AI_API_KEY || process.env.GOOGLE_GEMINI_API_KEY || process.env.GEMINI_KEY || process.env.GOOGLE_API_KEY || "";
+}
+/** Vercel AI Gateway 키 (프로젝트에 AI Gateway 를 켜 두었으면 이 이름으로 자동 주입되기도 함) */
+function gatewayKey(): string { return process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_AI_GATEWAY_API_KEY || ""; }
+const GATEWAY_MODEL = process.env.OCR_GATEWAY_MODEL || "google/gemini-2.5-flash";
 const CLAUDE_MODEL = "claude-haiku-4-5-20251001"; // 표 읽기에는 소형 모델로 충분 (이미지 1장 ≈ 1~2천 토큰)
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 const Extracted = z.object({
@@ -64,8 +71,8 @@ function canonVendor(name: string, vendors: string[]): string {
 
 /* ---------- 엔진 1: Gemini (구글 AI API 키) ---------- */
 async function extractGemini(image: string, mediaType: MT, vendors: string[]): Promise<Out> {
-  const key = process.env.GEMINI_API_KEY || "";
-  if (!key) throw new Error("GEMINI_API_KEY 환경변수가 없습니다");
+  const key = geminiKey();
+  if (!key) throw new Error("Gemini 키가 없습니다 (GEMINI_API_KEY / GOOGLE_GENERATIVE_AI_API_KEY / GOOGLE_API_KEY 중 하나)");
   const schema = { type: "OBJECT", properties: { hospital: { type: "STRING" }, items: { type: "ARRAY", items: { type: "OBJECT", properties: { vendor: { type: "STRING" }, status: { type: "STRING", enum: ["거래가능", "거래불가", "회신전", "기타"] }, raw: { type: "STRING" } }, required: ["vendor", "status", "raw"] } } }, required: ["hospital", "items"] };
   const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(key)}`, {
     method: "POST", headers: { "Content-Type": "application/json" },
@@ -76,6 +83,23 @@ async function extractGemini(image: string, mediaType: MT, vendors: string[]): P
   const text = j?.candidates?.[0]?.content?.parts?.map((p: any) => p.text || "").join("") || "";
   let parsed: any; try { parsed = JSON.parse(text); } catch { throw new Error("Gemini 응답을 해석하지 못했습니다"); }
   const out = Extracted.safeParse(parsed); if (!out.success) throw new Error("Gemini 응답 형식 오류");
+  return { hospital: out.data.hospital, items: out.data.items.map((it) => ({ ...it, vendor: canonVendor(it.vendor, vendors) })) };
+}
+
+/* ---------- 엔진 1-b: Vercel AI Gateway (OpenAI 호환) 로 Gemini 호출 — 구글 키 없이 AI_GATEWAY_API_KEY 만 있을 때 ---------- */
+async function extractGateway(image: string, mediaType: MT, vendors: string[]): Promise<Out> {
+  const key = gatewayKey();
+  if (!key) throw new Error("AI_GATEWAY_API_KEY 가 없습니다");
+  const schema = { type: "object", additionalProperties: false, properties: { hospital: { type: "string" }, items: { type: "array", items: { type: "object", additionalProperties: false, properties: { vendor: { type: "string" }, status: { type: "string", enum: ["거래가능", "거래불가", "회신전", "기타"] }, raw: { type: "string" } }, required: ["vendor", "status", "raw"] } } }, required: ["hospital", "items"] };
+  const r = await fetch("https://ai-gateway.vercel.sh/v1/chat/completions", {
+    method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ model: GATEWAY_MODEL, temperature: 0, messages: [{ role: "user", content: [{ type: "image_url", image_url: { url: `data:${mediaType};base64,${image}` } }, { type: "text", text: guideText(vendors) + "\nJSON 으로만 답하세요: {hospital, items:[{vendor,status,raw}]}" }] }], response_format: { type: "json_schema", json_schema: { name: "filter_result", strict: true, schema } } }),
+  });
+  const j: any = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(`AI Gateway ${r.status}: ${j?.error?.message || j?.error || "호출 실패"}`);
+  const text = String(j?.choices?.[0]?.message?.content || "").replace(/^```(?:json)?\s*|\s*```$/g, "");
+  let parsed: any; try { parsed = JSON.parse(text); } catch { throw new Error("AI Gateway 응답을 해석하지 못했습니다"); }
+  const out = Extracted.safeParse(parsed); if (!out.success) throw new Error("AI Gateway 응답 형식 오류");
   return { hospital: out.data.hospital, items: out.data.items.map((it) => ({ ...it, vendor: canonVendor(it.vendor, vendors) })) };
 }
 
@@ -133,17 +157,25 @@ async function extract(image: string, mediaType: MT): Promise<Out & { engine: st
   let vendors: string[] = [];
   try { vendors = await vendorList(); } catch { vendors = []; }
   const pref = ((await getSetting("OCR_ENGINE").catch(() => "")) || process.env.OCR_ENGINE || "auto").trim().toLowerCase();
-  const order = pref === "gemini" ? ["gemini"] : pref === "vision" ? ["vision"] : pref === "claude" ? ["claude"]
-    : [process.env.GEMINI_API_KEY ? "gemini" : "", hasGoogleCreds() ? "vision" : "", process.env.ANTHROPIC_API_KEY ? "claude" : ""].filter(Boolean);
-  if (!order.length) throw new Error("인식 엔진이 없습니다: GEMINI_API_KEY(권장) 또는 Vision API 활성화 또는 ANTHROPIC_API_KEY 중 하나를 설정하세요");
+  const order = ["gemini", "gateway", "vision", "claude"].includes(pref) ? [pref]
+    : [geminiKey() ? "gemini" : "", gatewayKey() ? "gateway" : "", hasGoogleCreds() ? "vision" : "", process.env.ANTHROPIC_API_KEY ? "claude" : ""].filter(Boolean);
+  if (!order.length) throw new Error("인식 엔진이 없습니다: Gemini 키(GEMINI_API_KEY 등) 또는 AI_GATEWAY_API_KEY 또는 Vision API 활성화 또는 ANTHROPIC_API_KEY 중 하나");
   const errors: string[] = [];
   for (const eng of order) {
     try {
-      const out = eng === "gemini" ? await extractGemini(image, mediaType, vendors) : eng === "vision" ? await extractVision(image, vendors) : await extractClaude(image, mediaType, vendors);
-      return { ...out, engine: eng === "gemini" ? GEMINI_MODEL : eng === "vision" ? "google-vision" : CLAUDE_MODEL };
+      const out = eng === "gemini" ? await extractGemini(image, mediaType, vendors) : eng === "gateway" ? await extractGateway(image, mediaType, vendors) : eng === "vision" ? await extractVision(image, vendors) : await extractClaude(image, mediaType, vendors);
+      return { ...out, engine: eng === "gemini" ? GEMINI_MODEL : eng === "gateway" ? "gateway:" + GATEWAY_MODEL : eng === "vision" ? "google-vision" : CLAUDE_MODEL };
     } catch (e: any) { errors.push(`${eng}: ${e?.message || "실패"}`); }
   }
   throw new Error(errors.join(" / "));
+}
+
+/** 관리자 진단: 어떤 인식 엔진이 설정돼 있는지 (키 값은 절대 내보내지 않음) */
+export async function GET() {
+  const scope = await getCsoScope();
+  if (!scope || !scope.isAdmin) return NextResponse.json({ ok: false, error: "관리자만" }, { status: 403 });
+  const pref = ((await getSetting("OCR_ENGINE").catch(() => "")) || process.env.OCR_ENGINE || "auto").trim().toLowerCase();
+  return NextResponse.json({ ok: true, pref, engines: { gemini: !!geminiKey(), gateway: !!gatewayKey(), vision: hasGoogleCreds(), claude: !!process.env.ANTHROPIC_API_KEY }, geminiModel: GEMINI_MODEL, gatewayModel: GATEWAY_MODEL, claudeModel: CLAUDE_MODEL });
 }
 
 export async function POST(req: NextRequest) {
