@@ -1054,11 +1054,11 @@
   function buildMatrix(K) {
     refreshScope();
     var mcol = state.makerCol, anyOwn = checkedMakers().length > 0;
-    var per = {}; /* pCode → { d, comps: {comp → {prof, inc, prod, pct}} } */
+    var per = {}, ownOut = {}; /* pCode → { d, comps: {comp → {prof, inc, prod, pct}} } / ownOut: 제조회사 체크 해제로 제외된 품목 → 제조회사명 */
     state.result.outRows.forEach(function (x) {
       if (x.kind !== '대체가능' || x.status !== '정상' || !(x.profTotal > 0) || !priceOk(x)) return;
       if (isOut(x.pCode)) return;
-      if (anyOwn && !makerState.checked[x.pMaker || '(제조사 미상)']) return;
+      if (anyOwn && !makerState.checked[x.pMaker || '(제조사 미상)']) { ownOut[x.pCode] = x.pMaker || '(제조사 미상)'; return; } /* 보유 제조회사 체크 해제 → 그 회사 품목은 후보 없이 남겨 「왜 빠졌는지」 표시 */
       var comp = mcol >= 0 ? String(x.cells[mcol] === undefined ? '' : x.cells[mcol]).trim() : '';
       if (!comp) comp = '(제약사 미상)';
       var e = per[x.pCode] || (per[x.pCode] = { comps: {} });
@@ -1078,7 +1078,7 @@
       });
       top.sort(function (a, b) { return b.prof - a.prof; });
       top.forEach(function (t) { potential[t.comp] = (potential[t.comp] || 0) + t.prof; appear[t.comp] = (appear[t.comp] || 0) + 1; pamt[t.comp] = (pamt[t.comp] || 0) + d.amt; psum[t.comp] = (psum[t.comp] || 0) + t.prof + (t.yk || 0); });
-      rows.push({ code: d.code, name: d.name, amt: d.amt, qty: d.qty, top: top });
+      rows.push({ code: d.code, name: d.name, amt: d.amt, qty: d.qty, top: top, ownOut: (!e && ownOut[d.code]) || '' });
     });
     var comps = Object.keys(potential).sort(function (a, b) { return potential[b] - potential[a]; });
     /* 단계(필터링 대입) × 모드(정산금 최대 / YK 우선) 별 최종 배정. 품목당 제약사 1곳.
@@ -1115,7 +1115,7 @@
       });
     });
     var allAmt = 0; rows.forEach(function (r) { allAmt += r.amt; });
-    return { rows: rows, comps: comps, potential: potential, appear: appear, pamt: pamt, psum: psum, stages: stages, allAmt: allAmt, K: K };
+    return { rows: rows, comps: comps, potential: potential, appear: appear, pamt: pamt, psum: psum, stages: stages, allAmt: allAmt, K: K, ownOutCnt: rows.filter(function (r) { return r.ownOut; }).length, ownOutMakers: (function () { var m2 = {}; rows.forEach(function (r) { if (r.ownOut) m2[r.ownOut] = (m2[r.ownOut] || 0) + 1; }); return m2; })() };
   }
   function minAmtLbl(cur) {
     var m = parseFloat($('minAmt').value) || 0; if (!(m > 0)) return '';
@@ -2047,10 +2047,11 @@
   /* ── 빠른 방식: 품목별 합산요율 1~N등 (제약사별 최고 합산요율 대체품) ── */
   function quickTop(N) {
     var st = state.mx.stage === 'all' ? 'nono' : state.mx.stage;
-    var per = {}, perX = {};
+    var per = {}, perX = {}, ownOutQ = {}, anyOwnQ = checkedMakers().length > 0;
     state.result.outRows.forEach(function (x) {
       if (x.kind !== '대체가능' || x.status !== '정상' || !priceOk(x)) return;
       if (isOut(x.pCode)) return;
+      if (anyOwnQ && !makerState.checked[x.pMaker || '(제조사 미상)']) { ownOutQ[x.pCode] = x.pMaker || '(제조사 미상)'; return; } /* 3단계와 같은 보유 제조회사 필터 — 빠진 품목은 이유와 함께 표시 */
       var comp = compOf(x); if (!mxAllowed(comp, st)) { (perX[x.pCode] || (perX[x.pCode] = {}))[comp] = 1; return; } /* 제외된 후보도 기억 → 순위가 비면 이유 표시 */
       var mm = 'sum'; /* 빠른 등수표는 설정과 무관하게 항상 합산 수수료 = 약가×(기본요율+추가수수료)×조제량 순 */
       var rate = (x.basePct !== undefined ? x.basePct : x.pct) + (x.extraPct || 0);
@@ -2062,7 +2063,7 @@
     state.result.pharm.slice().sort(function (a, b) { return b.amt - a.amt; }).forEach(function (d) {
       if (isOut(d.code)) return;
       var e = per[d.code];
-      if (!e) { if (perX[d.code]) rows.push({ code: d.code, name: d.name, amt: d.amt, ranked: [], excluded: Object.keys(perX[d.code]) }); return; } /* 후보 전부 제외(거래불가 등) — 빈 순위로라도 남김 */
+      if (!e) { if (ownOutQ[d.code]) rows.push({ code: d.code, name: d.name, amt: d.amt, ranked: [], excluded: [], ownOut: ownOutQ[d.code] }); else if (perX[d.code]) rows.push({ code: d.code, name: d.name, amt: d.amt, ranked: [], excluded: Object.keys(perX[d.code]) }); return; } /* 후보 전부 제외(거래불가·제조회사 체크) — 빈 순위로라도 남김 */
       var ranked = Object.keys(e).map(function (c) { return e[c]; }).sort(function (a, b) { return betterThan(a, b, mm2) ? -1 : betterThan(b, a, mm2) ? 1 : 0; }).slice(0, N);
       rows.push({ code: d.code, name: d.name, amt: d.amt, ranked: ranked });
     });
@@ -2086,7 +2087,7 @@
     var cap = 500;
     $('qktab').querySelector('tbody').innerHTML = rows.slice(0, cap).map(function (r) {
       var tds = '';
-      for (var i = 0; i < N; i++) { var t = r.ranked[i]; var mtr = !t ? '' : '수수료 ' + Math.round(t.prof + t.yk).toLocaleString('ko-KR') + '원 (' + t.base + '+' + t.extra + '=' + t.rate + '%)'; tds += t ? '<td><b>' + esc(t.comp) + '</b> <span class="mini">' + mtr + '</span>' + availBadge(t.comp) + '</td>' : (i === 0 && r.excluded ? '<td class="mini" style="color:var(--err)">후보 전부 제외: ' + r.excluded.map(function (c) { return '<s>' + esc(c) + '</s>' + availBadge(c); }).join(' ') + '</td>' : '<td class="mini">—</td>'); }
+      for (var i = 0; i < N; i++) { var t = r.ranked[i]; var mtr = !t ? '' : '수수료 ' + Math.round(t.prof + t.yk).toLocaleString('ko-KR') + '원 (' + t.base + '+' + t.extra + '=' + t.rate + '%)'; tds += t ? '<td><b>' + esc(t.comp) + '</b> <span class="mini">' + mtr + '</span>' + availBadge(t.comp) + '</td>' : (i === 0 && r.ownOut ? '<td class="mini" style="color:var(--err)">제조회사 「' + esc(r.ownOut) + '」 체크 해제로 제외 — 3단계 요약의 「제조회사 전부 포함」</td>' : i === 0 && r.excluded && r.excluded.length ? '<td class="mini" style="color:var(--err)">후보 전부 제외: ' + r.excluded.map(function (c) { return '<s>' + esc(c) + '</s>' + availBadge(c); }).join(' ') + '</td>' : '<td class="mini">—</td>'); }
       return '<tr><td title="' + esc(r.name) + '">' + esc(r.name) + '</td><td class="num">' + Math.round(r.amt).toLocaleString('ko-KR') + '</td>' + tds + '</tr>';
     }).join('') + (rows.length > cap ? '<tr><td colspan="' + (N + 2) + '" class="mini">표시 ' + cap + '행 초과분 생략 — 엑셀에 전체 포함</td></tr>' : '');
     ftabResizable($('qktab'));
@@ -2202,7 +2203,7 @@
       /* 후보가 전부 제외(거래불가 등)돼 순위가 비면, 제외된 후보를 흐리게라도 보여 준다 — 「왜 빠졌는지」가 보이도록 */
       var excluded = ranked.length ? [] : row.top.filter(function (t) { return !mxAllowed(t.comp, stR); }).sort(function (a, b) { return betterThan(a, b, mm) ? -1 : betterThan(b, a, mm) ? 1 : 0; }).slice(0, 3);
       var okUn = ranked.filter(function (t) { return availKindFor(t.comp) === 'ok' && !set[t.comp]; }).map(function (t) { return t.comp; }); /* 거래가능인데 체크가 안 돼 배정 못 받는 후보 */
-      return { code: row.code, name: row.name, amt: row.amt, ranked: ranked, excluded: excluded, assigned: assignBy[row.code] || '', okUnchecked: okUn };
+      return { code: row.code, name: row.name, amt: row.amt, ranked: ranked, excluded: excluded, assigned: assignBy[row.code] || '', okUnchecked: okUn, ownOut: row.ownOut || '' };
     });
     /* 등수 옆 금액은 설정의 기준을 그대로 따른다: 정산=기본요율×약가×조제량, 추가=추가수수료×약가×조제량, 합산=(기본+추가)×약가×조제량 */
     var ipLabel = { prof: '정산', yk: '추가', sum: '수수료', rate: '요율%' }[state.mx.mode] || '정산';
@@ -2225,11 +2226,12 @@
         return '<td' + (on ? '' : ' style="color:#99a"') + '><label style="cursor:' + (on ? 'pointer' : 'not-allowed') + '; display:inline-flex; align-items:center; gap:4px"><input type="radio" class="ipRadio" name="ip_' + esc(it.code) + '" data-code="' + esc(it.code) + '" data-comp="' + esc(t.comp) + '"' + (sel ? ' checked' : '') + (on ? '' : ' disabled') + '>' + (on ? '<b>' + esc(t.comp) + '</b>' : esc(t.comp)) + '</label>' + (t.extraPct ? ' <span class="badge xf">+' + t.extraPct + '%</span>' : '') + availBadge(t.comp) + resultSel(t.comp) + '</td><td class="num"' + (on ? '' : ' style="color:#99a"') + ' title="' + ipAmtTitle(t) + '">' + Math.round(scoreOf(t, state.mx.mode)[0]).toLocaleString('ko-KR') + '</td>';
       };
       return '<tr' + (manual ? ' style="background:#fffbea"' : '') + '><td title="' + esc(it.name) + '">' + esc(it.name) + '</td><td class="num">' + Math.round(it.amt).toLocaleString('ko-KR') + '</td>' + cell(0) + cell(1) + cell(2)
-        + '<td>' + (it.assigned ? '<b>' + esc(it.assigned) + '</b>' + (manual ? ' <span class="mini" style="color:#b45309">직접</span> <a href="#" class="ipReset" data-code="' + esc(it.code) + '" title="자동 선택으로 되돌림">↺</a>' : movedFrom[it.code] ? ' <span class="mini" style="color:#b45309" title="' + esc(movedFrom[it.code]) + ' 에 배정된 매출이 설정의 최소매출(' + won(parseFloat($('minAmt').value) || 0) + ') 미만이라 매출이 큰 제약사로 합쳐짐. 그대로 두려면 그 제약사의 ● 를 눌러 직접 선택">최소매출 합침 ← ' + esc(movedFrom[it.code]) + '</span>' : ' <span class="mini">자동</span>') : (it.excluded && it.excluded.length && !it.ranked.length ? '<span style="color:var(--err)">후보 전부 제외 (' + it.excluded.map(function (x) { return esc(x.comp); }).join('·') + ')</span>' : '<span style="color:var(--err)">조합 밖</span>' + (it.okUnchecked && it.okUnchecked.length ? ' <span class="mini">가능인데 체크 안 됨 → </span>' + it.okUnchecked.map(function (c) { return '<a href="#" class="ipAdd" data-comp="' + esc(c) + '" title="이 제약사를 확정에 체크하면 이 품목이 배정됩니다">' + esc(c) + ' 체크</a>'; }).join(' · ') : ''))) + '</td></tr>';
+        + '<td>' + (it.assigned ? '<b>' + esc(it.assigned) + '</b>' + (manual ? ' <span class="mini" style="color:#b45309">직접</span> <a href="#" class="ipReset" data-code="' + esc(it.code) + '" title="자동 선택으로 되돌림">↺</a>' : movedFrom[it.code] ? ' <span class="mini" style="color:#b45309" title="' + esc(movedFrom[it.code]) + ' 에 배정된 매출이 설정의 최소매출(' + won(parseFloat($('minAmt').value) || 0) + ') 미만이라 매출이 큰 제약사로 합쳐짐. 그대로 두려면 그 제약사의 ● 를 눌러 직접 선택">최소매출 합침 ← ' + esc(movedFrom[it.code]) + '</span>' : ' <span class="mini">자동</span>') : (it.ownOut ? '<span style="color:var(--err)">제조회사 「' + esc(it.ownOut) + '」 체크 해제로 제외</span> <a href="#" class="ipOwn" data-maker="' + esc(it.ownOut) + '" title="보유 제조회사 패널에서 이 회사를 다시 체크해 품목을 포함">포함</a>' : it.excluded && it.excluded.length && !it.ranked.length ? '<span style="color:var(--err)">후보 전부 제외 (' + it.excluded.map(function (x) { return esc(x.comp); }).join('·') + ')</span>' : '<span style="color:var(--err)">조합 밖</span>' + (it.okUnchecked && it.okUnchecked.length ? ' <span class="mini">가능인데 체크 안 됨 → </span>' + it.okUnchecked.map(function (c) { return '<a href="#" class="ipAdd" data-comp="' + esc(c) + '" title="이 제약사를 확정에 체크하면 이 품목이 배정됩니다">' + esc(c) + ' 체크</a>'; }).join(' · ') : ''))) + '</td></tr>';
     }).join('') + (ir.length > cap ? '<tr><td colspan="9" class="mini">표시 ' + cap + '행 초과분 생략 — 엑셀 「품목별 순위(확정)」 시트에 전체 포함</td></tr>' : '');
     var itb = $('cfItems').querySelector('tbody');
     itb.querySelectorAll('.ipRadio').forEach(function (rd) { rd.addEventListener('change', function () { state.confirm.itemPick[this.getAttribute('data-code')] = this.getAttribute('data-comp'); state.heldComp = null; drawConfirm(); autoSave(800); }); });
     itb.querySelectorAll('.ipReset').forEach(function (a) { a.addEventListener('click', function (e) { e.preventDefault(); delete state.confirm.itemPick[this.getAttribute('data-code')]; state.heldComp = null; drawConfirm(); autoSave(800); }); });
+    itb.querySelectorAll('.ipOwn').forEach(function (a) { a.addEventListener('click', function (e) { e.preventDefault(); makerState.checked[this.getAttribute('data-maker')] = true; state.heldComp = null; renderConfirmStep(); autoSave(800); }); });
     itb.querySelectorAll('.ipAdd').forEach(function (a) { a.addEventListener('click', function (e) { e.preventDefault(); state.quickN = null; state.confirm.names[this.getAttribute('data-comp')] = true; state.heldComp = null; drawConfirm(); autoSave(800); }); });
     /* 관리자: 순위 칸의 결과 선택(가능/불가/확인중) → 바로 시트 기록 → 재계산 */
     itb.querySelectorAll('.cfRes').forEach(function (sl) { sl.addEventListener('change', function () { postResult(this.getAttribute('data-comp'), this.value); }); });
@@ -2250,6 +2252,7 @@
       + '<div class="l"><span>커버</span><b>' + A.covered + '/' + A.total + '품목 · ' + won(A.coveredAmt) + '</b></div>'
       + '<div class="l"><span>매출대비 수수료율</span><b>' + pctOf(A.totalProf, A.coveredAmt) + '</b></div>'
       + '<div class="l"><span>저가 인센티브</span><b>' + won(A.totalInc) + '</b></div>'
+      + (state.mx.last && state.mx.last.ownOutCnt ? '<div class="l" style="color:var(--err)"><span>보유 제조회사 체크 해제로 빠진 품목</span><b>' + state.mx.last.ownOutCnt + '품목</b></div><div class="mini" style="color:var(--err)">' + Object.keys(state.mx.last.ownOutMakers).map(function (k) { return esc(k) + ' ' + state.mx.last.ownOutMakers[k]; }).join(' · ') + ' — 「자세히 보기」의 보유 제조회사 패널에서 체크가 풀린 회사 품목은 순위·배정·매출에서 통째로 빠집니다</div><div style="margin-top:4px"><button class="sbtn" id="cfOwnAll" style="border-color:var(--err); color:var(--err); font-weight:700">↩ 제조회사 전부 포함 (' + state.mx.last.ownOutCnt + '품목 되살림)</button></div>' : '')
       + '<div class="l"><span>조합 밖 품목(확정 제약사에 후보 없음)</span><b>' + (A.total - A.covered) + '품목</b></div>'
       + (function () { var m = {}, cnt = 0; state.confirm.itemRanks.forEach(function (it) { if (!it.assigned && it.okUnchecked && it.okUnchecked.length) { cnt++; it.okUnchecked.forEach(function (c) { m[c] = 1; }); } }); var ks = Object.keys(m);
           return ks.length ? '<div class="l" style="color:var(--warn)"><span>그중 거래가능 후보가 있는데 체크가 안 된 품목</span><b>' + cnt + '품목</b></div><div style="margin-top:4px"><button class="sbtn" id="cfAddOk" style="border-color:var(--ok); color:var(--ok)" title="' + esc(ks.join(', ')) + '">✔ 가능 후보 ' + ks.length + '곳 체크에 추가 → ' + cnt + '품목 배정</button></div>' : ''; })()
@@ -2259,6 +2262,7 @@
           return '<div class="l"><span>정산 합계</span><b>' + won(cur.total) + '</b></div><div class="l"><span>배정</span><b>' + cur.count + '품목 · ' + Object.keys(cur.assign).length + '곳</b></div>'
             + '<div class="l" style="color:var(--err)"><span>확정으로 줄어드는 정산</span><b>−' + won(Math.max(0, cur.total - A.totalProf)) + '</b></div>'; })()
       + '<div class="mini" style="margin-top:6px">제약사를 줄이면 갈 곳 없는 품목·차선 배정만큼 정산이 줄지만, 실제 거래·관리 가능한 조합이 됩니다.</div></div>';
+    var ownAll = $('cfOwnAll'); if (ownAll) ownAll.addEventListener('click', function () { makerState.checked = {}; /* 아무것도 체크 안 함 = 필터 없음(전체 포함) */ state.heldComp = null; renderConfirmStep(); autoSave(800); });
     var addOk = $('cfAddOk'); if (addOk) addOk.addEventListener('click', function () { state.quickN = null; state.confirm.itemRanks.forEach(function (it) { if (!it.assigned && it.okUnchecked) it.okUnchecked.forEach(function (c) { state.confirm.names[c] = true; }); }); state.heldComp = null; drawConfirm(); autoSave(800); });
   }
   function applyConfirm() {
@@ -2336,7 +2340,8 @@
     $('cfQuickN').querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', state.quickN != null && String(state.quickN) === b.getAttribute('data-n')); });
     var modeLbl = { prof: '정산 높은순', yk: '추가 높은순', sum: '합산 높은순', rate: '요율 높은순' }[state.mx.mode] || '';
     $('cfQuickMode').textContent = '· 기준 ' + modeLbl + ' · 최소매출 ' + won(parseFloat($('minAmt').value) || 0) + (state.quickN == null ? ' · 수동 선택' : '');
-    $('cfQuickSum').innerHTML = '<span class="k">매출</span><b class="v">' + won(A.coveredAmt) + '</b><span class="k">수수료(합산)</span><b class="v" style="color:var(--blue)">' + won(fee) + '</b><span class="k">매출대비</span><b class="v">' + pctOf(fee, A.coveredAmt) + '</b><span class="k">커버</span><b class="v">' + A.covered + '/' + A.total + '품목</b><span class="k">제약사</span><b class="v">' + used.length + '곳' + (names.length !== used.length ? ' (체크 ' + names.length + ')' : '') + '</b>' + (A.merged ? '<span class="mini">최소매출 미만 → 차순위 ' + A.merged + '품목</span>' : '');
+    var ownWarn = state.mx.last && state.mx.last.ownOutCnt ? '<span class="mini" style="color:var(--err)">⚠ 제조회사 체크 해제로 ' + state.mx.last.ownOutCnt + '품목 제외 중 (아래 요약에서 되살리기)</span>' : '';
+    $('cfQuickSum').innerHTML = ownWarn + '<span class="k">매출</span><b class="v">' + won(A.coveredAmt) + '</b><span class="k">수수료(합산)</span><b class="v" style="color:var(--blue)">' + won(fee) + '</b><span class="k">매출대비</span><b class="v">' + pctOf(fee, A.coveredAmt) + '</b><span class="k">커버</span><b class="v">' + A.covered + '/' + A.total + '품목</b><span class="k">제약사</span><b class="v">' + used.length + '곳' + (names.length !== used.length ? ' (체크 ' + names.length + ')' : '') + '</b>' + (A.merged ? '<span class="mini">최소매출 미만 → 차순위 ' + A.merged + '품목</span>' : '');
     var per = used.map(function (n) { var p = A.per[n]; return { n: n, amt: p.amt, fee: p.prof + (p.yk || 0), cnt: p.cnt }; }).sort(function (a, b) { return b.fee - a.fee; });
     /* 관리자: 결과가 아직 없는(조회전·확인중) 제약사에 가능/불가 버튼 — 체크된 곳 먼저, 그다음 표 순서로 */
     var isAdmin = !!(state.who && state.who.isAdmin);
