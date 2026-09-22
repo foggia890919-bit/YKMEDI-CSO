@@ -177,7 +177,9 @@
   .ftab td { padding: 7px 10px; border-bottom: 1px solid #eef1f7; }
   .ftab.rzon { table-layout: fixed; }
   .ftab.rzon td, .ftab.rzon th { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .ftab th .rz { position: absolute; right: -3px; top: 0; bottom: 0; width: 7px; cursor: col-resize; z-index: 1; }
+  .ftab th .rz { position: absolute; right: -5px; top: 0; bottom: 0; width: 10px; cursor: col-resize; z-index: 1; border-right: 1px solid transparent; }
+  .ftab th:hover .rz { border-right-color: #b9c3d6; }
+  .ftab th .rz:hover { background: rgba(48,84,150,.15); border-right-color: var(--blue); }
   .ftab th .rz:hover { background: #c7d2fe; }
   .ftab td.num { text-align: right; font-variant-numeric: tabular-nums; }
   .ftab tr.sel td { background: #f3f7ff; }
@@ -558,7 +560,7 @@
       <div style="overflow:auto; border:1px solid var(--line); border-radius:8px; max-height:380px; background:#fff">
         <table class="ftab" id="qktab"><thead></thead><tbody></tbody></table>
       </div>
-      <div class="mini" style="margin-top:6px">등수는 설정의 배정 기준과 상관없이 항상 <b>합산 수수료 = 약가×(기본요율+추가수수료)×조제량</b>이 큰 순서입니다. 열 머리글 오른쪽 경계를 끌면 열 너비를 바꿀 수 있고(두 번 클릭하면 자동 너비), 너비는 이 브라우저에 기억됩니다.</div>
+      <div class="mini" style="margin-top:6px">등수는 설정의 배정 기준과 상관없이 항상 <b>합산 수수료 = 약가×(기본요율+추가수수료)×조제량</b>이 큰 순서입니다. 머리글을 클릭하면 그 열로 오름/내림 정렬되고, 머리글 오른쪽 경계(마우스를 올리면 선이 보임)를 끌면 열 너비를 바꿀 수 있습니다(두 번 클릭하면 자동 너비, 너비는 이 브라우저에 기억).</div>
     </div>
   </details>
   <div class="rep" id="cfSum"></div>
@@ -2068,10 +2070,17 @@
   function renderQuick() {
     if (!state.result) return;
     var N = Math.max(1, Math.min(10, parseInt($('qkN').value, 10) || 5));
-    var rows = quickTop(N); state.quickRows = rows;
-    var th = '<tr><th>약품명</th><th class="num">조제금액</th>';
-    for (var i = 1; i <= N; i++) th += '<th>' + i + '등 · 수수료 (기본+추가)×약가</th>';
+    var rows = quickTop(N);
+    /* 정렬: 머리글 클릭 → 오름/내림 토글. 약품명=가나다, 조제금액=금액, N등=그 등수 제약사의 수수료(기본+추가) */
+    var qs = state.qkSort || { key: 'amt', dir: -1 };
+    var qv = function (r) { if (qs.key === 'name') return r.name; if (qs.key === 'amt') return r.amt; var t = r.ranked[qs.key]; return t ? t.prof + t.yk : -1; };
+    rows = rows.slice().sort(function (a, b) { var va = qv(a), vb = qv(b); if (typeof va === 'string') return va.localeCompare(vb, 'ko') * qs.dir; return (va - vb) * qs.dir; }); /* dir 1 = 오름(▲), -1 = 내림(▼) */
+    state.quickRows = rows;
+    var arrow = function (k) { return qs.key === k ? (qs.dir < 0 ? ' ▼' : ' ▲') : ''; };
+    var th = '<tr><th data-q="name" style="cursor:pointer" title="클릭: 가나다 오름/내림">약품명' + arrow('name') + '</th><th class="num" data-q="amt" style="cursor:pointer" title="클릭: 금액 오름/내림">조제금액' + arrow('amt') + '</th>';
+    for (var i = 1; i <= N; i++) th += '<th data-q="' + (i - 1) + '" style="cursor:pointer" title="클릭: ' + i + '등 수수료 오름/내림">' + i + '등 · 수수료 (기본+추가)×약가' + arrow(i - 1) + '</th>';
     $('qktab').querySelector('thead').innerHTML = th + '</tr>';
+    $('qktab').querySelectorAll('th[data-q]').forEach(function (h) { h.addEventListener('click', function (e) { if (e.target.closest('.rz')) return; var k = this.getAttribute('data-q'); if (k !== 'name' && k !== 'amt') k = parseInt(k, 10); state.qkSort = (qs.key === k) ? { key: k, dir: -qs.dir } : { key: k, dir: k === 'name' ? 1 : -1 }; renderQuick(); }); });
     var cap = 500;
     $('qktab').querySelector('tbody').innerHTML = rows.slice(0, cap).map(function (r) {
       var tds = '';
@@ -3022,8 +3031,12 @@
     if (!natural[0]) { tbl.style.width = ''; tbl.style.tableLayout = ''; return; } /* 숨겨진 상태(닫힌 details 등) — 다음 렌더 때 다시 */
     var ws = natural.map(function (w, i) { return saved[i] > 0 ? saved[i] : Math.min(460, Math.max(40, w + 2)); });
     /* 저장된 너비가 없으면 표가 화면(감싸는 칸)보다 넓지 않게 비례 축소 — 마지막 열이 잘려 보이지 않도록. 직접 끌어 넓히면 가로 스크롤 */
-    var wrapW = tbl.parentElement ? tbl.parentElement.clientWidth : 0, sumW = ws.reduce(function (a, b) { return a + b; }, 0);
-    if (!saved.length && wrapW > 200 && sumW > wrapW) { var k = (wrapW - 2) / sumW; ws = ws.map(function (w) { return Math.max(36, Math.floor(w * k)); }); }
+    var wrapW = tbl.parentElement ? tbl.parentElement.clientWidth : 0, sumW = function () { return ws.reduce(function (a, b) { return a + b; }, 0); };
+    if (!saved.length && wrapW > 200 && sumW() > wrapW) {
+      /* 1) 아주 넓은 열만 먼저 상한(280px)으로 자르고 → 2) 그래도 넓으면 130px 넘는 열만 비례 축소(130 아래로는 안 줄임). 그래도 넓으면 가로 스크롤 — 짧은 열(조제금액 등)이 「조…」처럼 뭉개지지 않게 */
+      ws = ws.map(function (w) { return Math.min(280, w); });
+      if (sumW() > wrapW) { var MINW = 130, fixedSum = 0, flexSum = 0; ws.forEach(function (w) { if (w > MINW) flexSum += w; else fixedSum += w; }); var room = Math.max(0, wrapW - 2 - fixedSum); if (flexSum > room) { var k = room / flexSum; ws = ws.map(function (w) { return w > MINW ? Math.max(MINW, Math.floor(w * k)) : w; }); } }
+    }
     cg = document.createElement('colgroup');
     ws.forEach(function (w) { var c = document.createElement('col'); c.style.width = w + 'px'; cg.appendChild(c); });
     tbl.insertBefore(cg, tbl.firstChild);
