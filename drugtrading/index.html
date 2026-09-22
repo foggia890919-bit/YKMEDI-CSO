@@ -513,7 +513,7 @@
     <div class="qrow"><span class="ql">제약사 수</span><div><span id="cfQuickN" class="seg"><button data-n="1">1</button><button data-n="2">2</button><button data-n="3">3</button><button data-n="5">5</button><button data-n="7">7</button><button data-n="10">10</button><button data-n="15">15</button><button data-n="all">전체</button></span> <span class="mini" id="cfQuickMode"></span></div></div>
     <div class="qrow"><span class="ql">결과</span><div id="cfQuickSum"></div></div>
     <div class="qrow"><span class="ql">선택 제약사</span><div id="cfQuickList" class="mini"></div></div>
-    <div class="qrow" id="cfResRow" style="display:none"><span class="ql">결과 입력<br><span class="mini" style="font-weight:400">관리자 · 시트에 바로 기록</span></span><div><div id="cfOcrBar" style="display:none; margin-bottom:6px; display:flex; flex-wrap:wrap; gap:6px; align-items:center"><button class="sbtn" id="cfOcrBtn" style="border-color:var(--blue); color:var(--blue)" title="필터링 결과표 캡처(제약사·가능/불가)를 올리면 Claude가 읽어 가능·불가를 거래처 기준으로 시트에 바로 기록합니다. 화면 캡처 후 이 페이지에서 Ctrl+V 붙여넣기도 됩니다">📷 결과표 이미지로 자동 입력</button><input type="file" id="cfOcrFile" accept="image/*" style="display:none"><span class="mini" id="cfOcrStat">캡처를 Ctrl+V 로 붙여넣어도 됩니다</span></div><div id="cfResList" style="line-height:2"></div></div></div>
+    <div class="qrow" id="cfResRow" style="display:none"><span class="ql">결과 입력<br><span class="mini" style="font-weight:400">관리자 · 시트에 바로 기록</span></span><div><div id="cfOcrBar" style="display:none; margin-bottom:6px; display:flex; flex-wrap:wrap; gap:6px; align-items:center"><button class="sbtn" id="cfOcrBtn" style="border-color:var(--blue); color:var(--blue)" title="필터링 결과표 캡처(제약사·가능/불가)를 올리면 Claude가 읽어 가능·불가를 거래처 기준으로 시트에 바로 기록합니다. 화면 캡처 후 이 페이지에서 Ctrl+V 붙여넣기도 됩니다">📷 결과표 이미지로 자동 입력</button><input type="file" id="cfOcrFile" accept="image/*" style="display:none"><span class="mini" id="cfOcrStat">캡처를 Ctrl+V 로 붙여넣어도 됩니다</span></div><div id="cfOcrPrev" style="display:none; margin:0 0 8px; padding:8px 10px; border:1px solid var(--blue); border-radius:8px; background:#f7f9ff"></div><div id="cfResList" style="line-height:2"></div></div></div>
     <div class="qrow"><span class="ql">필터링</span><div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center"><button class="sbtn" id="cfReq" style="border-color:var(--blue); color:var(--blue)">📨 체크한 제약사 필터링요청 (조회전만)</button><button class="sbtn" id="cfRefresh" title="사무실 결과입력·원본시트 반영분을 다시 읽어 거래가능/불가를 대입">🔎 결과 새로고침</button><span class="mini" id="cfAvailStat"></span></div></div>
     <div class="mini" style="margin-top:6px; color:#667">제약사 수를 누르면 그 수만큼 수수료가 가장 많이 나오는 제약사를 골라 체크합니다. 조건(거래가능만·배정 기준·최소매출·후보 범위)이나 회신이 바뀌면 다시 계산되고, 표에서 체크를 직접 바꾸면 수동 선택이 됩니다.</div>
   </div>
@@ -2340,17 +2340,23 @@
       if ($('cfReLogin')) $('cfReLogin').addEventListener('click', function (e) { e.preventDefault(); fetch('/api/cso/auth/logout', { method: 'POST' }).catch(function () {}).then(function () { state.who = null; drawConfirm(); }); });
     }
     if (isAdmin) {
-      var seenR = {}, pend = [];
-      names.concat(cfVisible().map(function (r) { return r.name; })).forEach(function (n) { n = String(n || '').trim(); if (!n || seenR[n]) return; seenR[n] = 1; var k = availKindFor(n); if (k !== 'ok' && k !== 'no') pend.push(n); }); /* 빈 이름(제약사 미상) 제외 */
-      pend.sort(function (a, b) { return a.localeCompare(b, 'ko'); }); /* 가나다순 — 찾기 쉽게 */
-      var shown = pend.slice(0, 60);
-      $('cfResList').innerHTML = shown.length ? shown.map(function (n) {
-        return '<span style="display:inline-flex; align-items:center; gap:4px; margin:0 14px 4px 0"><b>' + esc(n) + '</b>' + availBadge(n)
-          + '<button class="sbtn resBtn" data-comp="' + esc(n) + '" data-s="거래가능" style="padding:2px 8px; border-color:var(--ok); color:var(--ok)">가능</button>'
-          + '<button class="sbtn resBtn" data-comp="' + esc(n) + '" data-s="거래불가" style="padding:2px 8px; border-color:var(--err); color:var(--err)">불가</button></span>';
-      }).join('') + (pend.length > shown.length ? '<span class="mini">외 ' + (pend.length - shown.length) + '곳은 표에서 입력</span>' : '')
-        : '<span class="mini" style="color:#667">결과를 기다리는 제약사가 없습니다.</span>';
-      $('cfResList').querySelectorAll('.resBtn').forEach(function (b) { b.addEventListener('click', function () { if (confirm(this.getAttribute('data-comp') + ' → ' + this.getAttribute('data-s') + ' 로 시트에 기록할까요?')) postResult(this.getAttribute('data-comp'), this.getAttribute('data-s')); }); });
+      /* 후보 제약사 전부(체크 여부 무관), 가나다순. 현재 상태를 표시하고 언제든 가능/불가/확인중으로 바꿀 수 있다 — 필터링 현황은 바뀔 수 있으므로 */
+      var seenR = {}, all = [];
+      names.concat(cfRows.map(function (r) { return r.name; })).forEach(function (n) { n = String(n || '').trim(); if (!n || seenR[n] || /미상|^\(/.test(n)) return; seenR[n] = 1; all.push(n); }); /* 빈 이름·(제약사 미상) 제외 */
+      all.sort(function (a, b) { return a.localeCompare(b, 'ko'); });
+      var pendCnt = all.filter(function (n) { var k = availKindFor(n); return k !== 'ok' && k !== 'no'; }).length;
+      var btn = function (n, k, label, cur, col) { var on = cur === k; return '<button class="sbtn resBtn" data-comp="' + esc(n) + '" data-s="' + k + '" style="padding:1px 7px; font-size:12px; border-color:' + col + '; color:' + (on ? '#fff' : col) + ';' + (on ? 'background:' + col + ';' : '') + '" title="' + (on ? '현재 상태' : label + '(으)로 바꿔 시트에 기록') + '">' + label + '</button>'; };
+      var shown = all.slice(0, 120);
+      $('cfResList').innerHTML = '<div class="mini" style="margin-bottom:4px">후보 ' + all.length + '곳 · 결과 대기 ' + pendCnt + '곳 · 현재 상태가 색칠된 버튼, 다른 버튼을 누르면 바뀐 결과로 시트에 새로 기록됩니다</div>'
+        + shown.map(function (n) {
+          var k = availKindFor(n), cur = k === 'ok' ? '거래가능' : k === 'no' ? '거래불가' : '회신전';
+          return '<span style="display:inline-flex; align-items:center; gap:3px; margin:0 12px 4px 0"><b>' + esc(n) + '</b>' + btn(n, '거래가능', '가능', cur, 'var(--ok)') + btn(n, '거래불가', '불가', cur, 'var(--err)') + btn(n, '회신전', '확인중', cur, '#b45309') + '</span>';
+        }).join('') + (all.length > shown.length ? '<span class="mini">외 ' + (all.length - shown.length) + '곳은 표에서 입력</span>' : '');
+      $('cfResList').querySelectorAll('.resBtn').forEach(function (b) { b.addEventListener('click', function () {
+        var n = this.getAttribute('data-comp'), s2 = this.getAttribute('data-s'), k = availKindFor(n), cur = k === 'ok' ? '거래가능' : k === 'no' ? '거래불가' : '회신전';
+        if (s2 === cur) return; /* 이미 그 상태 */
+        if (confirm(n + ': ' + cur + ' → ' + s2 + ' 로 시트에 기록할까요?')) postResult(n, s2 === '회신전' ? '' : s2);
+      }); });
     }
     $('cfQuickList').innerHTML = per.length ? per.map(function (p, i) { return '<span class="co"><b>' + (i + 1) + '. ' + esc(p.n) + '</b>' + availBadge(p.n) + ' <span style="color:#556">' + p.cnt + '품목 · 매출 ' + won(p.amt) + ' · 수수료 ' + won(p.fee) + ' · 매출대비 ' + pctOf(p.fee, p.amt) + '</span></span>'; }).join('') : '<span style="color:#667">선택된 제약사가 없습니다. 위에서 제약사 수를 누르세요.</span>';
   }
@@ -2389,25 +2395,44 @@
   }
   function ocrFromImage(file) {
     if (!(state.who && state.who.isAdmin)) return;
-    var name = ($('projName').value || '').trim(), biz = ($('projBiz').value || '').trim();
+    var name = ($('projName').value || '').trim();
     if (!name) { alert('거래처(병원)명이 없습니다. 1단계에서 거래처를 먼저 고르세요.'); return; }
-    var st = $('cfOcrStat'); st.textContent = '이미지 읽는 중… (10~30초)'; $('cfOcrBtn').disabled = true;
+    var st = $('cfOcrStat'); st.textContent = '이미지 읽는 중… (3~30초)'; $('cfOcrBtn').disabled = true;
     shrinkImage(file).then(function (im) {
       return fetch('/api/cso/admin/filter-ocr', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'extract', image: im.data, mediaType: im.mediaType }) }).then(function (r) { return r.json(); });
     }).then(function (d) {
       if (!d || !d.ok) throw new Error((d && d.error) || '인식 실패');
-      var items = d.items || [], use = items.filter(function (it) { return it.status === '거래가능' || it.status === '거래불가'; });
-      var skip = items.filter(function (it) { return !(it.status === '거래가능' || it.status === '거래불가'); });
-      if (d.hospital && name.replace(/\s/g, '') !== String(d.hospital).replace(/\s/g, '') && !confirm('표의 거래처는 「' + d.hospital + '」로 보이는데 지금 프로젝트는 「' + name + '」입니다. 「' + name + '」 기준으로 기록할까요?')) { st.textContent = '취소됨'; return null; }
-      if (!use.length) { st.textContent = '읽은 ' + items.length + '건 중 가능/불가가 없어 기록할 게 없습니다' + (skip.length ? ' (회신전·기타 ' + skip.length + ')' : ''); return null; }
-      st.textContent = '읽은 ' + items.length + '건 → 가능 ' + use.filter(function (i) { return i.status === '거래가능'; }).length + ' · 불가 ' + use.filter(function (i) { return i.status === '거래불가'; }).length + ' 기록 중…';
-      return fetch('/api/cso/admin/filter-ocr', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'apply', name: name, bizNo: biz, items: use.map(function (i) { return { vendor: i.vendor, status: i.status, raw: i.raw || '' }; }) }) })
+      var items = d.items || [];
+      if (!items.length) { st.textContent = '표에서 제약사 행을 찾지 못했습니다. 표가 잘 보이는 캡처로 다시 시도하세요.'; return; }
+      st.textContent = '읽은 ' + items.length + '건 — 아래에서 확인하고 「시트에 기록」을 누르세요 (' + (d.model || '') + ')';
+      ocrPreview(items, d.hospital || '', name);
+    }).catch(function (e) { st.textContent = '실패: ' + e.message; }).then(function () { $('cfOcrBtn').disabled = false; $('cfOcrFile').value = ''; });
+  }
+  /* 읽은 결과 미리보기: 제약사·결과를 고치고 체크한 것만 기록. 회신전·기타는 기본 해제 */
+  function ocrPreview(items, hosp, name) {
+    var box = $('cfOcrPrev'); box.style.display = '';
+    var sel = function (v) { return '<select class="opSt" style="padding:2px 4px; font-size:12px; border:1px solid var(--line); border-radius:6px; font-family:inherit"><option value="거래가능"' + (v === '거래가능' ? ' selected' : '') + '>가능</option><option value="거래불가"' + (v === '거래불가' ? ' selected' : '') + '>불가</option><option value=""' + (v !== '거래가능' && v !== '거래불가' ? ' selected' : '') + '>건너뜀</option></select>'; };
+    box.innerHTML = '<div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:6px"><b>읽은 결과 확인</b><span class="mini">거래처 <b>' + esc(name) + '</b>' + (hosp && hosp.replace(/\s/g, '') !== name.replace(/\s/g, '') ? ' <span style="color:var(--err)">(표에는 「' + esc(hosp) + '」로 보임 — 맞는지 확인)</span>' : '') + ' · 체크한 행만 기록 · 이름·결과는 여기서 고칠 수 있음</span></div>'
+      + '<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:4px 12px">' + items.map(function (it, i) {
+        var on = it.status === '거래가능' || it.status === '거래불가', known = cfRows.some(function (r) { return r.name === it.vendor; });
+        return '<label style="display:flex; gap:6px; align-items:center; font-size:13px"><input type="checkbox" class="opUse" data-i="' + i + '"' + (on ? ' checked' : '') + '><input class="opV" value="' + esc(it.vendor) + '" style="flex:1; min-width:90px; padding:2px 6px; font-size:13px; border:1px solid ' + (known ? 'var(--line)' : 'var(--warn)') + '; border-radius:6px; font-family:inherit" title="' + (known ? '후보 제약사와 일치' : '후보 목록에 없는 이름 — 오타면 고치세요') + '">' + sel(it.status) + '<span class="mini" title="이미지 원문">' + esc(it.raw || '') + '</span></label>';
+      }).join('') + '</div>'
+      + '<div style="display:flex; gap:8px; align-items:center; margin-top:8px"><button class="sbtn" id="opApply" style="border-color:var(--ok); color:var(--ok); font-weight:700">✔ 체크한 항목 시트에 기록</button><button class="sbtn" id="opCancel">취소</button><span class="mini" id="opStat"></span></div>';
+    $('opCancel').addEventListener('click', function () { box.style.display = 'none'; box.innerHTML = ''; $('cfOcrStat').textContent = '취소됨'; });
+    $('opApply').addEventListener('click', function () {
+      var use = [];
+      box.querySelectorAll('label').forEach(function (l) { var c = l.querySelector('.opUse'), v = (l.querySelector('.opV').value || '').trim(), s2 = l.querySelector('.opSt').value; if (c.checked && v && s2) use.push({ vendor: v, status: s2, raw: '이미지 인식 후 확인' }); });
+      if (!use.length) { $('opStat').textContent = '기록할 항목이 없습니다 (체크 + 가능/불가 선택)'; return; }
+      if (!confirm(use.length + '건을 「' + name + '」 기준으로 시트에 기록할까요?\n' + use.map(function (u) { return u.vendor + ' → ' + u.status; }).join('\n'))) return;
+      $('opApply').disabled = true; $('opStat').textContent = '기록 중…';
+      fetch('/api/cso/admin/filter-ocr', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'apply', name: name, bizNo: ($('projBiz').value || '').trim(), items: use }) })
         .then(function (r) { return r.json(); }).then(function (a) {
           if (!a || !a.ok) throw new Error((a && a.error) || '기록 실패');
-          var msg = '✅ ' + use.length + '건 시트에 기록 (대기 요청 채움 ' + (a.filled || 0) + ' · 새 행 ' + (a.added || 0) + (a.skipped ? ' · 이미 같은 결과 ' + a.skipped : '') + (a.notified ? ' · 담당자 통보 ' + a.notified : '') + ')' + (skip.length ? ' · 회신전·기타 ' + skip.length + '건은 건너뜀: ' + skip.map(function (i) { return i.vendor; }).join(', ') : '') + (a.errors && a.errors.length ? ' · 오류: ' + a.errors.join(' / ') : '');
+          var msg = '✅ ' + use.length + '건 시트에 기록 (대기 요청 채움 ' + (a.filled || 0) + ' · 새 행 ' + (a.added || 0) + (a.skipped ? ' · 이미 같은 결과 ' + a.skipped : '') + (a.notified ? ' · 담당자 통보 ' + a.notified : '') + ')' + (a.errors && a.errors.length ? ' · 오류: ' + a.errors.join(' / ') : '');
+          box.style.display = 'none'; box.innerHTML = '';
           return loadAvail(true).then(function () { state.heldComp = null; renderConfirmStep(); $('cfOcrStat').textContent = msg; $('cfAvailStat').textContent = msg; });
-        });
-    }).catch(function (e) { st.textContent = '실패: ' + e.message; }).then(function () { $('cfOcrBtn').disabled = false; $('cfOcrFile').value = ''; });
+        }).catch(function (e) { $('opStat').textContent = '실패: ' + e.message; $('opApply').disabled = false; });
+    });
   }
   $('cfOcrBtn').addEventListener('click', function () {
     if (!(state.who && state.who.isAdmin)) { $('cfOcrStat').textContent = '관리자 로그인이 필요합니다 — 아래 아이디·비밀번호 칸에서 로그인하세요'; var f = $('cfLoginId'); if (f) f.focus(); return; }
