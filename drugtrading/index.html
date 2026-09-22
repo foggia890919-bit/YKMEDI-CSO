@@ -513,7 +513,7 @@
     <div class="qrow"><span class="ql">제약사 수</span><div><span id="cfQuickN" class="seg"><button data-n="1">1</button><button data-n="2">2</button><button data-n="3">3</button><button data-n="5">5</button><button data-n="7">7</button><button data-n="10">10</button><button data-n="15">15</button><button data-n="all">전체</button></span> <span class="mini" id="cfQuickMode"></span></div></div>
     <div class="qrow"><span class="ql">결과</span><div id="cfQuickSum"></div></div>
     <div class="qrow"><span class="ql">선택 제약사</span><div id="cfQuickList" class="mini"></div></div>
-    <div class="qrow" id="cfResRow" style="display:none"><span class="ql">결과 입력<br><span class="mini" style="font-weight:400">관리자 · 시트에 바로 기록</span></span><div id="cfResList" style="line-height:2"></div></div>
+    <div class="qrow" id="cfResRow" style="display:none"><span class="ql">결과 입력<br><span class="mini" style="font-weight:400">관리자 · 시트에 바로 기록</span></span><div><div id="cfOcrBar" style="display:none; margin-bottom:6px; display:flex; flex-wrap:wrap; gap:6px; align-items:center"><button class="sbtn" id="cfOcrBtn" style="border-color:var(--blue); color:var(--blue)" title="필터링 결과표 캡처(제약사·가능/불가)를 올리면 Claude가 읽어 가능·불가를 거래처 기준으로 시트에 바로 기록합니다. 화면 캡처 후 이 페이지에서 Ctrl+V 붙여넣기도 됩니다">📷 결과표 이미지로 자동 입력</button><input type="file" id="cfOcrFile" accept="image/*" style="display:none"><span class="mini" id="cfOcrStat">캡처를 Ctrl+V 로 붙여넣어도 됩니다</span></div><div id="cfResList" style="line-height:2"></div></div></div>
     <div class="qrow"><span class="ql">필터링</span><div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center"><button class="sbtn" id="cfReq" style="border-color:var(--blue); color:var(--blue)">📨 체크한 제약사 필터링요청 (조회전만)</button><button class="sbtn" id="cfRefresh" title="사무실 결과입력·원본시트 반영분을 다시 읽어 거래가능/불가를 대입">🔎 결과 새로고침</button><span class="mini" id="cfAvailStat"></span></div></div>
     <div class="mini" style="margin-top:6px; color:#667">제약사 수를 누르면 그 수만큼 수수료가 가장 많이 나오는 제약사를 골라 체크합니다. 조건(거래가능만·배정 기준·최소매출·후보 범위)이나 회신이 바뀌면 다시 계산되고, 표에서 체크를 직접 바꾸면 수동 선택이 됩니다.</div>
   </div>
@@ -2316,6 +2316,7 @@
     /* 관리자: 결과가 아직 없는(조회전·확인중) 제약사에 가능/불가 버튼 — 체크된 곳 먼저, 그다음 표 순서로 */
     var isAdmin = !!(state.who && state.who.isAdmin);
     $('cfResRow').style.display = '';
+    $('cfOcrBar').style.display = isAdmin ? 'flex' : 'none';
     if (!isAdmin) {
       /* 로그인 안 됨 → 여기서 바로 관리자 로그인 (별도 페이지로 안 가도 됨). 로그인은 됐지만 관리자가 아니면 안내만 */
       $('cfResList').innerHTML = state.who
@@ -2370,6 +2371,51 @@
         return loadAvail(true).then(function () { $('cfAvailStat').textContent = msg; });
       }).catch(function (e) { $('cfAvailStat').textContent = '기록 실패: ' + e.message; alert('결과 기록 실패: ' + e.message); });
   }
+  /* 관리자: 결과표 이미지(파일 선택·붙여넣기) → /api/cso/admin/filter-ocr extract → 가능/불가만 골라 바로 apply → 재조회 */
+  function shrinkImage(file) {
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function () {
+        var max = 1600, sc = Math.min(1, max / Math.max(img.width, img.height));
+        var cv = document.createElement('canvas'); cv.width = Math.round(img.width * sc); cv.height = Math.round(img.height * sc);
+        var ctx = cv.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height); ctx.drawImage(img, 0, 0, cv.width, cv.height);
+        var dataUrl = cv.toDataURL('image/jpeg', 0.88); URL.revokeObjectURL(url);
+        resolve({ data: dataUrl.replace(/^data:[^;]+;base64,/, ''), mediaType: 'image/jpeg' });
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('이미지를 열 수 없습니다')); };
+      img.src = url;
+    });
+  }
+  function ocrFromImage(file) {
+    if (!(state.who && state.who.isAdmin)) return;
+    var name = ($('projName').value || '').trim(), biz = ($('projBiz').value || '').trim();
+    if (!name) { alert('거래처(병원)명이 없습니다. 1단계에서 거래처를 먼저 고르세요.'); return; }
+    var st = $('cfOcrStat'); st.textContent = '이미지 읽는 중… (10~30초)'; $('cfOcrBtn').disabled = true;
+    shrinkImage(file).then(function (im) {
+      return fetch('/api/cso/admin/filter-ocr', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'extract', image: im.data, mediaType: im.mediaType }) }).then(function (r) { return r.json(); });
+    }).then(function (d) {
+      if (!d || !d.ok) throw new Error((d && d.error) || '인식 실패');
+      var items = d.items || [], use = items.filter(function (it) { return it.status === '거래가능' || it.status === '거래불가'; });
+      var skip = items.filter(function (it) { return !(it.status === '거래가능' || it.status === '거래불가'); });
+      if (d.hospital && name.replace(/\s/g, '') !== String(d.hospital).replace(/\s/g, '') && !confirm('표의 거래처는 「' + d.hospital + '」로 보이는데 지금 프로젝트는 「' + name + '」입니다. 「' + name + '」 기준으로 기록할까요?')) { st.textContent = '취소됨'; return null; }
+      if (!use.length) { st.textContent = '읽은 ' + items.length + '건 중 가능/불가가 없어 기록할 게 없습니다' + (skip.length ? ' (회신전·기타 ' + skip.length + ')' : ''); return null; }
+      st.textContent = '읽은 ' + items.length + '건 → 가능 ' + use.filter(function (i) { return i.status === '거래가능'; }).length + ' · 불가 ' + use.filter(function (i) { return i.status === '거래불가'; }).length + ' 기록 중…';
+      return fetch('/api/cso/admin/filter-ocr', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'apply', name: name, bizNo: biz, items: use.map(function (i) { return { vendor: i.vendor, status: i.status, raw: i.raw || '' }; }) }) })
+        .then(function (r) { return r.json(); }).then(function (a) {
+          if (!a || !a.ok) throw new Error((a && a.error) || '기록 실패');
+          var msg = '✅ ' + use.length + '건 시트에 기록 (대기 요청 채움 ' + (a.filled || 0) + ' · 새 행 ' + (a.added || 0) + (a.skipped ? ' · 이미 같은 결과 ' + a.skipped : '') + (a.notified ? ' · 담당자 통보 ' + a.notified : '') + ')' + (skip.length ? ' · 회신전·기타 ' + skip.length + '건은 건너뜀: ' + skip.map(function (i) { return i.vendor; }).join(', ') : '') + (a.errors && a.errors.length ? ' · 오류: ' + a.errors.join(' / ') : '');
+          return loadAvail(true).then(function () { state.heldComp = null; renderConfirmStep(); $('cfOcrStat').textContent = msg; $('cfAvailStat').textContent = msg; });
+        });
+    }).catch(function (e) { st.textContent = '실패: ' + e.message; }).then(function () { $('cfOcrBtn').disabled = false; $('cfOcrFile').value = ''; });
+  }
+  $('cfOcrBtn').addEventListener('click', function () { $('cfOcrFile').click(); });
+  $('cfOcrFile').addEventListener('change', function () { if (this.files && this.files[0]) ocrFromImage(this.files[0]); });
+  document.addEventListener('paste', function (e) {
+    if (wizard.step !== 3 || !(state.who && state.who.isAdmin)) return;
+    if (e.target && e.target.closest && e.target.closest('input, textarea, select')) return; /* 입력칸에 글 붙여넣기는 그대로 */
+    var items = (e.clipboardData && e.clipboardData.items) || [];
+    for (var i = 0; i < items.length; i++) { if (items[i].type.indexOf('image/') === 0) { var f = items[i].getAsFile(); if (f) { e.preventDefault(); ocrFromImage(f); return; } } }
+  });
   function selectAllOk(prefix) {
     state.confirm.names = {}; cfRows.forEach(function (r) { if (availKindFor(r.name) !== 'no') state.confirm.names[r.name] = true; });
     if ($('cfOnlyOk').checked) $('cfOnlyOk').checked = false; /* 체크된 조회전 제약사도 보이게 */
