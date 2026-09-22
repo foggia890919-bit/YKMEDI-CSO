@@ -2316,7 +2316,8 @@
     /* 관리자: 결과가 아직 없는(조회전·확인중) 제약사에 가능/불가 버튼 — 체크된 곳 먼저, 그다음 표 순서로 */
     var isAdmin = !!(state.who && state.who.isAdmin);
     $('cfResRow').style.display = '';
-    $('cfOcrBar').style.display = isAdmin ? 'flex' : 'none';
+    $('cfOcrBar').style.display = 'flex'; /* 항상 보임 — 관리자가 아니면 누를 때 로그인 안내 */
+    $('cfOcrStat').textContent = isAdmin ? '캡처를 Ctrl+V 로 붙여넣어도 됩니다' : '관리자 로그인 후 사용 (아래 칸에서 바로 로그인)';
     if (!isAdmin) {
       /* 로그인 안 됨 → 여기서 바로 관리자 로그인 (별도 페이지로 안 가도 됨). 로그인은 됐지만 관리자가 아니면 안내만 */
       $('cfResList').innerHTML = state.who
@@ -2408,7 +2409,10 @@
         });
     }).catch(function (e) { st.textContent = '실패: ' + e.message; }).then(function () { $('cfOcrBtn').disabled = false; $('cfOcrFile').value = ''; });
   }
-  $('cfOcrBtn').addEventListener('click', function () { $('cfOcrFile').click(); });
+  $('cfOcrBtn').addEventListener('click', function () {
+    if (!(state.who && state.who.isAdmin)) { $('cfOcrStat').textContent = '관리자 로그인이 필요합니다 — 아래 아이디·비밀번호 칸에서 로그인하세요'; var f = $('cfLoginId'); if (f) f.focus(); return; }
+    $('cfOcrFile').click();
+  });
   $('cfOcrFile').addEventListener('change', function () { if (this.files && this.files[0]) ocrFromImage(this.files[0]); });
   document.addEventListener('paste', function (e) {
     if (wizard.step !== 3 || !(state.who && state.who.isAdmin)) return;
