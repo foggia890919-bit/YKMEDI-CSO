@@ -14,6 +14,7 @@ import { getSetting } from "@/lib/gateway/notify";
 //   POST { action:"apply", name, bizNo, items:[{ vendor, status:"거래가능"|"거래불가"|"회신전", raw }] }
 // 인식 엔진(설정 OCR_ENGINE 또는 환경변수, 기본 auto):
 //   gemini : Gemini Flash (GEMINI_API_KEY) — 빠르고 저렴, 표 구조까지 이해
+//   vertex : Vertex AI Gemini — 기존 서비스계정으로(GCP 에서 Vertex AI API 활성화), 새 키 불필요
 //   vision : Google Cloud Vision OCR — 이미 있는 서비스계정으로 호출(GCP 프로젝트에서 Vision API 활성화 필요), 글자만 읽고 행은 규칙으로 분석
 //   claude : Claude (ANTHROPIC_API_KEY)
 //   auto   : GEMINI_API_KEY 있으면 gemini → 없으면 vision 시도 → 실패 시 ANTHROPIC_API_KEY 있으면 claude
@@ -114,6 +115,35 @@ async function extractGateway(image: string, mediaType: MT, vendors: string[]): 
   return { hospital: out.data.hospital, items: out.data.items.map((it) => ({ ...it, vendor: canonVendor(it.vendor, vendors) })) };
 }
 
+/* ---------- 엔진 1-c: Vertex AI Gemini — 새 키 없이 기존 서비스계정으로 (GCP 프로젝트에서 Vertex AI API 켜기) ---------- */
+function gcpProject(): string {
+  const env = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCP_PROJECT || process.env.GOOGLE_PROJECT_ID || "";
+  if (env) return env;
+  const m = (process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || "").match(/@([a-z0-9-]+)\.iam\.gserviceaccount\.com$/i);
+  return m ? m[1] : "";
+}
+async function extractVertex(image: string, mediaType: MT, vendors: string[]): Promise<Out> {
+  if (!hasGoogleCreds()) throw new Error("구글 서비스계정이 없습니다");
+  const project = gcpProject(); if (!project) throw new Error("GCP 프로젝트 ID 를 알 수 없음 (환경변수 GOOGLE_CLOUD_PROJECT)");
+  const loc = process.env.VERTEX_LOCATION || "global";
+  const host = loc === "global" ? "aiplatform.googleapis.com" : `${loc}-aiplatform.googleapis.com`;
+  const t = await googleAccessToken();
+  const schema = { type: "OBJECT", properties: { hospital: { type: "STRING" }, items: { type: "ARRAY", items: { type: "OBJECT", properties: { vendor: { type: "STRING" }, status: { type: "STRING", enum: ["거래가능", "거래불가", "회신전", "기타"] }, raw: { type: "STRING" } }, required: ["vendor", "status", "raw"] } } }, required: ["hospital", "items"] };
+  const r = await fetch(`https://${host}/v1/projects/${project}/locations/${loc}/publishers/google/models/${GEMINI_MODEL}:generateContent`, {
+    method: "POST", headers: { Authorization: `Bearer ${t}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ contents: [{ role: "user", parts: [{ inlineData: { mimeType: mediaType, data: image } }, { text: guideText(vendors) }] }], generationConfig: { temperature: 0, responseMimeType: "application/json", responseSchema: schema } }),
+  });
+  const j: any = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const m = String(j?.error?.message || r.status);
+    throw new Error(/has not been used|is disabled|SERVICE_DISABLED|PERMISSION_DENIED|403/.test(m) ? `Vertex AI API 가 꺼져 있음 — GCP 콘솔 › API 및 서비스 › Vertex AI API 「사용」(결제 계정 필요) 후 서비스계정에 Vertex AI 사용자 역할 · ${m}` : "Vertex " + m);
+  }
+  const text = j?.candidates?.[0]?.content?.parts?.map((p: any) => p.text || "").join("") || "";
+  let parsed: any; try { parsed = JSON.parse(text); } catch { throw new Error("Vertex 응답을 해석하지 못했습니다"); }
+  const out = Extracted.safeParse(parsed); if (!out.success) throw new Error("Vertex 응답 형식 오류");
+  return { hospital: out.data.hospital, items: out.data.items.map((it) => ({ ...it, vendor: canonVendor(it.vendor, vendors) })) };
+}
+
 /* ---------- 엔진 2: Google Cloud Vision OCR (서비스계정) + 행 규칙 분석 ---------- */
 async function extractVision(image: string, vendors: string[]): Promise<Out> {
   if (!hasGoogleCreds()) throw new Error("구글 서비스계정(GOOGLE_SERVICE_ACCOUNT_EMAIL/PRIVATE_KEY)이 없습니다");
@@ -168,17 +198,17 @@ async function extract(image: string, mediaType: MT): Promise<Out & { engine: st
   let vendors: string[] = [];
   try { vendors = await vendorList(); } catch { vendors = []; }
   const pref = ((await getSetting("OCR_ENGINE").catch(() => "")) || process.env.OCR_ENGINE || "auto").trim().toLowerCase();
-  const order = ["gemini", "gateway", "vision", "claude"].includes(pref) ? [pref]
-    : [geminiKey() ? "gemini" : "", gatewayKey() ? "gateway" : "", hasGoogleCreds() ? "vision" : "", process.env.ANTHROPIC_API_KEY ? "claude" : ""].filter(Boolean);
+  const order = ["gemini", "gateway", "vertex", "vision", "claude"].includes(pref) ? [pref]
+    : [geminiKey() ? "gemini" : "", gatewayKey() ? "gateway" : "", hasGoogleCreds() ? "vertex" : "", hasGoogleCreds() ? "vision" : "", process.env.ANTHROPIC_API_KEY ? "claude" : ""].filter(Boolean);
   if (!order.length) throw new Error("인식 엔진이 없습니다: Gemini 키(GEMINI_API_KEY 등) 또는 AI_GATEWAY_API_KEY 또는 Vision API 활성화 또는 ANTHROPIC_API_KEY 중 하나");
   const errors: string[] = [];
   for (const eng of order) {
     try {
-      const out = eng === "gemini" ? await extractGemini(image, mediaType, vendors) : eng === "gateway" ? await extractGateway(image, mediaType, vendors) : eng === "vision" ? await extractVision(image, vendors) : await extractClaude(image, mediaType, vendors);
-      return { ...out, engine: eng === "gemini" ? GEMINI_MODEL : eng === "gateway" ? "gateway:" + GATEWAY_MODEL : eng === "vision" ? "google-vision" : CLAUDE_MODEL };
+      const out = eng === "gemini" ? await extractGemini(image, mediaType, vendors) : eng === "gateway" ? await extractGateway(image, mediaType, vendors) : eng === "vertex" ? await extractVertex(image, mediaType, vendors) : eng === "vision" ? await extractVision(image, vendors) : await extractClaude(image, mediaType, vendors);
+      return { ...out, engine: eng === "gemini" ? GEMINI_MODEL : eng === "gateway" ? "gateway:" + GATEWAY_MODEL : eng === "vertex" ? "vertex:" + GEMINI_MODEL : eng === "vision" ? "google-vision" : CLAUDE_MODEL };
     } catch (e: any) { errors.push(`${eng}: ${e?.message || "실패"}`); }
   }
-  const hint = geminiKey() || gatewayKey() ? "" : " · 가장 쉬운 해결: Vercel 환경변수 GEMINI_API_KEY 추가(aistudio.google.com/apikey 에서 무료 발급) 후 재배포";
+  const hint = geminiKey() || gatewayKey() ? "" : " · 해결: ① GCP 콘솔에서 Vertex AI API 또는 Cloud Vision API 「사용」(기존 서비스계정 그대로) 또는 ② Vercel 환경변수 GEMINI_API_KEY 추가(aistudio.google.com/apikey) 후 재배포";
   throw new Error(errors.join(" / ") + hint);
 }
 
@@ -187,7 +217,7 @@ export async function GET() {
   const scope = await getCsoScope();
   if (!scope || !scope.isAdmin) return NextResponse.json({ ok: false, error: "관리자만" }, { status: 403 });
   const pref = ((await getSetting("OCR_ENGINE").catch(() => "")) || process.env.OCR_ENGINE || "auto").trim().toLowerCase();
-  return NextResponse.json({ ok: true, pref, engines: { gemini: !!geminiKey(), gateway: !!gatewayKey(), vision: hasGoogleCreds(), claude: !!process.env.ANTHROPIC_API_KEY }, geminiModel: GEMINI_MODEL, gatewayModel: GATEWAY_MODEL, claudeModel: CLAUDE_MODEL, envNames: aiEnvNames(), help: "gemini/gateway 가 false 면 Vercel › Settings › Environment Variables 에 GEMINI_API_KEY 를 넣고 재배포. envNames 에 이름이 보이면 그 이름을 알려주세요." });
+  return NextResponse.json({ ok: true, pref, engines: { gemini: !!geminiKey(), gateway: !!gatewayKey(), vertex: hasGoogleCreds() && !!gcpProject(), vision: hasGoogleCreds(), claude: !!process.env.ANTHROPIC_API_KEY }, gcpProject: gcpProject(), geminiModel: GEMINI_MODEL, gatewayModel: GATEWAY_MODEL, claudeModel: CLAUDE_MODEL, envNames: aiEnvNames(), help: "gemini/gateway 가 false 면 Vercel › Settings › Environment Variables 에 GEMINI_API_KEY 를 넣고 재배포. envNames 에 이름이 보이면 그 이름을 알려주세요." });
 }
 
 export async function POST(req: NextRequest) {
