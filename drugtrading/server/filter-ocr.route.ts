@@ -22,7 +22,18 @@ export const maxDuration = 120;
 
 /** Vercel 에 이미 있을 수 있는 Gemini 키 이름들을 전부 인식 (설정 탭 GEMINI_API_KEY 도 허용) */
 function geminiKey(): string {
-  return process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_AI_API_KEY || process.env.GOOGLE_GEMINI_API_KEY || process.env.GEMINI_KEY || process.env.GOOGLE_API_KEY || "";
+  const direct = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_AI_API_KEY || process.env.GOOGLE_GEMINI_API_KEY || process.env.GEMINI_KEY || process.env.GOOGLE_API_KEY || "";
+  if (direct) return direct;
+  // 이름을 모르는 경우: 이름에 GEMINI/GENERATIVE 가 들어간 변수, 또는 GOOGLE 이 들어가고 값이 구글 API 키 모양(AIza…)인 변수를 자동으로 씀
+  const keys = Object.keys(process.env);
+  const byName = keys.find((k) => /GEMINI|GENERATIVE/i.test(k) && String(process.env[k] || "").trim());
+  if (byName) return String(process.env[byName]).trim();
+  const byShape = keys.find((k) => /GOOGLE|GCP|GENAI/i.test(k) && /^AIza[0-9A-Za-z_-]{20,}$/.test(String(process.env[k] || "").trim()));
+  return byShape ? String(process.env[byShape]).trim() : "";
+}
+/** 진단용: AI 관련 환경변수 이름만 (값은 절대 안 내보냄) */
+function aiEnvNames(): string[] {
+  return Object.keys(process.env).filter((k) => /GEMINI|GENERATIVE|GOOGLE|GATEWAY|ANTHROPIC|OPENAI|CLAUDE|VISION|OCR|^AI_/i.test(k) && !/PRIVATE_KEY|SECRET|SERVICE_ACCOUNT/i.test(k)).sort();
 }
 /** Vercel AI Gateway 키 (프로젝트에 AI Gateway 를 켜 두었으면 이 이름으로 자동 주입되기도 함) */
 function gatewayKey(): string { return process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_AI_GATEWAY_API_KEY || ""; }
@@ -167,7 +178,8 @@ async function extract(image: string, mediaType: MT): Promise<Out & { engine: st
       return { ...out, engine: eng === "gemini" ? GEMINI_MODEL : eng === "gateway" ? "gateway:" + GATEWAY_MODEL : eng === "vision" ? "google-vision" : CLAUDE_MODEL };
     } catch (e: any) { errors.push(`${eng}: ${e?.message || "실패"}`); }
   }
-  throw new Error(errors.join(" / "));
+  const hint = geminiKey() || gatewayKey() ? "" : " · 가장 쉬운 해결: Vercel 환경변수 GEMINI_API_KEY 추가(aistudio.google.com/apikey 에서 무료 발급) 후 재배포";
+  throw new Error(errors.join(" / ") + hint);
 }
 
 /** 관리자 진단: 어떤 인식 엔진이 설정돼 있는지 (키 값은 절대 내보내지 않음) */
@@ -175,7 +187,7 @@ export async function GET() {
   const scope = await getCsoScope();
   if (!scope || !scope.isAdmin) return NextResponse.json({ ok: false, error: "관리자만" }, { status: 403 });
   const pref = ((await getSetting("OCR_ENGINE").catch(() => "")) || process.env.OCR_ENGINE || "auto").trim().toLowerCase();
-  return NextResponse.json({ ok: true, pref, engines: { gemini: !!geminiKey(), gateway: !!gatewayKey(), vision: hasGoogleCreds(), claude: !!process.env.ANTHROPIC_API_KEY }, geminiModel: GEMINI_MODEL, gatewayModel: GATEWAY_MODEL, claudeModel: CLAUDE_MODEL });
+  return NextResponse.json({ ok: true, pref, engines: { gemini: !!geminiKey(), gateway: !!gatewayKey(), vision: hasGoogleCreds(), claude: !!process.env.ANTHROPIC_API_KEY }, geminiModel: GEMINI_MODEL, gatewayModel: GATEWAY_MODEL, claudeModel: CLAUDE_MODEL, envNames: aiEnvNames(), help: "gemini/gateway 가 false 면 Vercel › Settings › Environment Variables 에 GEMINI_API_KEY 를 넣고 재배포. envNames 에 이름이 보이면 그 이름을 알려주세요." });
 }
 
 export async function POST(req: NextRequest) {

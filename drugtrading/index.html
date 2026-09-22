@@ -2013,7 +2013,7 @@
 
   /* ── 6단계: 보고서·제안서 ── */
   /* ── 6단계: 제약사 확정 — 확정 제약사 집합 안에서 품목 재배정 ── */
-  function confirmedNames() { return Object.keys(state.confirm.names).filter(function (k) { return state.confirm.names[k]; }); }
+  function confirmedNames() { return Object.keys(state.confirm.names).filter(function (k) { return k && k.trim() && state.confirm.names[k]; }); } /* 빈 이름은 확정 목록에서 제외 */
   function assignWithin(names) {
     /* 확정 제약사 집합 안에서 품목 재배정 — 매트릭스와 같은 후보 범위(품목별 상위 N위, 약가 조건, 필터링 대입) */
     var set = {}; names.forEach(function (n) { set[n] = true; });
@@ -2341,7 +2341,7 @@
     }
     if (isAdmin) {
       var seenR = {}, pend = [];
-      names.concat(cfVisible().map(function (r) { return r.name; })).forEach(function (n) { if (seenR[n]) return; seenR[n] = 1; var k = availKindFor(n); if (k !== 'ok' && k !== 'no') pend.push(n); });
+      names.concat(cfVisible().map(function (r) { return r.name; })).forEach(function (n) { n = String(n || '').trim(); if (!n || seenR[n]) return; seenR[n] = 1; var k = availKindFor(n); if (k !== 'ok' && k !== 'no') pend.push(n); }); /* 빈 이름(제약사 미상) 제외 */
       pend.sort(function (a, b) { return a.localeCompare(b, 'ko'); }); /* 가나다순 — 찾기 쉽게 */
       var shown = pend.slice(0, 60);
       $('cfResList').innerHTML = shown.length ? shown.map(function (n) {
