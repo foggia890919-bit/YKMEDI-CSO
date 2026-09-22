@@ -513,7 +513,7 @@
     <div class="qrow"><span class="ql">제약사 수</span><div><span id="cfQuickN" class="seg"><button data-n="1">1</button><button data-n="2">2</button><button data-n="3">3</button><button data-n="5">5</button><button data-n="7">7</button><button data-n="10">10</button><button data-n="15">15</button><button data-n="all">전체</button></span> <span class="mini" id="cfQuickMode"></span></div></div>
     <div class="qrow"><span class="ql">결과</span><div id="cfQuickSum"></div></div>
     <div class="qrow"><span class="ql">선택 제약사</span><div id="cfQuickList" class="mini"></div></div>
-    <div class="qrow" id="cfResRow" style="display:none"><span class="ql">결과 입력<br><span class="mini" style="font-weight:400">관리자만</span></span><div id="cfResList" style="line-height:2"></div></div>
+    <div class="qrow" id="cfResRow" style="display:none"><span class="ql">결과 입력<br><span class="mini" style="font-weight:400">관리자 · 시트에 바로 기록</span></span><div id="cfResList" style="line-height:2"></div></div>
     <div class="qrow"><span class="ql">필터링</span><div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center"><button class="sbtn" id="cfReq" style="border-color:var(--blue); color:var(--blue)">📨 체크한 제약사 필터링요청 (조회전만)</button><button class="sbtn" id="cfRefresh" title="사무실 결과입력·원본시트 반영분을 다시 읽어 거래가능/불가를 대입">🔎 결과 새로고침</button><span class="mini" id="cfAvailStat"></span></div></div>
     <div class="mini" style="margin-top:6px; color:#667">제약사 수를 누르면 그 수만큼 수수료가 가장 많이 나오는 제약사를 골라 체크합니다. 조건(거래가능만·배정 기준·최소매출·후보 범위)이나 회신이 바뀌면 다시 계산되고, 표에서 체크를 직접 바꾸면 수동 선택이 됩니다.</div>
   </div>
@@ -2305,7 +2305,28 @@
     var per = used.map(function (n) { var p = A.per[n]; return { n: n, amt: p.amt, fee: p.prof + (p.yk || 0), cnt: p.cnt }; }).sort(function (a, b) { return b.fee - a.fee; });
     /* 관리자: 결과가 아직 없는(조회전·확인중) 제약사에 가능/불가 버튼 — 체크된 곳 먼저, 그다음 표 순서로 */
     var isAdmin = !!(state.who && state.who.isAdmin);
-    $('cfResRow').style.display = isAdmin ? '' : 'none';
+    $('cfResRow').style.display = '';
+    if (!isAdmin) {
+      /* 로그인 안 됨 → 여기서 바로 관리자 로그인 (별도 페이지로 안 가도 됨). 로그인은 됐지만 관리자가 아니면 안내만 */
+      $('cfResList').innerHTML = state.who
+        ? '<span class="mini" style="color:#667">' + esc(state.who.name || state.who.id || '') + ' 계정은 관리자가 아니라 결과를 입력할 수 없습니다. 관리자 계정으로 <a href="#" id="cfReLogin">다시 로그인</a></span>'
+        : '<span style="display:inline-flex; flex-wrap:wrap; gap:6px; align-items:center"><span class="mini">관리자 로그인 후 여기서 바로 가능/불가 입력</span>'
+          + '<input id="cfLoginId" placeholder="아이디" autocomplete="username" style="width:110px; padding:4px 8px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit">'
+          + '<input id="cfLoginPw" type="password" placeholder="비밀번호" autocomplete="current-password" style="width:110px; padding:4px 8px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit">'
+          + '<button class="sbtn" id="cfLoginBtn" style="border-color:var(--blue); color:var(--blue)">로그인</button><span class="mini" id="cfLoginStat"></span></span>';
+      var doLogin = function () {
+        var id = ($('cfLoginId').value || '').trim(), pw = $('cfLoginPw').value || '';
+        if (!id || !pw) { $('cfLoginStat').textContent = '아이디·비밀번호를 입력하세요'; return; }
+        $('cfLoginStat').textContent = '로그인 중…';
+        fetch('/api/cso/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id, pw: pw }) })
+          .then(function (r) { return r.json(); }).then(function (d) {
+            if (!d || !d.ok) throw new Error((d && d.error) || '로그인 실패');
+            return loadWho().then(function () { refreshCloudList(''); drawConfirm(); });
+          }).catch(function (e) { $('cfLoginStat').textContent = e.message; });
+      };
+      if ($('cfLoginBtn')) { $('cfLoginBtn').addEventListener('click', doLogin); $('cfLoginPw').addEventListener('keydown', function (e) { if (e.key === 'Enter') doLogin(); }); }
+      if ($('cfReLogin')) $('cfReLogin').addEventListener('click', function (e) { e.preventDefault(); fetch('/api/cso/auth/logout', { method: 'POST' }).catch(function () {}).then(function () { state.who = null; drawConfirm(); }); });
+    }
     if (isAdmin) {
       var seenR = {}, pend = [];
       names.concat(cfVisible().map(function (r) { return r.name; })).forEach(function (n) { if (seenR[n]) return; seenR[n] = 1; var k = availKindFor(n); if (k !== 'ok' && k !== 'no') pend.push(n); });
@@ -2914,6 +2935,9 @@
     var natural = Array.prototype.map.call(ths, function (th) { return Math.ceil(th.getBoundingClientRect().width); });
     if (!natural[0]) { tbl.style.width = ''; tbl.style.tableLayout = ''; return; } /* 숨겨진 상태(닫힌 details 등) — 다음 렌더 때 다시 */
     var ws = natural.map(function (w, i) { return saved[i] > 0 ? saved[i] : Math.min(460, Math.max(40, w + 2)); });
+    /* 저장된 너비가 없으면 표가 화면(감싸는 칸)보다 넓지 않게 비례 축소 — 마지막 열이 잘려 보이지 않도록. 직접 끌어 넓히면 가로 스크롤 */
+    var wrapW = tbl.parentElement ? tbl.parentElement.clientWidth : 0, sumW = ws.reduce(function (a, b) { return a + b; }, 0);
+    if (!saved.length && wrapW > 200 && sumW > wrapW) { var k = (wrapW - 2) / sumW; ws = ws.map(function (w) { return Math.max(36, Math.floor(w * k)); }); }
     cg = document.createElement('colgroup');
     ws.forEach(function (w) { var c = document.createElement('col'); c.style.width = w + 'px'; cg.appendChild(c); });
     tbl.insertBefore(cg, tbl.firstChild);
