@@ -516,7 +516,7 @@
     <div class="qrow"><span class="ql">결과</span><div id="cfQuickSum"></div></div>
     <div class="qrow"><span class="ql">선택 제약사</span><div id="cfQuickList" class="mini"></div></div>
     <div class="qrow" id="cfResRow" style="display:none"><span class="ql">결과 입력<br><span class="mini" style="font-weight:400">관리자 · 시트에 바로 기록</span></span><div><div id="cfOcrBar" style="display:none; margin-bottom:6px; display:flex; flex-wrap:wrap; gap:6px; align-items:center"><button class="sbtn" id="cfOcrBtn" style="border-color:var(--blue); color:var(--blue)" title="필터링 결과표 캡처(제약사·가능/불가)를 올리면 Claude가 읽어 가능·불가를 거래처 기준으로 시트에 바로 기록합니다. 화면 캡처 후 이 페이지에서 Ctrl+V 붙여넣기도 됩니다">📷 결과표 이미지로 자동 입력</button><input type="file" id="cfOcrFile" accept="image/*" style="display:none"><button class="sbtn" id="cfBackfill" title="거래가능 원천이 통계제출현황 「필터링」 탭으로 통일되기 전에 이 도구·이미지로 CSO 시트에만 기록된 가능/불가를 원천에 되살립니다. 원천에 이미 결과가 있는 건은 건드리지 않습니다">↻ 예전 도구 입력분 원본에 반영</button><span class="mini" id="cfOcrStat">캡처를 Ctrl+V 로 붙여넣어도 됩니다</span></div><div id="cfOcrPrev" style="display:none; margin:0 0 8px; padding:8px 10px; border:1px solid var(--blue); border-radius:8px; background:#f7f9ff"></div><div id="cfResList" style="line-height:2"></div></div></div>
-    <div class="qrow"><span class="ql">필터링</span><div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center"><button class="sbtn" id="cfReq" style="border-color:var(--blue); color:var(--blue)">📨 체크한 제약사 필터링요청 (조회전만)</button><button class="sbtn" id="cfRefresh" title="사무실 결과입력·원본시트 반영분을 다시 읽어 거래가능/불가를 대입">🔎 결과 새로고침</button><span class="mini" id="cfAvailStat"></span></div></div>
+    <div class="qrow"><span class="ql">필터링</span><div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center"><button class="sbtn" id="cfReq" style="border-color:var(--blue); color:var(--blue)">📨 체크한 제약사 필터링요청 (조회전만)</button><button class="sbtn" id="cfRefresh" title="원본 「필터링」 탭(통계제출현황)을 다시 읽어 거래가능/불가를 대입 — 사무실 입력·이미지 입력·포털 회신이 모두 이 한 곳에 모입니다">🔎 결과 새로고침</button><span class="mini" id="cfAvailStat"></span></div></div>
     <div class="mini" style="margin-top:6px; color:#667">제약사 수를 누르면 그 수만큼 수수료가 가장 많이 나오는 제약사를 골라 체크합니다. 조건(거래가능만·배정 기준·최소매출·후보 범위)이나 회신이 바뀌면 다시 계산되고, 표에서 체크를 직접 바꾸면 수동 선택이 됩니다.</div>
   </div>
   <details id="cfAdv" style="margin:0 0 10px">
@@ -2277,15 +2277,8 @@
   $('cfPickReset').addEventListener('click', function () { state.confirm.itemPick = {}; state.heldComp = null; drawConfirm(); autoSave(800); });
   $('cfReq').addEventListener('click', function () { requestFilters(confirmedNames()); });
   $('cfRefresh').addEventListener('click', function () {
-    /* 관리자면 원본(통계제출현황) → 사본 복사 → CSO 반영을 먼저 돌리고(60초 안 재호출은 건너뜀) 결과를 읽는다. 관리자가 아니면 시트만 다시 읽음 */
-    var pre = (state.who && state.who.isAdmin)
-      ? (function () { $('cfAvailStat').textContent = '원본 시트 반영 중…'; return fetch('/api/cso/admin/ops-copy?quick=1', { method: 'POST' }).then(function (r) { return r.json(); }).then(function (d) { state.lastOpsCopy = d; }).catch(function () {}); })()
-      : Promise.resolve();
-    pre.then(function () { return loadAvail(false); }).then(function () {
-      state.heldComp = null; renderConfirmStep();
-      var d = state.lastOpsCopy; if (d && d.copy) { var sy = d.copy.sync || {}; $('cfAvailStat').textContent = ($('cfAvailStat').textContent || '') + (d.copy.skipped ? ' · 원본 반영: 1분 안 재실행 건너뜀' : d.ok ? ' · 원본 반영: 새 행 ' + (sy.added || 0) + ' · 결과 채움 ' + (sy.filled || 0) : ' · 원본 반영 실패: ' + (d.error || '')); }
-      state.lastOpsCopy = null;
-    });
+    /* 결과는 원본(통계제출현황 「필터링」 탭) 한 곳에서 바로 읽는다 — 사본 복사·CSO 반영 단계 없음 */
+    loadAvail(false).then(function () { state.heldComp = null; renderConfirmStep(); });
   });
   $('cfOnlyOk').addEventListener('change', function () { state.onlyOkTouched = true; if (state.quickN != null) quickApply(state.quickN); else drawConfirm(); });
   $('cfSearch').addEventListener('input', drawConfirm);

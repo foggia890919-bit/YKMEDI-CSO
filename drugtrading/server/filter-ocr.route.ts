@@ -3,39 +3,12 @@ import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { getCsoScope } from "@/lib/cso/scope";
-import { csoAvailWithRows, csoSetAvailResult, vendorList } from "@/lib/gateway/cso";
+import { csoAvailWithRows, vendorList } from "@/lib/gateway/cso";
 import { notifyFilterResult } from "@/lib/cso/filterNotify";
 import { statusKind } from "@/lib/availability";
 import { googleAccessToken, googleDirectEnabled as hasGoogleCreds } from "@/lib/google";
 import { getSetting } from "@/lib/gateway/notify";
-import { applyFilterResult, appendFilterRequest, appendFilterHistory, readFilter, readFilterItems, filterSheetId } from "@/lib/cso/filterSource";
-import { setCellOf } from "@/lib/google";
-
-// 가능/불가 → 확인중 되돌리기: 원본 「필터링」 탭의 H(거래가능유무)를 비우고 K 히스토리에 기록
-async function clearSourceResult(name: string, bizNo: string, vendor: string, actor: string): Promise<boolean> {
-  const f = await readFilter(true);
-  const c = f.cols;
-  if (c.status < 0) throw new Error("원본 「필터링」 탭에 거래가능유무 열이 없습니다.");
-  const sid = await filterSheetId();
-  const bz = bizNo.replace(/\D/g, "");
-  for (let i = f.hi + 1; i < f.values.length; i++) {
-    const r = f.values[i] || [];
-    const cat = c.category >= 0 ? String(r[c.category] ?? "").trim() : "";
-    if (cat.startsWith("중복")) continue;
-    const rn = String(r[c.name] ?? "").trim(), rv = c.vendor >= 0 ? String(r[c.vendor] ?? "").trim() : "";
-    const rg = c.verified >= 0 ? String(r[c.verified] ?? "").trim() : "";
-    if (!rn || !rv) continue;
-    const rb = c.biz >= 0 ? String(r[c.biz] ?? "").replace(/\D/g, "") : "";
-    const sameName = (bz && rb) ? rb === bz : norm(rn) === norm(name);
-    if (!sameName || (norm(rv) !== norm(vendor) && norm(rg) !== norm(vendor))) continue;
-    const before = String(r[c.status] ?? "").trim();
-    if (!before) return false;
-    await setCellOf(sid, f.title, i + 1, c.status + 1, "");
-    try { await appendFilterHistory({ name, bizNo: bz, vendor, memo: `결과 ${before} → 공란(확인중) · 경로:도구입력(${actor})`, path: "도구입력", actor }); } catch { /* 히스토리 실패 무시 */ }
-    return true;
-  }
-  return false;
-}
+import { applyFilterResult, appendFilterRequest, clearFilterResult, readFilterItems, markDispatchRepliedByKeys, dispatchRowKey } from "@/lib/cso/filterSource";
 
 // 관리자 전용: 필터링 결과표 이미지(캡처·사진) → 제약사·결과 추출 → 대기 요청에 결과 채움(없으면 새 행)
 //   POST { action:"extract", image:<base64>, mediaType:"image/jpeg"|"image/png"|"image/webp"|"image/gif" }
@@ -357,8 +330,6 @@ export async function POST(req: NextRequest) {
     const out = { filled: 0, added: 0, requested: 0, cleared: 0, skipped: 0, notified: 0, errors: [] as string[], source: "통계제출현황 「필터링」" };
     let src: Awaited<ReturnType<typeof readFilterItems>> = [];
     try { src = await readFilterItems(); } catch (e: any) { return NextResponse.json({ ok: false, error: "원본 「필터링」 탭 읽기 실패: " + (e?.message || "") }, { status: 502 }); }
-    let cso: Awaited<ReturnType<typeof csoAvailWithRows>> = [];
-    try { cso = await csoAvailWithRows(); } catch { cso = []; }
     const findSrc = (vendor: string) => src.find((it) => norm(it.name) === norm(name) && (norm(it.vendor) === norm(vendor) || norm(it.vendorRaw) === norm(vendor)));
     for (const it of items) {
       const vendor = String(it.vendor || "").trim(); if (!vendor) continue;
@@ -371,19 +342,17 @@ export async function POST(req: NextRequest) {
         if (st) {
           const kind: "ok" | "no" = st === "거래가능" ? "ok" : "no";
           if (cur && cur.kind === kind) { out.skipped++; continue; } // 원본에 같은 결과가 이미 있음
-          const r = await applyFilterResult({ name, bizNo, vendor, kind, note, path, actor: handler, notify: false });
+          const wasWaiting = !!cur && (cur.kind === "unfiltered" || cur.kind === "pending") && !!cur.requester;
+          const r = await applyFilterResult({ name, bizNo, vendor: cur ? (cur.vendorRaw || cur.vendor) : vendor, kind, note, path, actor: handler, notify: false });
           if (r.found) out.filled++; else out.added++;
-          // CSO 발송 대기열에 같은 건이 대기 중이면 닫아 주고(재발송 방지) 요청 담당자에게 통보
-          const pendingRow = cso.find((r) => norm(r.name) === norm(name) && norm(r.vendor) === norm(vendor) && statusKind(r.status) === "pending");
-          if (pendingRow) {
-            try {
-              const item = await csoSetAvailResult(pendingRow.row, st, note || "대체조제 도구 입력", handler);
-              try { const nr = await notifyFilterResult(item, st, note); if (nr.notified) out.notified++; } catch { /* 통보 실패 무시 */ }
-            } catch { /* 대기열 정리 실패는 원본 반영에 영향 없음 */ }
+          // 요청 대기 중이던 건이면 요청 담당자에게 통보 + 발송 원장 회신 표시
+          if (wasWaiting && cur) {
+            try { const nr = await notifyFilterResult({ row: r.row, category: cur.category, date: cur.date, requester: cur.requester, name, bizNo, vendor: cur.vendor, status: st, note }, st, note); if (nr.notified) out.notified++; } catch { /* 통보 실패 무시 */ }
           }
+          await markDispatchRepliedByKeys([dispatchRowKey(name, bizNo, vendor), dispatchRowKey(name, bizNo, cur?.vendor || vendor), dispatchRowKey(name, bizNo, cur?.vendorRaw || vendor)]).catch(() => 0);
         } else if (cur && (cur.kind === "ok" || cur.kind === "no")) {
           // 가능/불가 → 확인중 되돌리기: 원본 H 를 비우고 히스토리에 남김
-          await clearSourceResult(name, bizNo, vendor, handler);
+          await clearFilterResult({ row: cur.row, path, actor: handler, memo: "대체조제 도구에서 확인중으로" });
           out.cleared++;
         } else if (cur) {
           out.skipped++; // 이미 확인중(요청 대기) 상태
