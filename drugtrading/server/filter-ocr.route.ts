@@ -59,7 +59,7 @@ const norm = (s: unknown) => String(s ?? "").replace(/\s/g, "").replace(/\(주\)
 
 function guideText(vendors: string[]): string {
   return [
-    "이 이미지는 병의원 대체조제 필터링(거래가능유무) 결과표입니다. 표의 모든 행에서 제약사명과 결과를 빠짐없이 추출하세요.",
+    "이 이미지는 병의원 대체조제 필터링(거래가능유무) 결과표입니다. 표의 첫 행부터 맨 마지막 행까지 모든 행에서 제약사명과 결과를 하나도 빠뜨리지 말고 추출하세요. 이미지 아래쪽 끝에 잘려 보이는 행도 읽을 수 있으면 포함하세요.",
     "결과 분류: '가능', 'O', '거래중', '가능(…)'은 거래가능 / '불가', 'X', '불가(타업체)'는 거래불가 / '회신전', '확인중', '대기', 빈칸은 회신전 / 그 밖의 문구는 기타. raw 에는 결과 칸 원문을 그대로 넣습니다.",
     "제약사명은 아래 표준 목록에 같은 회사를 가리키는 이름이 있으면 그 표준 이름으로 바꾸고(예: '대웅바이오 CNE' → '대웅바이오(CNE)'), 없으면 읽은 그대로 둡니다. 순번·번호는 제약사명에 넣지 마세요.",
     "표에 병의원(거래처)명이 보이면 hospital 에 넣고, 없으면 빈 문자열로 둡니다.",
@@ -305,16 +305,20 @@ export async function POST(req: NextRequest) {
       if (!r.name || !r.vendor) continue;
       latest.set(norm(r.name) + "|" + norm(r.vendor), r);
     }
+    const todo: { name: string; bizNo: string; vendor: string; kind: "ok" | "no"; note: string }[] = [];
     for (const [key, r] of latest) {
       out.scanned++;
       const k = statusKind(r.status);
       if (k !== "ok" && k !== "no") { out.skippedNoStatus++; continue; }
       if (srcHas.has(key) || srcHasRaw.has(key)) { out.skippedHasSource++; continue; }
-      const st = k === "ok" ? "거래가능" : "거래불가";
+      todo.push({ name: r.name, bizNo: r.bizNo, vendor: r.vendor, kind: k, note: (r.note ? r.note + " · " : "") + "CSO 시트 입력분 원천 반영" });
+    }
+    if (todo.length) {
       try {
-        await applyFilterResult({ name: r.name, bizNo: r.bizNo, vendor: r.vendor, kind: k, note: (r.note ? r.note + " · " : "") + "CSO 시트 입력분 원천 반영", path: "과거입력보정", actor: handler, notify: false });
-        out.applied++; out.details.push(`${r.vendor} → ${st}`);
-      } catch (e: any) { out.errors.push(`${r.vendor}: ${e?.message || "실패"}`); }
+        const r = await applyFilterResults(todo.map((t) => ({ ...t, path: "과거입력보정", actor: handler, notify: false })));
+        out.applied = r.filled + r.added;
+        for (const t of todo) out.details.push(`${t.vendor} → ${t.kind === "ok" ? "거래가능" : "거래불가"}`);
+      } catch (e: any) { out.errors.push(String(e?.message || e)); }
     }
     return NextResponse.json({ ok: true, ...out });
   }
