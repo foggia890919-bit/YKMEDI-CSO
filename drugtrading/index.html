@@ -531,7 +531,8 @@
       <div class="ctlbar" style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:0 0 8px">
         <label class="chk"><span>품목별</span><input type="number" id="qkN" min="1" max="10" value="5" style="width:48px; padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin:0 4px"><span>등까지</span></label>
         <button class="sbtn" id="qkReq" style="border-color:var(--blue); color:var(--blue)">📨 1~N등 제약사 전부 필터링요청 (조회전만)</button>
-        <button class="sbtn" id="qkCheck" title="1~N등에 등장한 제약사를 아래 확정 목록에 체크">✔ 1~N등 제약사 확정에 체크</button>
+        <button class="sbtn" id="qkCheck" title="1~N등에 등장한 제약사를 전부 아래 확정 목록에 체크 (제약사가 많이 흩어짐)">✔ 1~N등 제약사 전부 확정에 체크</button>
+        <span class="grp" style="display:inline-flex; gap:6px; align-items:center; padding:2px 8px; border:1px solid var(--line); border-radius:8px"><label class="chk" title="1~N등에 등장한 제약사 중에서 합산 수수료가 가장 많이 느는 순으로 N곳만 골라 확정에 체크합니다(불가 제외). 품목마다 그 N곳 중 가장 좋은 곳으로 배정됩니다"><span>→ 제약사</span><input type="number" id="qkTopC" min="1" max="30" value="5" style="width:48px; padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin:0 4px"><span>곳으로 묶기</span></label><button class="sbtn" id="qkGroup" style="border-color:var(--ok); color:var(--ok); font-weight:700">🏆 묶어서 확정에 체크</button><label class="chk" title="켜면 이 표도 묶은 제약사만으로 1~N등을 다시 매깁니다"><input type="checkbox" id="qkOnlyChosen"><span>표도 묶은 제약사만</span></label></span>
         <button class="sbtn" id="qkXlsx">📥 이 표 엑셀</button>
         <span class="mini" id="qkComps"></span>
       </div>
@@ -1619,6 +1620,7 @@
       step: wizard.step,
       kind: state.kind,
       ftSel: ftSel,
+      qkChosen: state.qkChosen || null,
       mx: { K: $('mxK').value, mode: state.mx.mode, ykMin: $('ykMin').value, minAmt: $('minAmt').value, stage: state.mx.stage, comboObj: comboObj(), comboK: $('comboK').value, manager: ($('ftManager').value || '').trim(), price: priceKey() },
       savedAt: new Date().toISOString()
     };
@@ -1662,6 +1664,7 @@
       else if (proj.mx.noHigher !== undefined) $('cHigh').checked = !proj.mx.noHigher;
     }
     if (proj.ftSel) ftSel = proj.ftSel;
+    state.qkChosen = proj.qkChosen || null; if ($('qkOnlyChosen')) $('qkOnlyChosen').checked = !!state.qkChosen;
     if (proj.kind) setKind(proj.kind, true);
     var rs = proj.step || 3; if (rs === 6 || rs === 5) rs = 3; else if (rs === 7) rs = 4; else if (rs === 4 && proj.confirm === undefined) rs = 3;
     wizard.resumeStep = rs;
@@ -1992,6 +1995,7 @@
       if (isOut(x.pCode)) return;
       if (anyOwnQ && !makerState.checked[x.pMaker || '(제조사 미상)']) { ownOutQ[x.pCode] = x.pMaker || '(제조사 미상)'; return; } /* 3단계와 같은 보유 제조회사 필터 — 빠진 품목은 이유와 함께 표시 */
       var comp = compOf(x); if (!mxAllowed(comp, st)) { (perX[x.pCode] || (perX[x.pCode] = {}))[comp] = 1; return; } /* 제외된 후보도 기억 → 순위가 비면 이유 표시 */
+      if (state.qkChosen && $('qkOnlyChosen').checked && !state.qkChosen[comp]) { (perX[x.pCode] || (perX[x.pCode] = {}))[comp] = 1; return; } /* 묶은 제약사만 보기 */
       var mm = 'sum'; /* 빠른 등수표는 설정과 무관하게 항상 합산 수수료 = 약가×(기본요율+추가수수료)×조제량 순 */
       var rate = (x.basePct !== undefined ? x.basePct : x.pct) + (x.extraPct || 0);
       var cand = { comp: comp, rate: rate, base: (x.basePct !== undefined ? x.basePct : x.pct), extra: x.extraPct || 0, extraPct: x.extraPct || 0, pct: (x.basePct !== undefined ? x.basePct : x.pct), prof: x.profTotal, yk: x.ykTotal || 0, prod: state.prodCol >= 0 ? String(x.cells[state.prodCol] === undefined ? '' : x.cells[state.prodCol]) : '' };
@@ -2033,9 +2037,34 @@
     var comps = quickComps(rows), names = Object.keys(comps);
     var ok = 0, pd = 0, no = 0, nn = 0; names.forEach(function (n) { var k = availKindFor(n); if (k === 'ok') ok++; else if (k === 'pending') pd++; else if (k === 'no') no++; else nn++; });
     $('qkStat').textContent = ' · 품목 ' + rows.length + ' · 1~' + N + '등 제약사 ' + names.length + '곳';
-    $('qkComps').textContent = '1~' + N + '등 등장 제약사 ' + names.length + '곳: 가능 ' + ok + ' · 확인중 ' + pd + ' · 불가 ' + no + ' · 조회전 ' + nn;
+    $('qkComps').textContent = (state.qkChosen && $('qkOnlyChosen').checked ? '묶은 제약사 ' + Object.keys(state.qkChosen).length + '곳 기준 · ' : '') + '1~' + N + '등 등장 제약사 ' + names.length + '곳: 가능 ' + ok + ' · 확인중 ' + pd + ' · 불가 ' + no + ' · 조회전 ' + nn;
   }
   $('qkN').addEventListener('input', renderQuick);
+  $('qkOnlyChosen').addEventListener('change', renderQuick);
+  /* 1~N등에 등장한 제약사(불가 제외) 중 합산 수수료가 가장 많이 느는 순으로 C곳만 골라 확정에 체크 → 품목은 그 C곳 안에서 배정 */
+  $('qkGroup').addEventListener('click', function () {
+    if (!state.result) return;
+    var C = Math.max(1, Math.min(30, parseInt($('qkTopC').value, 10) || 5));
+    var saved = state.qkChosen; state.qkChosen = null; /* 후보 풀은 묶기 전 전체 1~N등 기준으로 */
+    var rows = quickTop(Math.max(1, Math.min(10, parseInt($('qkN').value, 10) || 5)));
+    state.qkChosen = saved;
+    var pool = Object.keys(quickComps(rows)).filter(function (n) { return availKindFor(n) !== 'no'; });
+    if (!pool.length) { $('qkComps').textContent = '묶을 제약사가 없습니다 (1~N등에 불가 아닌 제약사 없음)'; return; }
+    if (!state.mx.last) { var K0 = Math.max(1, parseInt($('mxK').value, 10) || 10); state.mx.last = buildMatrix(K0); }
+    state.quickN = null; state.confirm.names = {};
+    var only = {}; pool.forEach(function (n) { only[n] = true; });
+    var r = remainOptimize(C, 'fee', only);
+    var chosen = r && r.chosen ? r.chosen : [];
+    state.qkChosen = {}; chosen.forEach(function (c) { state.confirm.names[c.name] = true; state.qkChosen[c.name] = true; });
+    $('qkOnlyChosen').checked = true;
+    state.heldComp = null; drawConfirm(); renderQuick(); autoSave(800);
+    var A = assignWithin(confirmedNames()), fee = A.totalProf + (A.totalYk || 0), pre = chosen.filter(function (c) { return !availFor(c.name); }).length;
+    $('qkComps').textContent = '묶음 ' + chosen.length + '곳: ' + chosen.map(function (c) { return c.name + '(+' + c.gainCnt + '품목)'; }).join(', ')
+      + ' → 커버 ' + A.covered + '품목 · 매출 ' + won(A.coveredAmt) + ' · 수수료(합산) ' + won(fee) + ' · 매출대비 ' + pctOf(fee, A.coveredAmt)
+      + (chosen.length < C ? ' · 더 넣어도 합산이 늘지 않아 ' + chosen.length + '곳에서 멈춤' : '')
+      + (pre ? ' · 조회전 ' + pre + '곳은 「체크한 제약사 필터링요청」으로 접수' : '');
+    $('qkStat').textContent = ' · 묶은 제약사 ' + chosen.length + '곳으로 보는 중';
+  });
   $('qkReq').addEventListener('click', function () { renderQuick(); requestFilters(Object.keys(quickComps(state.quickRows || []))); });
   $('qkCheck').addEventListener('click', function () { renderQuick(); Object.keys(quickComps(state.quickRows || [])).forEach(function (n) { state.confirm.names[n] = true; }); drawConfirm(); autoSave(800); });
   $('qkXlsx').addEventListener('click', function () {
