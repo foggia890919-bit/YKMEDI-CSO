@@ -5,7 +5,7 @@ import "server-only";
 //  - 모든 앱 쓰기는 같은 시트 「웹등록로그」 탭(gid 581216062)에 1건 1행으로 감사 기록(로그 실패는 본 쓰기를 막지 않음).
 //  - 범위 clear/전체 재기록/정렬/행 삭제 금지. 헤더는 이름으로 찾고, 예상과 다르면 쓰기 중단.
 import {
-  readAllByGidOf, readAllOf, appendRowOf, appendRowsOf, setCellOf, writeRangeOf, spreadsheetTabs, ensureSheetOf,
+  readAllByGidOf, readAllOf, appendRowOf, appendRowsOf, setCellOf, writeRangeOf, spreadsheetTabs, ensureSheetOf, batchWriteRangesOf, type RangeWrite,
 } from "@/lib/google";
 import { getSetting } from "@/lib/gateway/notify";
 import { csoSheetId, vendorList } from "@/lib/gateway/cso";
@@ -472,6 +472,130 @@ async function doSyncNotify(): Promise<FilterSyncResult> {
   } catch (e: any) {
     return { ok: false, at, scanned: 0, changed: 0, notified: 0, error: String(e?.message || e) };
   }
+}
+
+// ③-b 결과 일괄 반영(이미지 입력 수십 건용): 시트를 한 번만 읽고, 셀 쓰기는 values:batchUpdate 한두 번, 새 행·로그·스냅샷은 각각 한 번의 append 로 끝낸다.
+//   건별 applyFilterResult 를 90번 부르면 읽기 90회·쓰기 300회가 넘어 한도(분당 60회)와 함수 시간(120초)을 넘기므로 필수.
+//   문자 통보는 하지 않는다(호출측이 결과의 beforeKind/requester 를 보고 결정).
+export type BatchResultRow = { vendor: string; ok: boolean; found: boolean; row: number; changed: boolean; beforeKind: string; requester: string; category: string; date: string; error?: string };
+export async function applyFilterResults(list: ResultInput[]): Promise<{ ok: boolean; results: BatchResultRow[]; filled: number; added: number; folded: number }> {
+  const out = { ok: true, results: [] as BatchResultRow[], filled: 0, added: 0, folded: 0 };
+  if (!list.length) return out;
+  const f = await readFilter(true);
+  ensureWritable(f);
+  const c = f.cols;
+  const sid = await filterSheetId();
+  const vlist = await vendorList().catch(() => [] as string[]);
+  const ts = stamp();
+  const writes: RangeWrite[] = [];
+  const appends: string[][] = [];
+  const logs: Parameters<typeof safeLog>[0][] = [];
+  const snaps: { key: string; status: string }[] = [];
+  const width = Math.max((f.values[f.hi] || []).length, c.history + 1);
+  const cell = (i: number, col: number) => (col >= 0 ? String((f.values[i] || [])[col] ?? "").trim() : "");
+  const setMem = (i: number, col: number, v: string) => { const r = f.values[i] || (f.values[i] = []); while (r.length <= col) r.push(""); r[col] = v; };
+  const put = (i: number, col: number, v: string) => { if (col < 0) return; setMem(i, col, v); writes.push({ title: f.title, row1: i + 1, col1: col + 1, values: [[v]] }); };
+  // 같은 건이 두 번 들어오면 마지막 것만
+  const byKey = new Map<string, ResultInput>();
+  for (const inp of list) { const vendor = String(inp.vendor || "").trim(); if (!vendor) continue; byKey.set(canonKey(String(inp.name || "").trim(), digits(inp.bizNo), vendor, vlist), inp); }
+  for (const inp of byKey.values()) {
+    const path = inp.path || "회신입력", actor = inp.actor || "시스템";
+    const name = String(inp.name || "").trim(), bizNo = digits(inp.bizNo), vendor = String(inp.vendor || "").trim();
+    const sub = String(inp.sub || "").trim(), note = String(inp.note || "").trim();
+    const OX = inp.kind === "no" ? "X" : "O";
+    const key = rowKey(name, bizNo, vendor), keyCanon = canonKey(name, bizNo, vendor, vlist);
+    const hits: number[] = [];
+    for (let i = f.hi + 1; i < f.values.length; i++) { const r = f.values[i] || []; if (isLiveRow(r, c) && sameVendorRow(r, c, key, keyCanon, vlist)) hits.push(i); }
+    const memoTail = `${sub ? `(제출처 ${sub})` : ""} · 경로:${path}(${actor})`;
+    if (hits.length) {
+      const i = hits[hits.length - 1];
+      const beforeH = cell(i, c.status), beforeI = cell(i, c.inquiry);
+      const beforeKind = resolveAvailability(beforeH, beforeI).kind;
+      const chg = beforeH && beforeH !== OX ? ` (이전 ${beforeH} → ${OX})` : "";
+      if (beforeH !== OX) put(i, c.status, OX);
+      if (sub && c.inquiry >= 0 && beforeI !== sub) put(i, c.inquiry, sub);
+      if (note && c.note >= 0 && cell(i, c.note) !== note) put(i, c.note, note);
+      const hb = cell(i, c.history);
+      const memoLine = `${ts} 결과:${OX}${chg}${memoTail}`;
+      if (c.history >= 0) put(i, c.history, hb ? hb + " / " + memoLine : memoLine);
+      logs.push({ rowNo: i + 1, kind: "결과반영", name, biz: bizNo, vendor, changed: "거래가능유무" + (sub ? "·문의처" : ""), before: beforeH, after: OX, path, actor, memo: note });
+      snaps.push({ key: snapKey(name, bizNo, cell(i, c.verified), vendor, vlist), status: OX });
+      for (const j of hits.slice(0, -1)) {
+        put(j, c.category, "중복(자동정리)");
+        const jb = cell(j, c.history);
+        const memo = `${ts} 중복 자동정리(대표 ${i + 1}행에 통합) · 경로:${path}(${actor})`;
+        if (c.history >= 0) put(j, c.history, jb ? jb + " / " + memo : memo);
+        logs.push({ rowNo: j + 1, kind: "중복정리", name, biz: bizNo, vendor, changed: "분류", after: "중복(자동정리)", path, actor, memo: `대표 ${i + 1}행` });
+        out.folded++;
+      }
+      out.filled++;
+      out.results.push({ vendor, ok: true, found: true, row: i + 1, changed: beforeH !== OX, beforeKind, requester: cell(i, c.requester), category: cell(i, c.category), date: cell(i, c.date) });
+    } else {
+      const mv = matchVendorName(vendor, vlist);
+      const line = new Array(width).fill("");
+      const set = (idx: number, val: string) => { if (idx >= 0) line[idx] = val; };
+      set(c.category, "필터링"); set(c.date, today()); set(c.name, name); set(c.biz, bizNo); set(c.vendor, vendor);
+      set(c.verified, mv.matched ? mv.name : ""); set(c.status, OX); set(c.inquiry, sub); set(c.note, note);
+      set(c.history, `${ts} 결과:${OX}${memoTail}`);
+      appends.push(line);
+      f.values.push(line); // 같은 배치 안에서 다시 찾을 수 있게 메모리에도
+      const newRow = f.values.length;
+      logs.push({ rowNo: newRow, kind: "결과반영", name, biz: bizNo, vendor, changed: "행 전체", after: `결과 ${OX}`, path, actor, memo: "행 없어 신규 추가(일괄)" });
+      snaps.push({ key: snapKey(name, bizNo, mv.matched ? mv.name : "", vendor, vlist), status: OX });
+      out.added++;
+      out.results.push({ vendor, ok: true, found: false, row: newRow, changed: true, beforeKind: "unfiltered", requester: "", category: "필터링", date: today() });
+    }
+  }
+  try {
+    if (writes.length) await batchWriteRangesOf(sid, writes);
+    if (appends.length) await appendRowsOf(sid, f.title, appends);
+  } catch (e: any) {
+    _fc = null;
+    await safeLogMany([{ rowNo: "", kind: "실패", changed: "일괄반영", after: `${list.length}건`, path: list[0]?.path || "회신입력", actor: list[0]?.actor || "시스템", memo: String(e?.message || e) + " — 시트 편집 권한 필요" }]);
+    throw e;
+  }
+  _fc = null;
+  await safeLogMany(logs);
+  await upsertSnapshots(snaps);
+  return out;
+}
+
+async function safeLogMany(entries: Parameters<typeof safeLog>[0][]): Promise<void> {
+  if (!entries.length) return;
+  try {
+    const sid = await filterSheetId();
+    const title = await titleByGid(sid, WEBLOG_GID);
+    if (!_logReady) {
+      const vals = await readAllByGidOf(sid, WEBLOG_GID);
+      const row1 = (vals[0] || []).map((x) => String(x).trim());
+      if (row1.join("") === "" || !row1.includes("일시")) await writeRangeOf(sid, title, 1, 1, [LOG_HEADER]);
+      _logReady = true;
+    }
+    const st = stamp();
+    await appendRowsOf(sid, title, entries.map((e) => [st, "필터링", String(e.rowNo ?? ""), e.kind, e.name || "", e.biz || "", e.vendor || "", e.changed || "", cut(e.before), cut(e.after), e.path || "", e.actor || "시스템", e.memo || ""]));
+  } catch { /* 로그 실패는 본 쓰기를 막지 않음 */ }
+}
+
+async function upsertSnapshots(items: { key: string; status: string }[]): Promise<void> {
+  if (!items.length) return;
+  try {
+    const csid = await csoSheetId();
+    await ensureSheetOf(csid, SNAP_TAB, SNAP_HEADER);
+    const vals = await readAllOf(csid, SNAP_TAB);
+    const rowOf = new Map<string, number>();
+    for (let i = 1; i < vals.length; i++) { const k = String((vals[i] || [])[0] ?? ""); if (k) rowOf.set(k, i + 1); }
+    const writes: RangeWrite[] = [];
+    const appends: string[][] = [];
+    const seen = new Set<string>();
+    for (const it of items) {
+      if (seen.has(it.key)) continue; seen.add(it.key);
+      const r = rowOf.get(it.key);
+      if (r) writes.push({ title: SNAP_TAB, row1: r, col1: 2, values: [[it.status]] });
+      else appends.push([it.key, it.status, today(), ""]);
+    }
+    if (writes.length) await batchWriteRangesOf(csid, writes);
+    if (appends.length) await appendRowsOf(csid, SNAP_TAB, appends);
+  } catch { /* 스냅샷 실패는 무시 */ }
 }
 
 // 같은 건의 나머지 행을 「중복(자동정리)」로 접기(행 삭제 없음). keepRow = 대표(최신) 행 번호.

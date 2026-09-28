@@ -493,6 +493,7 @@
     <div class="qrow"><span class="ql">결과</span><div id="cfQuickSum"></div></div>
     <div class="qrow"><span class="ql">선택 제약사</span><div id="cfQuickList" class="mini"></div></div>
     <div class="qrow" id="cfResRow" style="display:none"><span class="ql">결과 입력<br><span class="mini" style="font-weight:400">관리자 · 시트에 바로 기록</span></span><div><div id="cfOcrBar" style="display:none; margin-bottom:6px; display:flex; flex-wrap:wrap; gap:6px; align-items:center"><button class="sbtn" id="cfOcrBtn" style="border-color:var(--blue); color:var(--blue)" title="필터링 결과표 캡처(제약사·가능/불가)를 올리면 Claude가 읽어 가능·불가를 거래처 기준으로 시트에 바로 기록합니다. 화면 캡처 후 이 페이지에서 Ctrl+V 붙여넣기도 됩니다">📷 결과표 이미지로 자동 입력</button><input type="file" id="cfOcrFile" accept="image/*" style="display:none"><button class="sbtn" id="cfBackfill" title="거래가능 원천이 통계제출현황 「필터링」 탭으로 통일되기 전에 이 도구·이미지로 CSO 시트에만 기록된 가능/불가를 원천에 되살립니다. 원천에 이미 결과가 있는 건은 건드리지 않습니다">↻ 예전 도구 입력분 원본에 반영</button><span class="mini" id="cfOcrStat">캡처를 Ctrl+V 로 붙여넣어도 됩니다</span></div><div id="cfOcrPrev" style="display:none; margin:0 0 8px; padding:8px 10px; border:1px solid var(--blue); border-radius:8px; background:#f7f9ff"></div><div id="cfResList" style="line-height:2"></div></div></div>
+    <div id="cfAvailErr" style="display:none; margin:6px 0 8px; padding:8px 12px; border:1px solid #f0b4b4; background:#fff3f3; color:#b3261e; border-radius:8px; font-size:13px; font-weight:700"></div>
     <div class="qrow"><span class="ql">필터링</span><div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center"><button class="sbtn" id="cfReq" style="border-color:var(--blue); color:var(--blue)">📨 체크한 제약사 필터링요청 (조회전만)</button><button class="sbtn" id="cfRefresh" title="원본 「필터링」 탭(통계제출현황)을 다시 읽어 거래가능/불가를 대입 — 사무실 입력·이미지 입력·포털 회신이 모두 이 한 곳에 모입니다">🔎 결과 새로고침</button><span class="mini" id="cfAvailStat"></span></div></div>
     <div class="mini" style="margin-top:6px; color:#667">제약사 수를 누르면 그 수만큼 수수료가 가장 많이 나오는 제약사를 골라 체크합니다. 조건(거래가능만·배정 기준·최소매출·후보 범위)이나 회신이 바뀌면 다시 계산되고, 표에서 체크를 직접 바꾸면 수동 선택이 됩니다.</div>
   </div>
@@ -1445,6 +1446,12 @@
     var a = availFor(comp);
     return !!(a && a.kind === 'no');
   }
+  /* 3단계 상단 경고: 거래가능 조회가 실패하면 모든 제약사가 「조회전」으로 보이므로 그 사실을 크게 알린다 */
+  function showAvailErr() {
+    var el = $('cfAvailErr'); if (!el) return;
+    if (state.availError) { el.style.display = ''; el.textContent = '⚠ 거래가능 결과를 불러오지 못했습니다 (' + state.availError + '). 지금 표의 「조회전」은 실제 상태가 아닙니다 — 「🔎 결과 새로고침」을 눌러 다시 읽어 주세요.'; }
+    else { el.style.display = 'none'; el.textContent = ''; }
+  }
   function loadAvail(silent, silent2) {
     var name = ($('projName').value || '').trim();
     if (!name) { if (!silent) alert('상단 프로젝트 바에 병원(거래처)명을 먼저 입력해주세요.'); return Promise.resolve(); }
@@ -1453,7 +1460,7 @@
     return fetch('/api/availability?name=' + encodeURIComponent(name) + '&sync=1').then(function (r) { return r.json(); }).then(function (d) {
       if (!d || !d.ok) {
         if (!silent2 && /quota|429|한도/i.test((d && d.error) || '')) { $('availStat').textContent = '구글 시트 조회 한도 — 3초 후 재시도…'; return new Promise(function (res) { setTimeout(function () { loadAvail(silent, true).then(res); }, 3000); }); }
-        $('availStat').textContent = '조회 실패' + (d && d.error ? ': ' + d.error : '') + ' — 「거래가능 조회」로 다시 시도'; return;
+        state.availError = '조회 실패' + (d && d.error ? ': ' + d.error : ''); $('availStat').textContent = state.availError + ' — 「거래가능 조회」로 다시 시도'; showAvailErr(); return;
       }
       var nn = normVendor(name), map = {}, cnt = 0;
       (d.items || []).forEach(function (it) { /* 최신이 위 → 제약사별 첫 항목만 */
@@ -1461,7 +1468,7 @@
         var k = normVendor(it.vendor); if (!k || map[k]) return;
         map[k] = { vendor: it.vendor, status: it.status, kind: availKindOf(it.status), date: it.date, note: it.note }; cnt++;
       });
-      state.avail = map; state.heldComp = null;
+      state.avail = map; state.heldComp = null; state.availError = null; showAvailErr();
       var ok = 0, no = 0, pd = 0;
       for (var k2 in map) { if (map[k2].kind === 'ok') ok++; else if (map[k2].kind === 'no') no++; else pd++; }
       var none = 0; try { switchAggs().forEach(function (a) { if (!availFor(a.name)) none++; }); } catch (e) {}
@@ -1470,7 +1477,7 @@
       else if (sy && sy.error) syTxt = ' · 원본시트 마지막 반영 실패: ' + String(sy.error).slice(0, 60);
       $('availStat').textContent = name + ': 가능 ' + ok + ' · 불가 ' + no + ' · 확인중 ' + pd + ' · 조회전 ' + none + syTxt;
       renderMakers(); drawRows();
-    }).catch(function () { $('availStat').textContent = '조회 실패: 사이트(로그인)에서만 조회됩니다'; });
+    }).catch(function (e) { state.availError = '조회 실패: ' + ((e && e.message) || '사이트(로그인)에서만 조회됩니다'); $('availStat').textContent = state.availError; showAvailErr(); });
   }
   function postFilterReq(name, biz, comp, requester, info) {
     var ex = extraFor(comp);
@@ -2386,10 +2393,24 @@
       box.querySelectorAll('label').forEach(function (l) { var c = l.querySelector('.opUse'), v = (l.querySelector('.opV').value || '').trim(), s2 = l.querySelector('.opSt').value; if (c.checked && v && s2) use.push({ vendor: v, status: s2, raw: '이미지 인식 후 확인' }); });
       if (!use.length) { setStat('기록할 항목이 없습니다 (체크 + 가능/불가 선택)'); return; }
       if (!confirm(use.length + '건을 「' + name + '」 기준으로 원본 「필터링」 탭에 기록할까요?\n' + use.map(function (u) { return u.vendor + ' → ' + u.status; }).join('\n'))) return;
-      box.querySelectorAll('.opApply').forEach(function (x) { x.disabled = true; }); setStat('기록 중…');
-      fetch('/api/cso/admin/filter-ocr', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'apply', name: name, bizNo: ($('projBiz').value || '').trim(), items: use }) })
-        .then(function (r) { return r.json(); }).then(function (a) {
-          if (!a || !a.ok) throw new Error((a && a.error) || '기록 실패');
+      box.querySelectorAll('.opApply').forEach(function (x) { x.disabled = true; }); setStat('기록 중… (0/' + use.length + ')');
+      /* 30건씩 나눠 보내며 진행률 표시 — 서버는 묶음마다 시트를 한 번만 읽고 한 번에 쓴다 */
+      var CH = 30, acc = { filled: 0, added: 0, requested: 0, cleared: 0, skipped: 0, notified: 0, errors: [] }, sentN = 0;
+      var sendChunk = function (i) {
+        if (i >= use.length) return Promise.resolve(acc);
+        var part = use.slice(i, i + CH);
+        return fetch('/api/cso/admin/filter-ocr', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'apply', name: name, bizNo: ($('projBiz').value || '').trim(), items: part }) })
+          .then(function (r) { return r.json(); }).then(function (a) {
+            if (!a) throw new Error('기록 실패');
+            ['filled', 'added', 'requested', 'cleared', 'skipped', 'notified'].forEach(function (k) { acc[k] += (a[k] || 0); });
+            if (a.errors && a.errors.length) acc.errors = acc.errors.concat(a.errors); else if (!a.ok) acc.errors.push(a.error || '기록 실패');
+            sentN += part.length; setStat('기록 중… (' + sentN + '/' + use.length + ')');
+            return sendChunk(i + CH);
+          });
+      };
+      sendChunk(0).then(function (a) {
+          a.ok = (a.filled + a.added + a.cleared + a.requested + a.skipped) > 0 || !a.errors.length;
+          if (!a.ok) throw new Error(a.errors.join(' / ') || '기록 실패');
           var msg = '✅ ' + use.length + '건 원본 「필터링」 탭에 기록 (기존 행 결과 채움 ' + (a.filled || 0) + ' · 새 행 ' + (a.added || 0) + (a.skipped ? ' · 이미 같은 결과 ' + a.skipped : '') + (a.notified ? ' · 담당자 통보 ' + a.notified : '') + ')' + (a.errors && a.errors.length ? ' · 오류: ' + a.errors.join(' / ') : '');
           closeBox();
           return loadAvail(true).then(function () { state.heldComp = null; renderConfirmStep(); $('cfOcrStat').textContent = msg; $('cfAvailStat').textContent = msg; });

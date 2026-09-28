@@ -8,7 +8,7 @@ import { notifyFilterResult } from "@/lib/cso/filterNotify";
 import { statusKind } from "@/lib/availability";
 import { googleAccessToken, googleDirectEnabled as hasGoogleCreds } from "@/lib/google";
 import { getSetting } from "@/lib/gateway/notify";
-import { applyFilterResult, appendFilterRequest, clearFilterResult, readFilterItems, markDispatchRepliedByKeys, dispatchRowKey } from "@/lib/cso/filterSource";
+import { applyFilterResult, applyFilterResults, appendFilterRequest, clearFilterResult, readFilterItems, markDispatchRepliedByKeys, dispatchRowKey } from "@/lib/cso/filterSource";
 
 // 관리자 전용: 필터링 결과표 이미지(캡처·사진) → 제약사·결과 추출 → 대기 요청에 결과 채움(없으면 새 행)
 //   POST { action:"extract", image:<base64>, mediaType:"image/jpeg"|"image/png"|"image/webp"|"image/gif" }
@@ -331,38 +331,53 @@ export async function POST(req: NextRequest) {
     let src: Awaited<ReturnType<typeof readFilterItems>> = [];
     try { src = await readFilterItems(); } catch (e: any) { return NextResponse.json({ ok: false, error: "원본 「필터링」 탭 읽기 실패: " + (e?.message || "") }, { status: 502 }); }
     const findSrc = (vendor: string) => src.find((it) => norm(it.name) === norm(name) && (norm(it.vendor) === norm(vendor) || norm(it.vendorRaw) === norm(vendor)));
+    // ① 가능/불가는 한 번에(시트 읽기 1회·쓰기 2~3회), ② 확인중 되돌리기·확인 요청은 건별(드묾)
+    type Batch = { vendor: string; st: "거래가능" | "거래불가"; cur: (typeof src)[number] | undefined; note: string; path: string };
+    const batch: Batch[] = [];
+    const others: { vendor: string; cur: (typeof src)[number] | undefined; path: string }[] = [];
     for (const it of items) {
       const vendor = String(it.vendor || "").trim(); if (!vendor) continue;
       const st = it.status === "거래가능" || it.status === "거래불가" ? it.status : "";
       const direct = /도구에서 직접/.test(String(it.raw || ""));
       const path = direct ? "도구입력" : "이미지입력";
       const note = direct ? "" : "이미지 입력" + (it.raw ? ": " + String(it.raw).trim() : "");
+      const cur = findSrc(vendor);
+      if (st) {
+        const kind = st === "거래가능" ? "ok" : "no";
+        if (cur && cur.kind === kind) { out.skipped++; continue; } // 원본에 같은 결과가 이미 있음
+        batch.push({ vendor, st, cur, note, path });
+      } else others.push({ vendor, cur, path });
+    }
+    if (batch.length) {
       try {
-        const cur = findSrc(vendor);
-        if (st) {
-          const kind: "ok" | "no" = st === "거래가능" ? "ok" : "no";
-          if (cur && cur.kind === kind) { out.skipped++; continue; } // 원본에 같은 결과가 이미 있음
-          const wasWaiting = !!cur && (cur.kind === "unfiltered" || cur.kind === "pending") && !!cur.requester;
-          const r = await applyFilterResult({ name, bizNo, vendor: cur ? (cur.vendorRaw || cur.vendor) : vendor, kind, note, path, actor: handler, notify: false });
-          if (r.found) out.filled++; else out.added++;
-          // 요청 대기 중이던 건이면 요청 담당자에게 통보 + 발송 원장 회신 표시
-          if (wasWaiting && cur) {
-            try { const nr = await notifyFilterResult({ row: r.row, category: cur.category, date: cur.date, requester: cur.requester, name, bizNo, vendor: cur.vendor, status: st, note }, st, note); if (nr.notified) out.notified++; } catch { /* 통보 실패 무시 */ }
+        const r = await applyFilterResults(batch.map((b) => ({ name, bizNo, vendor: b.cur ? (b.cur.vendorRaw || b.cur.vendor) : b.vendor, kind: b.st === "거래가능" ? "ok" : "no", note: b.note, path: b.path, actor: handler, notify: false })));
+        out.filled += r.filled; out.added += r.added;
+        // 요청 대기 중이던 건(요청자 있음)만 담당자 통보 + 발송 원장 회신 표시
+        const keys: string[] = [];
+        for (const b of batch) {
+          const res = r.results.find((x) => norm(x.vendor) === norm(b.cur ? (b.cur.vendorRaw || b.cur.vendor) : b.vendor));
+          keys.push(dispatchRowKey(name, bizNo, b.vendor)); if (b.cur) { keys.push(dispatchRowKey(name, bizNo, b.cur.vendor), dispatchRowKey(name, bizNo, b.cur.vendorRaw)); }
+          if (res && res.found && (res.beforeKind === "unfiltered" || res.beforeKind === "pending") && res.requester) {
+            try { const nr = await notifyFilterResult({ row: res.row, category: res.category, date: res.date, requester: res.requester, name, bizNo, vendor: b.cur?.vendor || b.vendor, status: b.st, note: b.note }, b.st, b.note); if (nr.notified) out.notified++; } catch { /* 통보 실패 무시 */ }
           }
-          await markDispatchRepliedByKeys([dispatchRowKey(name, bizNo, vendor), dispatchRowKey(name, bizNo, cur?.vendor || vendor), dispatchRowKey(name, bizNo, cur?.vendorRaw || vendor)]).catch(() => 0);
-        } else if (cur && (cur.kind === "ok" || cur.kind === "no")) {
-          // 가능/불가 → 확인중 되돌리기: 원본 H 를 비우고 히스토리에 남김
-          await clearFilterResult({ row: cur.row, path, actor: handler, memo: "대체조제 도구에서 확인중으로" });
+        }
+        await markDispatchRepliedByKeys(keys).catch(() => 0);
+      } catch (e: any) { out.errors.push(`일괄 기록 실패(${batch.length}건): ${e?.message || "실패"}`); }
+    }
+    for (const o of others) {
+      try {
+        if (o.cur && (o.cur.kind === "ok" || o.cur.kind === "no")) {
+          await clearFilterResult({ row: o.cur.row, path: o.path, actor: handler, memo: "대체조제 도구에서 확인중으로" });
           out.cleared++;
-        } else if (cur) {
+        } else if (o.cur) {
           out.skipped++; // 이미 확인중(요청 대기) 상태
         } else {
-          const r = await appendFilterRequest({ requester: handler, name, bizNo, vendor, note: "대체조제 도구에서 확인 요청", path, actor: handler, category: "필터링" });
+          const r = await appendFilterRequest({ requester: handler, name, bizNo, vendor: o.vendor, note: "대체조제 도구에서 확인 요청", path: o.path, actor: handler, category: "필터링" });
           if (r.deduped) out.skipped++; else out.requested++;
         }
-      } catch (e: any) { out.errors.push(`${vendor}: ${e?.message || "실패"}`); }
+      } catch (e: any) { out.errors.push(`${o.vendor}: ${e?.message || "실패"}`); }
     }
-    return NextResponse.json({ ok: out.errors.length < items.length, ...out, error: out.errors.length ? out.errors.join(" · ") : undefined });
+    return NextResponse.json({ ok: !out.errors.length || (out.filled + out.added + out.cleared + out.requested) > 0, ...out, error: out.errors.length ? out.errors.join(" · ") : undefined });
   }
   return NextResponse.json({ ok: false, error: "알 수 없는 동작" }, { status: 400 });
 }
