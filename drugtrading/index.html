@@ -2295,6 +2295,40 @@
     r.chosen.forEach(function (c) { state.confirm.names[c.name] = true; });
   }
   function quickApply(N) { state.quickN = N; quickSelect(N); state.heldComp = null; drawConfirm(); autoSave(800); }
+  /* 결과 입력 목록: 가나다순 표 + 상태 드롭다운(고르면 바로 저장) + 상태별 필터 칩(전체/가능/불가/확인중/조회전) + 정렬(가나다/상태) */
+  function renderResList(all) {
+    var box = $('cfResList'); if (!box) return;
+    box.style.display = ($('cfOcrPrev').style.display !== 'none' && $('cfOcrPrev').innerHTML) ? 'none' : '';
+    var kindOf = function (n) { var k = availKindFor(n); return k === 'ok' ? 'ok' : k === 'no' ? 'no' : k === 'pending' ? 'pending' : 'none'; };
+    var cnt = { all: all.length, ok: 0, no: 0, pending: 0, none: 0 }; all.forEach(function (n) { cnt[kindOf(n)]++; });
+    var f = state.resFilter || 'all', srt = state.resSort || 'name';
+    var list = all.filter(function (n) { return f === 'all' || kindOf(n) === f; });
+    var ord = { ok: 0, no: 1, pending: 2, none: 3 };
+    list.sort(function (a, b) { if (srt === 'status') { var d = ord[kindOf(a)] - ord[kindOf(b)]; if (d) return d; } return a.localeCompare(b, 'ko'); });
+    var chip = function (k, label, col) { var on = f === k; return '<button class="sbtn resChip" data-f="' + k + '" style="padding:2px 9px; font-size:12px; border-color:' + col + '; color:' + (on ? '#fff' : col) + ';' + (on ? 'background:' + col + ';' : '') + '">' + label + ' ' + cnt[k] + '</button>'; };
+    var colOf = { ok: 'var(--ok)', no: 'var(--err)', pending: '#b45309', none: '#667' };
+    var shown = list.slice(0, 300);
+    box.innerHTML = '<div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:6px"><b class="mini">필터링 시트에 저장된 상태</b>'
+      + chip('all', '전체', '#334') + chip('ok', '가능', 'var(--ok)') + chip('no', '불가', 'var(--err)') + chip('pending', '확인중', '#b45309') + chip('none', '조회전', '#667')
+      + '<select id="cfResSort" style="padding:2px 6px; font-size:12px; border:1px solid var(--line); border-radius:6px; font-family:inherit"><option value="name"' + (srt === 'name' ? ' selected' : '') + '>가나다순</option><option value="status"' + (srt === 'status' ? ' selected' : '') + '>상태순</option></select>'
+      + '<span class="mini">드롭다운을 바꾸면 바로 저장됩니다</span></div>'
+      + '<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:2px 14px; line-height:1.6">'
+      + shown.map(function (n) {
+        var k = kindOf(n), col = colOf[k];
+        return '<label style="display:flex; align-items:center; gap:6px; font-size:13px; border-bottom:1px dashed var(--line); padding:2px 0"><span style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap" title="' + esc(n) + '">' + esc(n) + '</span>'
+          + '<select class="resSel" data-comp="' + esc(n) + '" style="padding:2px 4px; font-size:12px; border:1px solid ' + col + '; color:' + col + '; border-radius:6px; font-family:inherit; font-weight:700; background:#fff">'
+          + '<option value="거래가능"' + (k === 'ok' ? ' selected' : '') + '>가능</option><option value="거래불가"' + (k === 'no' ? ' selected' : '') + '>불가</option><option value="회신전"' + (k === 'pending' ? ' selected' : '') + '>확인중</option>' + (k === 'none' ? '<option value="" selected>조회전</option>' : '') + '</select></label>';
+      }).join('') + '</div>'
+      + (list.length > shown.length ? '<span class="mini">외 ' + (list.length - shown.length) + '곳 — 검색·필터로 좁혀 보세요</span>' : '') + (!list.length ? '<span class="mini">해당 상태의 제약사가 없습니다</span>' : '');
+    box.querySelectorAll('.resChip').forEach(function (b) { b.addEventListener('click', function () { state.resFilter = this.getAttribute('data-f'); renderResList(all); }); });
+    var so = $('cfResSort'); if (so) so.addEventListener('change', function () { state.resSort = this.value; renderResList(all); });
+    box.querySelectorAll('.resSel').forEach(function (sl) { sl.addEventListener('change', function () {
+      var n = this.getAttribute('data-comp'), v = this.value; if (v === '') return;
+      var k = kindOf(n), cur = k === 'ok' ? '거래가능' : k === 'no' ? '거래불가' : '회신전';
+      if (v === cur) return;
+      postResult(n, v === '회신전' ? '' : v);
+    }); });
+  }
   function renderQuickSummary() {
     var names = confirmedNames(), A = assignWithin(names), fee = A.totalProf + (A.totalYk || 0);
     var used = names.filter(function (n) { return A.per[n] && A.per[n].cnt; });
@@ -2337,19 +2371,7 @@
       names.concat(cfRows.map(function (r) { return r.name; })).forEach(function (n) { n = String(n || '').trim(); if (!n || seenR[n] || /미상|^\(/.test(n)) return; seenR[n] = 1; all.push(n); }); /* 빈 이름·(제약사 미상) 제외 */
       all.sort(function (a, b) { return a.localeCompare(b, 'ko'); });
       var pendCnt = all.filter(function (n) { var k = availKindFor(n); return k !== 'ok' && k !== 'no'; }).length;
-      var btn = function (n, k, label, cur, col) { var on = cur === k; return '<button class="sbtn resBtn" data-comp="' + esc(n) + '" data-s="' + k + '" style="padding:1px 7px; font-size:12px; border-color:' + col + '; color:' + (on ? '#fff' : col) + ';' + (on ? 'background:' + col + ';' : '') + '" title="' + (on ? '현재 상태' : label + '(으)로 바꿔 저장') + '">' + label + '</button>'; };
-      var shown = all.slice(0, 120);
-      $('cfResList').style.display = ($('cfOcrPrev').style.display !== 'none' && $('cfOcrPrev').innerHTML) ? 'none' : '';
-      $('cfResList').innerHTML = '<div class="mini" style="margin-bottom:4px"><b>필터링 시트에 저장된 상태</b> · 후보 ' + all.length + '곳 · 결과 대기 ' + pendCnt + '곳 · 색칠된 버튼이 현재 상태, 다른 버튼을 누르면 바로 저장됩니다</div>'
-        + shown.map(function (n) {
-          var k = availKindFor(n), cur = k === 'ok' ? '거래가능' : k === 'no' ? '거래불가' : '회신전';
-          return '<span style="display:inline-flex; align-items:center; gap:3px; margin:0 12px 4px 0"><b>' + esc(n) + '</b>' + btn(n, '거래가능', '가능', cur, 'var(--ok)') + btn(n, '거래불가', '불가', cur, 'var(--err)') + btn(n, '회신전', '확인중', cur, '#b45309') + '</span>';
-        }).join('') + (all.length > shown.length ? '<span class="mini">외 ' + (all.length - shown.length) + '곳은 표에서 입력</span>' : '');
-      $('cfResList').querySelectorAll('.resBtn').forEach(function (b) { b.addEventListener('click', function () {
-        var n = this.getAttribute('data-comp'), s2 = this.getAttribute('data-s'), k = availKindFor(n), cur = k === 'ok' ? '거래가능' : k === 'no' ? '거래불가' : '회신전';
-        if (s2 === cur) return; /* 이미 그 상태 */
-        postResult(n, s2 === '회신전' ? '' : s2);
-      }); });
+      renderResList(all);
     }
     $('cfQuickList').innerHTML = per.length ? per.map(function (p, i) { return '<span class="co"><b>' + (i + 1) + '. ' + esc(p.n) + '</b>' + availBadge(p.n) + ' <span style="color:#556">' + p.cnt + '품목 · 매출 ' + won(p.amt) + ' · 수수료 ' + won(p.fee) + ' · 매출대비 ' + pctOf(p.fee, p.amt) + '</span></span>'; }).join('') : '<span style="color:#667">선택된 제약사가 없습니다. 위에서 제약사 수를 누르세요.</span>';
   }
