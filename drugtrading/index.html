@@ -453,29 +453,6 @@
   <div class="stepnav"><button class="pbtn" id="prevMap">← 제약사 확정으로</button><button class="pbtn primary" id="nextMap">제약사 확정으로 →</button></div>
   </section>
 
-  <section class="step" data-step="8">
-  <div class="stephead"><h2>필터링 진행 (구 화면)</h2><p>1차 매핑에서 품목별 1~N위에 오른 제약사를 전부, 또는 상위 몇 곳부터 필터링(거래가능 조회) 요청합니다. 요청은 거래처 기준으로 필터링-거래가능유무 시트에 쌓이고, 사무실에서 결과를 입력하면 여기와 2차 매핑에 반영됩니다.</p></div>
-  <div class="mapctl">
-    <div class="ctlrow"><span class="lab">고르기<small>요청할 제약사</small></span>
-      <label class="chk"><span>상위</span><input type="number" id="ftTopN" min="1" max="99" value="5" style="width:52px; padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin:0 4px"><span>개사</span></label>
-      <button class="sbtn" id="ftSelTop">상위 N개사 체크</button>
-      <button class="sbtn" id="ftSelAll">전부 체크</button>
-      <button class="sbtn" id="ftSelNone">해제</button>
-      <span class="mini">표 머리글을 누르면 그 열 기준으로 오름↔내림 정렬되고, 체크는 정렬된 순서로 됩니다</span>
-    </div>
-    <div class="ctlrow"><span class="lab">조건<small>표에 남길 제약사</small></span>
-      <label class="chk" title="영업사원 정산 잠재 합계가 이 금액 이상인 제약사만 표시"><span>정산 ≥</span><input type="number" id="ftMinProf" min="0" step="100000" placeholder="0" style="width:96px; padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin:0 4px"><span>원</span></label>
-      <label class="chk" title="추가수수료가 이 % 이상인 제약사만 표시"><span>추가수수료 ≥</span><input type="number" id="ftMinExtra" min="0" step="0.5" placeholder="0" style="width:56px; padding:4px 6px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit; margin:0 4px"><span>%</span></label>
-    </div>
-    <div class="ctlrow"><span class="lab">요청<small>접수·결과 확인</small></span>
-      <button class="pbtn primary" id="ftRequest" style="padding:7px 14px; font-size:13px; border-radius:8px; border:0; background:var(--blue); color:#fff; cursor:pointer">📨 체크한 제약사 필터링요청</button>
-      <button class="sbtn" id="ftRefresh">🔄 결과 새로고침</button>
-      <span class="mini" id="ftStat" style="flex:1; text-align:right"></span>
-    </div>
-  </div>
-  <div class="fwrap"><table class="ftab" id="ftab"><thead></thead><tbody></tbody></table></div>
-  <div class="stepnav"><button class="pbtn" id="prev4">← 1차 매핑</button><button class="pbtn primary" id="next4">다음 → 2차 매핑 (결과 대입)</button></div>
-  </section>
 
   <section class="step" data-step="3">
   <div class="stephead"><h2>3. 제약사 확정 · 필터링</h2><p>제약사를 체크하고 → 조회전인 곳은 여기서 바로 <b>필터링요청</b> → 결과가 오면 「결과 새로고침」 → 거래가능만 남기고 확정 → 아래 품목별 최종 선택 확인 → 다음 단계 보고서·엑셀. 배정 규칙은 「설정」에서, 제약사×품목 전체 표는 「자세히 보기」에서.</p></div>
@@ -1893,7 +1870,7 @@
     } else {
       panel.classList.remove('show');
       if (n === 2) autoLoadSources();
-      if (n === 8) { if (!state.avail && ($('projName').value || '').trim()) loadAvail(true).then(renderFilterStep); else renderFilterStep(); }
+      if (n === 3) fillManager();
       if (n === 3) { if (!state.avail && ($('projName').value || '').trim()) loadAvail(true).then(function () { state.heldComp = null; renderConfirmStep(); }); else renderConfirmStep(); }
       if (n === 4) renderReportStep();
     }
@@ -1912,8 +1889,6 @@
   $('nextMap').addEventListener('click', function () { showStep(3); });
   $('next6').addEventListener('click', function () { applyConfirm(); showStep(4); });
   $('prev7').addEventListener('click', function () { showStep(3); });
-  $('prev4').addEventListener('click', function () { showStep(3); });
-  $('next4').addEventListener('click', function () { showStep(3); });
   $('prev6').addEventListener('click', function () { showStep(2); });
   $('projName').addEventListener('input', updateSteps);
   $('clientReload').addEventListener('click', function () {
@@ -1934,62 +1909,18 @@
       return ((va || 0) - (vb || 0)) * d || (b.potential - a.potential);
     });
   }
-  function ftFiltered(list) {
-    var mp = parseFloat($('ftMinProf').value) || 0, me = parseFloat($('ftMinExtra').value) || 0;
-    return list.filter(function (a) { return a.potential >= mp && (a.extra || 0) >= me; });
-  }
   function filterCompanies() {
     var M = buildMatrix(Math.max(1, parseInt($('mxK').value, 10) || 10));
     var first = {}; M.rows.forEach(function (r) { if (r.top[0]) first[r.top[0].comp] = (first[r.top[0].comp] || 0) + 1; });
     return { M: M, list: M.comps.map(function (c) { var ex = extraFor(c); return { name: c, potential: M.potential[c], appear: M.appear[c], first: first[c] || 0, extra: ex && ex.pct > 0 ? ex.pct : 0 }; }) };
   }
-  function renderFilterStep() {
-    if (!state.result) return;
+  /* 3단계 요청자(담당자) 칸: 거래처의 담당자를 기본값으로, 전체 담당자 목록을 자동완성으로 */
+  function fillManager() {
     var cl = findClient(($('projName').value || '').trim());
     if (cl && cl.m && !$('ftManager').value) $('ftManager').value = cl.m;
-    var dl = $('managerList'); dl.innerHTML = '';
+    var dl = $('managerList'); if (!dl) return; dl.innerHTML = '';
     var seen = {}; (state.clients || []).forEach(function (c) { if (c.m && !seen[c.m]) { seen[c.m] = 1; var o = document.createElement('option'); o.value = c.m; dl.appendChild(o); } });
-    var F = filterCompanies(); state.ftList = ftSorted(ftFiltered(F.list));
-    var arrow = function (k) { return ftSort.key === k ? (ftSort.dir < 0 ? ' ▼' : ' ▲') : ''; };
-    var hth = function (k, label, cls) { return '<th class="' + (cls || '') + '" data-k="' + k + '" style="cursor:pointer" title="클릭: 정렬 (다시 클릭하면 오름↔내림)">' + label + arrow(k) + '</th>'; };
-    var th = '<tr><th style="width:30px"><input type="checkbox" id="ftAllChk"></th><th style="width:40px">순위</th>' + hth('name', '제약사') + hth('extra', '추가수수료') + hth('potential', '잠재 정산(월)', 'num') + hth('appear', '등장 품목', 'num') + hth('first', '1위 품목', 'num') + hth('status', '필터링 상태') + '<th></th></tr>';
-    $('ftab').querySelector('thead').innerHTML = th;
-    $('ftab').querySelectorAll('th[data-k]').forEach(function (h) {
-      h.addEventListener('click', function () {
-        var k = h.getAttribute('data-k');
-        if (ftSort.key === k) ftSort.dir = -ftSort.dir; else { ftSort.key = k; ftSort.dir = (k === 'name' ? 1 : -1); }
-        renderFilterStep();
-      });
-    });
-    var rows = state.ftList.map(function (a, i) {
-      var av = availFor(a.name), on = !!ftSel[a.name];
-      return '<tr class="' + (on ? 'sel' : '') + '" data-n="' + esc(a.name) + '"><td><input type="checkbox" class="ftChk"' + (on ? ' checked' : '') + '></td><td class="num">' + (i + 1) + '</td>'
-        + '<td><b>' + esc(a.name) + '</b></td><td>' + (extraBadge(a.name) || '<span class="mini">—</span>') + '</td>'
-        + '<td class="num">' + Math.round(a.potential).toLocaleString('ko-KR') + '</td><td class="num">' + a.appear + '</td><td class="num">' + a.first + '</td>'
-        + '<td>' + availBadge(a.name) + (av && av.note ? ' <span class="mini">' + esc(av.note) + '</span>' : '') + '</td>'
-        + '<td>' + (av && av.kind !== 'none' ? '<span class="mini">' + (av.kind === 'pending' ? '요청됨' : '완료') + '</span>' : '<button class="filtreq sbtn" data-one="' + esc(a.name) + '">단건 요청</button>') + '</td></tr>';
-    });
-    var tb = $('ftab').querySelector('tbody'); tb.innerHTML = rows.join('');
-    tb.querySelectorAll('.ftChk').forEach(function (cb) {
-      cb.addEventListener('change', function () { var tr = cb.closest('tr'); ftSel[tr.getAttribute('data-n')] = cb.checked; tr.classList.toggle('sel', cb.checked); ftStatus(); });
-    });
-    tb.querySelectorAll('[data-one]').forEach(function (b) { b.addEventListener('click', function () { requestFilters([b.getAttribute('data-one')]); }); });
-    $('ftAllChk').addEventListener('change', function () { var on = this.checked; state.ftList.forEach(function (a) { ftSel[a.name] = on; }); renderFilterStep(); });
-    ftStatus();
   }
-  function ftStatus() {
-    var n = Object.keys(ftSel).filter(function (k) { return ftSel[k]; }).length;
-    var ok = 0, no = 0, pd = 0, none = 0;
-    (state.ftList || []).forEach(function (a) { var k = availKindFor(a.name); if (k === 'ok') ok++; else if (k === 'no') no++; else if (k === 'pending') pd++; else none++; });
-    $('ftStat').textContent = '표시 ' + (state.ftList || []).length + '곳 · 체크 ' + n + '곳 · 가능 ' + ok + ' · 불가 ' + no + ' · 확인중 ' + pd + ' · 조회전 ' + none;
-  }
-  $('ftSelTop').addEventListener('click', function () { var N = Math.max(1, parseInt($('ftTopN').value, 10) || 5); ftSel = {}; (state.ftList || []).slice(0, N).forEach(function (a) { ftSel[a.name] = true; }); renderFilterStep(); });
-  $('ftSelAll').addEventListener('click', function () { ftSel = {}; (state.ftList || []).forEach(function (a) { ftSel[a.name] = true; }); renderFilterStep(); });
-  $('ftSelNone').addEventListener('click', function () { ftSel = {}; renderFilterStep(); });
-  $('ftMinProf').addEventListener('input', renderFilterStep);
-  $('ftMinExtra').addEventListener('input', renderFilterStep);
-  $('ftRefresh').addEventListener('click', function () { loadAvail(false).then(renderFilterStep); });
-  $('ftRequest').addEventListener('click', function () { requestFilters(Object.keys(ftSel).filter(function (k) { return ftSel[k]; })); });
   function requestFilters(names) {
     var hosp = ($('projName').value || '').trim(), biz = ($('projBiz').value || '').trim();
     if (!hosp) { alert('거래처를 먼저 선택해주세요.'); showStep(1); return; }
@@ -2001,15 +1932,15 @@
     var done = 0, fail = [];
     var next = function (i) {
       if (i >= todo.length) {
-        $('ftStat').textContent = '접수 완료 ' + done + '곳' + (fail.length ? ' · 실패: ' + fail.join(', ') : '');
-        loadAvail(true).then(function () { if (wizard.step === 3) { state.heldComp = null; renderConfirmStep(); } else renderFilterStep(); });
+        $('cfAvailStat').textContent = '접수 완료 ' + done + '곳' + (fail.length ? ' · 실패: ' + fail.join(', ') : '');
+        loadAvail(true).then(function () { state.heldComp = null; renderConfirmStep(); });
         autoSave(300);
         return;
       }
       var infoRow = null; (state.ftList || []).forEach(function (a, idx) { if (a.name === todo[i]) infoRow = { potential: a.potential, rank: idx + 1 }; });
       postFilterReq(hosp, biz, todo[i], mgr, infoRow).then(function (d) { if (d && d.ok) done++; else fail.push(todo[i]); })
         .catch(function () { fail.push(todo[i]); })
-        .then(function () { $('ftStat').textContent = '접수 중… (' + (i + 1) + '/' + todo.length + ')'; next(i + 1); });
+        .then(function () { $('cfAvailStat').textContent = '접수 중… (' + (i + 1) + '/' + todo.length + ')'; next(i + 1); });
     };
     next(0);
   }
