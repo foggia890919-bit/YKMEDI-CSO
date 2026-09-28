@@ -2378,7 +2378,8 @@
       var pendCnt = all.filter(function (n) { var k = availKindFor(n); return k !== 'ok' && k !== 'no'; }).length;
       var btn = function (n, k, label, cur, col) { var on = cur === k; return '<button class="sbtn resBtn" data-comp="' + esc(n) + '" data-s="' + k + '" style="padding:1px 7px; font-size:12px; border-color:' + col + '; color:' + (on ? '#fff' : col) + ';' + (on ? 'background:' + col + ';' : '') + '" title="' + (on ? '현재 상태' : label + '(으)로 바꿔 시트에 기록') + '">' + label + '</button>'; };
       var shown = all.slice(0, 120);
-      $('cfResList').innerHTML = '<div class="mini" style="margin-bottom:4px">후보 ' + all.length + '곳 · 결과 대기 ' + pendCnt + '곳 · 현재 상태가 색칠된 버튼, 다른 버튼을 누르면 바뀐 결과로 시트에 새로 기록됩니다</div>'
+      $('cfResList').style.display = ($('cfOcrPrev').style.display !== 'none' && $('cfOcrPrev').innerHTML) ? 'none' : '';
+      $('cfResList').innerHTML = '<div class="mini" style="margin-bottom:4px"><b>현재 시트에 기록된 상태</b> · 후보 ' + all.length + '곳 · 결과 대기 ' + pendCnt + '곳 · 색칠된 버튼이 현재 상태, 다른 버튼을 누르면 바뀐 결과로 시트에 새로 기록됩니다</div>'
         + shown.map(function (n) {
           var k = availKindFor(n), cur = k === 'ok' ? '거래가능' : k === 'no' ? '거래불가' : '회신전';
           return '<span style="display:inline-flex; align-items:center; gap:3px; margin:0 12px 4px 0"><b>' + esc(n) + '</b>' + btn(n, '거래가능', '가능', cur, 'var(--ok)') + btn(n, '거래불가', '불가', cur, 'var(--err)') + btn(n, '회신전', '확인중', cur, '#b45309') + '</span>';
@@ -2435,7 +2436,7 @@
       if (!d || !d.ok) throw new Error((d && d.error) || '인식 실패');
       var items = d.items || [];
       if (!items.length) { st.textContent = '표에서 제약사 행을 찾지 못했습니다. 표가 잘 보이는 캡처로 다시 시도하세요.'; return; }
-      st.textContent = '읽은 ' + items.length + '건 — 아래에서 확인하고 「시트에 기록」을 누르세요 (' + (d.model || '') + ')';
+      st.textContent = '읽은 ' + items.length + '건 — 아직 반영 전. 아래 상자에서 확인하고 「시트에 기록」을 누르세요 (' + (d.model || '') + ')';
       ocrPreview(items, d.hospital || '', name);
     }).catch(function (e) { st.textContent = '실패: ' + e.message; }).then(function () { $('cfOcrBtn').disabled = false; $('cfOcrFile').value = ''; });
   }
@@ -2443,27 +2444,33 @@
   function ocrPreview(items, hosp, name) {
     var box = $('cfOcrPrev'); box.style.display = '';
     var sel = function (v) { return '<select class="opSt" style="padding:2px 4px; font-size:12px; border:1px solid var(--line); border-radius:6px; font-family:inherit"><option value="거래가능"' + (v === '거래가능' ? ' selected' : '') + '>가능</option><option value="거래불가"' + (v === '거래불가' ? ' selected' : '') + '>불가</option><option value=""' + (v !== '거래가능' && v !== '거래불가' ? ' selected' : '') + '>건너뜀</option></select>'; };
-    box.innerHTML = '<div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:6px"><b>읽은 결과 확인</b><span class="mini">거래처 <b>' + esc(name) + '</b>' + (hosp && hosp.replace(/\s/g, '') !== name.replace(/\s/g, '') ? ' <span style="color:var(--err)">(표에는 「' + esc(hosp) + '」로 보임 — 맞는지 확인)</span>' : '') + ' · 체크한 행만 기록 · 이름·결과는 여기서 고칠 수 있음</span></div>'
+    var btnRow = function (id) { return '<div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:6px 0"><button class="sbtn opApply" style="border-color:#fff; background:var(--ok); color:#fff; font-weight:700; padding:6px 14px">✔ 체크한 ' + items.filter(function (i) { return i.status === '거래가능' || i.status === '거래불가'; }).length + '건 시트에 기록 → 배정 다시 계산</button><button class="sbtn opCancel">취소</button><span class="mini opStat"></span></div>'; };
+    box.innerHTML = '<div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center"><b style="color:var(--err)">⚠ 이미지에서 읽기만 한 상태 — 아직 시트·배정에 반영되지 않았습니다</b></div>'
+      + '<div class="mini" style="margin:2px 0 4px">거래처 <b>' + esc(name) + '</b>' + (hosp && hosp.replace(/\s/g, '') !== name.replace(/\s/g, '') ? ' <span style="color:var(--err)">(표에는 「' + esc(hosp) + '」로 보임 — 맞는지 확인)</span>' : '') + ' · 틀린 이름·결과는 여기서 고치고, 체크한 행만 기록됩니다. 기록 버튼을 누르면 시트에 쓰고 배정을 다시 계산합니다.</div>'
+      + btnRow('top')
       + '<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:4px 12px">' + items.map(function (it, i) {
         var on = it.status === '거래가능' || it.status === '거래불가', known = cfRows.some(function (r) { return r.name === it.vendor; });
         return '<label style="display:flex; gap:6px; align-items:center; font-size:13px"><input type="checkbox" class="opUse" data-i="' + i + '"' + (on ? ' checked' : '') + '><input class="opV" value="' + esc(it.vendor) + '" style="flex:1; min-width:90px; padding:2px 6px; font-size:13px; border:1px solid ' + (known ? 'var(--line)' : 'var(--warn)') + '; border-radius:6px; font-family:inherit" title="' + (known ? '후보 제약사와 일치' : '후보 목록에 없는 이름 — 오타면 고치세요') + '">' + sel(it.status) + '<span class="mini" title="이미지 원문">' + esc(it.raw || '') + '</span></label>';
       }).join('') + '</div>'
-      + '<div style="display:flex; gap:8px; align-items:center; margin-top:8px"><button class="sbtn" id="opApply" style="border-color:var(--ok); color:var(--ok); font-weight:700">✔ 체크한 항목 시트에 기록</button><button class="sbtn" id="opCancel">취소</button><span class="mini" id="opStat"></span></div>';
-    $('opCancel').addEventListener('click', function () { box.style.display = 'none'; box.innerHTML = ''; $('cfOcrStat').textContent = '취소됨'; });
-    $('opApply').addEventListener('click', function () {
+      + btnRow('bottom');
+    $('cfResList').style.display = 'none'; /* 읽은 결과와 현재 상태 목록이 같은 모양이라 헷갈리지 않게, 기록/취소 전까지 현재 상태 목록은 숨김 */
+    var setStat = function (t) { box.querySelectorAll('.opStat').forEach(function (e) { e.textContent = t; }); };
+    var closeBox = function () { box.style.display = 'none'; box.innerHTML = ''; $('cfResList').style.display = ''; };
+    box.querySelectorAll('.opCancel').forEach(function (b) { b.addEventListener('click', function () { closeBox(); $('cfOcrStat').textContent = '취소됨 — 시트에 기록하지 않았습니다'; }); });
+    box.querySelectorAll('.opApply').forEach(function (b) { b.addEventListener('click', function () {
       var use = [];
       box.querySelectorAll('label').forEach(function (l) { var c = l.querySelector('.opUse'), v = (l.querySelector('.opV').value || '').trim(), s2 = l.querySelector('.opSt').value; if (c.checked && v && s2) use.push({ vendor: v, status: s2, raw: '이미지 인식 후 확인' }); });
-      if (!use.length) { $('opStat').textContent = '기록할 항목이 없습니다 (체크 + 가능/불가 선택)'; return; }
+      if (!use.length) { setStat('기록할 항목이 없습니다 (체크 + 가능/불가 선택)'); return; }
       if (!confirm(use.length + '건을 「' + name + '」 기준으로 시트에 기록할까요?\n' + use.map(function (u) { return u.vendor + ' → ' + u.status; }).join('\n'))) return;
-      $('opApply').disabled = true; $('opStat').textContent = '기록 중…';
+      box.querySelectorAll('.opApply').forEach(function (x) { x.disabled = true; }); setStat('기록 중…');
       fetch('/api/cso/admin/filter-ocr', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'apply', name: name, bizNo: ($('projBiz').value || '').trim(), items: use }) })
         .then(function (r) { return r.json(); }).then(function (a) {
           if (!a || !a.ok) throw new Error((a && a.error) || '기록 실패');
           var msg = '✅ ' + use.length + '건 시트에 기록 (대기 요청 채움 ' + (a.filled || 0) + ' · 새 행 ' + (a.added || 0) + (a.skipped ? ' · 이미 같은 결과 ' + a.skipped : '') + (a.notified ? ' · 담당자 통보 ' + a.notified : '') + ')' + (a.errors && a.errors.length ? ' · 오류: ' + a.errors.join(' / ') : '');
-          box.style.display = 'none'; box.innerHTML = '';
+          closeBox();
           return loadAvail(true).then(function () { state.heldComp = null; renderConfirmStep(); $('cfOcrStat').textContent = msg; $('cfAvailStat').textContent = msg; });
-        }).catch(function (e) { $('opStat').textContent = '실패: ' + e.message; $('opApply').disabled = false; });
-    });
+        }).catch(function (e) { setStat('실패: ' + e.message); box.querySelectorAll('.opApply').forEach(function (x) { x.disabled = false; }); });
+    }); });
   }
   $('cfOcrBtn').addEventListener('click', function () {
     if (!(state.who && state.who.isAdmin)) { $('cfOcrStat').textContent = '관리자 로그인이 필요합니다 — 아래 아이디·비밀번호 칸에서 로그인하세요'; var f = $('cfLoginId'); if (f) f.focus(); return; }
