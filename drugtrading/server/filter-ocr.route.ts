@@ -3,15 +3,44 @@ import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { getCsoScope } from "@/lib/cso/scope";
-import { csoAvailWithRows, csoSetAvailResult, csoAppendAvail, vendorList } from "@/lib/gateway/cso";
+import { csoAvailWithRows, csoSetAvailResult, vendorList } from "@/lib/gateway/cso";
 import { notifyFilterResult } from "@/lib/cso/filterNotify";
-import { toRow, statusKind } from "@/lib/availability";
+import { statusKind } from "@/lib/availability";
 import { googleAccessToken, googleDirectEnabled as hasGoogleCreds } from "@/lib/google";
 import { getSetting } from "@/lib/gateway/notify";
+import { applyFilterResult, appendFilterRequest, appendFilterHistory, readFilter, readFilterItems, filterSheetId } from "@/lib/cso/filterSource";
+import { setCellOf } from "@/lib/google";
+
+// 가능/불가 → 확인중 되돌리기: 원본 「필터링」 탭의 H(거래가능유무)를 비우고 K 히스토리에 기록
+async function clearSourceResult(name: string, bizNo: string, vendor: string, actor: string): Promise<boolean> {
+  const f = await readFilter(true);
+  const c = f.cols;
+  if (c.status < 0) throw new Error("원본 「필터링」 탭에 거래가능유무 열이 없습니다.");
+  const sid = await filterSheetId();
+  const bz = bizNo.replace(/\D/g, "");
+  for (let i = f.hi + 1; i < f.values.length; i++) {
+    const r = f.values[i] || [];
+    const cat = c.category >= 0 ? String(r[c.category] ?? "").trim() : "";
+    if (cat.startsWith("중복")) continue;
+    const rn = String(r[c.name] ?? "").trim(), rv = c.vendor >= 0 ? String(r[c.vendor] ?? "").trim() : "";
+    const rg = c.verified >= 0 ? String(r[c.verified] ?? "").trim() : "";
+    if (!rn || !rv) continue;
+    const rb = c.biz >= 0 ? String(r[c.biz] ?? "").replace(/\D/g, "") : "";
+    const sameName = (bz && rb) ? rb === bz : norm(rn) === norm(name);
+    if (!sameName || (norm(rv) !== norm(vendor) && norm(rg) !== norm(vendor))) continue;
+    const before = String(r[c.status] ?? "").trim();
+    if (!before) return false;
+    await setCellOf(sid, f.title, i + 1, c.status + 1, "");
+    try { await appendFilterHistory({ name, bizNo: bz, vendor, memo: `결과 ${before} → 공란(확인중) · 경로:도구입력(${actor})`, path: "도구입력", actor }); } catch { /* 히스토리 실패 무시 */ }
+    return true;
+  }
+  return false;
+}
 
 // 관리자 전용: 필터링 결과표 이미지(캡처·사진) → 제약사·결과 추출 → 대기 요청에 결과 채움(없으면 새 행)
 //   POST { action:"extract", image:<base64>, mediaType:"image/jpeg"|"image/png"|"image/webp"|"image/gif" }
 //   POST { action:"apply", name, bizNo, items:[{ vendor, status:"거래가능"|"거래불가"|"회신전", raw }] }
+//   POST { action:"backfill", name? }  — 원천 통일 전 CSO 시트에만 있던 도구 입력분(가능/불가)을 원천에 되살림(원천에 결과가 없을 때만)
 // 인식 엔진(설정 OCR_ENGINE 또는 환경변수, 기본 auto):
 //   gemini : Gemini Flash (GEMINI_API_KEY) — 빠르고 저렴, 표 구조까지 이해
 //   vertex : Vertex AI Gemini — 기존 서비스계정으로(GCP 에서 Vertex AI API 활성화), 새 키 불필요
@@ -284,39 +313,87 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // 과거 보정: 원천(통계제출현황 「필터링」 탭)으로 통일되기 전에 도구·이미지로 CSO 시트에만 기록된 가능/불가를 원천에 되살린다.
+  //   원천에 이미 H(거래가능유무)가 있으면 건드리지 않고, 없거나 행이 없을 때만 반영(문자 발송 없음). 거래처명을 주면 그 거래처만.
+  if (body.action === "backfill") {
+    const onlyName = String(body.name || "").trim();
+    const handler = scope.name || scope.id;
+    const out = { scanned: 0, applied: 0, skippedHasSource: 0, skippedNoStatus: 0, errors: [] as string[], details: [] as string[] };
+    let all: Awaited<ReturnType<typeof csoAvailWithRows>> = [];
+    try { all = await csoAvailWithRows(); } catch (e: any) { return NextResponse.json({ ok: false, error: "CSO 시트 읽기 실패: " + (e?.message || "") }, { status: 502 }); }
+    let src: Awaited<ReturnType<typeof readFilterItems>> = [];
+    try { src = await readFilterItems(); } catch (e: any) { return NextResponse.json({ ok: false, error: "원천 시트 읽기 실패: " + (e?.message || "") }, { status: 502 }); }
+    const srcHas = new Set(src.filter((it) => it.kind === "ok" || it.kind === "no").map((it) => norm(it.name) + "|" + norm(it.vendor)));
+    const srcHasRaw = new Set(src.filter((it) => it.kind === "ok" || it.kind === "no").map((it) => norm(it.name) + "|" + norm(it.vendorRaw)));
+    // 같은 거래처×제약사가 여러 행이면 가장 아래(최신) 행의 결과만
+    const latest = new Map<string, (typeof all)[number]>();
+    for (const r of all) {
+      if (onlyName && norm(r.name) !== norm(onlyName)) continue;
+      if (!r.name || !r.vendor) continue;
+      latest.set(norm(r.name) + "|" + norm(r.vendor), r);
+    }
+    for (const [key, r] of latest) {
+      out.scanned++;
+      const k = statusKind(r.status);
+      if (k !== "ok" && k !== "no") { out.skippedNoStatus++; continue; }
+      if (srcHas.has(key) || srcHasRaw.has(key)) { out.skippedHasSource++; continue; }
+      const st = k === "ok" ? "거래가능" : "거래불가";
+      try {
+        await applyFilterResult({ name: r.name, bizNo: r.bizNo, vendor: r.vendor, kind: k, note: (r.note ? r.note + " · " : "") + "CSO 시트 입력분 원천 반영", path: "과거입력보정", actor: handler, notify: false });
+        out.applied++; out.details.push(`${r.vendor} → ${st}`);
+      } catch (e: any) { out.errors.push(`${r.vendor}: ${e?.message || "실패"}`); }
+    }
+    return NextResponse.json({ ok: true, ...out });
+  }
+
   if (body.action === "apply") {
+    // 단일 원천 = 통계제출현황 「필터링」 탭. 결과(O/X)·확인중(요청)·되돌리기 모두 그 탭에만 기록한다.
+    // CSO 시트 「필터링-거래가능유무」는 발송 대기열이므로, 같은 건이 대기 중일 때만 상태를 닫아 준다(새 행은 추가하지 않음).
     const name = String(body.name || "").trim(), bizNo = String(body.bizNo || "").replace(/\D/g, "");
     const items = (Array.isArray(body.items) ? body.items : []) as Item[];
     if (!name) return NextResponse.json({ ok: false, error: "거래처명은 필수입니다." }, { status: 400 });
     if (!items.length) return NextResponse.json({ ok: false, error: "반영할 항목이 없습니다." }, { status: 400 });
     const handler = scope.name || scope.id;
-    const dateKST = new Date().toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" });
-    const out = { filled: 0, added: 0, requested: 0, skipped: 0, notified: 0, errors: [] as string[] };
-    let all = await csoAvailWithRows();
+    const out = { filled: 0, added: 0, requested: 0, cleared: 0, skipped: 0, notified: 0, errors: [] as string[], source: "통계제출현황 「필터링」" };
+    let src: Awaited<ReturnType<typeof readFilterItems>> = [];
+    try { src = await readFilterItems(); } catch (e: any) { return NextResponse.json({ ok: false, error: "원본 「필터링」 탭 읽기 실패: " + (e?.message || "") }, { status: 502 }); }
+    let cso: Awaited<ReturnType<typeof csoAvailWithRows>> = [];
+    try { cso = await csoAvailWithRows(); } catch { cso = []; }
+    const findSrc = (vendor: string) => src.find((it) => norm(it.name) === norm(name) && (norm(it.vendor) === norm(vendor) || norm(it.vendorRaw) === norm(vendor)));
     for (const it of items) {
       const vendor = String(it.vendor || "").trim(); if (!vendor) continue;
       const st = it.status === "거래가능" || it.status === "거래불가" ? it.status : "";
-      const note = "이미지 입력" + (it.raw ? ": " + String(it.raw).trim() : "");
+      const direct = /도구에서 직접/.test(String(it.raw || ""));
+      const path = direct ? "도구입력" : "이미지입력";
+      const note = direct ? "" : "이미지 입력" + (it.raw ? ": " + String(it.raw).trim() : "");
       try {
-        const pendingRow = all.find((r) => norm(r.name) === norm(name) && norm(r.vendor) === norm(vendor) && statusKind(r.status) === "pending");
-        if (pendingRow && st) {
-          const item = await csoSetAvailResult(pendingRow.row, st, note, handler);
-          out.filled++;
-          try { const nr = await notifyFilterResult(item, st, note); if (nr.notified) out.notified++; } catch { /* 통보 실패 무시 */ }
-        } else if (pendingRow && !st) {
-          out.skipped++; // 이미 대기 중 — 회신전은 그대로
+        const cur = findSrc(vendor);
+        if (st) {
+          const kind: "ok" | "no" = st === "거래가능" ? "ok" : "no";
+          if (cur && cur.kind === kind) { out.skipped++; continue; } // 원본에 같은 결과가 이미 있음
+          const r = await applyFilterResult({ name, bizNo, vendor, kind, note, path, actor: handler, notify: false });
+          if (r.found) out.filled++; else out.added++;
+          // CSO 발송 대기열에 같은 건이 대기 중이면 닫아 주고(재발송 방지) 요청 담당자에게 통보
+          const pendingRow = cso.find((r) => norm(r.name) === norm(name) && norm(r.vendor) === norm(vendor) && statusKind(r.status) === "pending");
+          if (pendingRow) {
+            try {
+              const item = await csoSetAvailResult(pendingRow.row, st, note || "대체조제 도구 입력", handler);
+              try { const nr = await notifyFilterResult(item, st, note); if (nr.notified) out.notified++; } catch { /* 통보 실패 무시 */ }
+            } catch { /* 대기열 정리 실패는 원본 반영에 영향 없음 */ }
+          }
+        } else if (cur && (cur.kind === "ok" || cur.kind === "no")) {
+          // 가능/불가 → 확인중 되돌리기: 원본 H 를 비우고 히스토리에 남김
+          await clearSourceResult(name, bizNo, vendor, handler);
+          out.cleared++;
+        } else if (cur) {
+          out.skipped++; // 이미 확인중(요청 대기) 상태
         } else {
-          const exists = all.find((r) => norm(r.name) === norm(name) && norm(r.vendor) === norm(vendor) && statusKind(r.status) !== "pending");
-          if (exists && st && norm(exists.status) === norm(st)) { out.skipped++; continue; } // 같은 결과가 이미 있음
-          const row = toRow({ name, bizNo, vendor, note, category: "입력" }, handler, dateKST);
-          row[6] = st; // 결과가 있으면 바로 기록, 회신전이면 비워 두어 확인중으로 표시
-          await csoAppendAvail(row);
-          if (st) out.added++; else out.requested++;
-          all = [...all, { row: 0, category: "입력", date: dateKST, requester: handler, name, bizNo, vendor, status: st, note }];
+          const r = await appendFilterRequest({ requester: handler, name, bizNo, vendor, note: "대체조제 도구에서 확인 요청", path, actor: handler, category: "필터링" });
+          if (r.deduped) out.skipped++; else out.requested++;
         }
       } catch (e: any) { out.errors.push(`${vendor}: ${e?.message || "실패"}`); }
     }
-    return NextResponse.json({ ok: true, ...out });
+    return NextResponse.json({ ok: out.errors.length < items.length, ...out, error: out.errors.length ? out.errors.join(" · ") : undefined });
   }
   return NextResponse.json({ ok: false, error: "알 수 없는 동작" }, { status: 400 });
 }
