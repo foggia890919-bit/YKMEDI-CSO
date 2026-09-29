@@ -313,6 +313,23 @@
     </div>
   </div>
 
+  <div class="card" id="exclCard" style="display:none; margin-top:12px">
+    <h2>④ 매칭 제외 (솎아내기) <span class="mini" style="font-weight:500">스위칭 대상이 아닌 품목을 후보에서 뺍니다. 체크한 제조회사의 품목은 1차 매핑·확정·보고서 어디에도 후보로 올라가지 않습니다</span></h2>
+    <div class="mini" id="exclSum" style="margin:4px 0 6px"></div>
+    <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:6px">
+      <span class="seg" id="exclView"><button data-v="all" class="on">전체</button><button data-v="cso" title="우리 요율표에 있는 제약사 = CSO 거래 제약사. 이 제품을 다른 곳으로 바꾸면 흡수율이 떨어져 클레임이 올 수 있음">요율표 제약사 (CSO 거래)</button><button data-v="other" title="우리 요율표에 없는 제약사 = 직영 등. 스위칭해도 우리 흡수율과 무관">그 외 (직영 등)</button></span>
+      <input type="search" id="exclQ" placeholder="제조회사 검색" style="width:160px; padding:5px 8px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit">
+      <label class="chk"><input type="checkbox" id="exclOnlyChecked"><span>제외한 곳만</span></label>
+      <button class="sbtn" id="exclCsoAll" style="border-color:var(--err); color:var(--err)" title="요율표 제약사(CSO 거래) 전부를 「흡수율 클레임 우려」 사유로 제외">요율표 제약사 전부 제외</button>
+      <button class="sbtn" id="exclClear" title="제조회사·품목 제외를 모두 해제">전부 해제</button>
+    </div>
+    <div id="exclList" style="max-height:360px; overflow:auto; border:1px solid var(--line); border-radius:8px; padding:4px 8px; background:#fff"></div>
+    <details style="margin-top:8px"><summary class="mini" style="cursor:pointer; font-weight:700">품목 단위로 빼기 (특정 약품만)</summary>
+      <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:6px"><input type="search" id="exclItemQ" placeholder="약품명·약품코드 검색 (2글자 이상)" style="width:260px; padding:5px 8px; font-size:13px; border:1px solid var(--line); border-radius:6px; font-family:inherit"><span class="mini" id="exclItemStat"></span></div>
+      <div id="exclItemList" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:1px 14px; max-height:240px; overflow:auto; margin-top:4px"></div>
+    </details>
+  </div>
+
   <div class="actions">
     <button id="btnRun" disabled>매핑 실행 → 1차 매핑</button>
     <span id="msg"></span>
@@ -688,6 +705,7 @@
     try {
       state.pharm = parsePharmacy(state.pharmRows, currentPharmMap());
       setStat('sPharm', '✓ ' + state.pharm.length + '개 품목 인식', true);
+      renderExclPanel();
     } catch (e2) { state.pharm = null; setStat('sPharm', e2.message, false); }
     ready();
   }
@@ -860,6 +878,7 @@
       state.result = buildMapping(state.pharm, state.rateParsed, state.master);
       applyExtraFee();
       renderResult();
+      renderExclPanel();
       msg.textContent = '완료';
       updateSteps(); showStep(3); /* 매핑 직후 바로 제약사 확정(허브)으로 */
     } catch (e2) { msg.className = 'err'; msg.textContent = e2.message; }
@@ -903,6 +922,7 @@
 
   /* ---- 우측 제조회사 패널 (정산내역서 양식) ---- */
   var makerState = { tab: 'own', checked: {}, swChecked: {}, sort: 'amt', dir: -1, q: '', focus: -1, view: [] };
+  if (window.__dt) window.__dt.makerState = makerState; /* 디버그·테스트용 */
 
   function currentChecked() { return makerState.tab === 'own' ? makerState.checked : makerState.swChecked; }
 
@@ -1616,6 +1636,8 @@
       checks: { own: makerState.checked, sw: makerState.swChecked },
       confirm: { names: state.confirm.names, itemPick: state.confirm.itemPick || {} },
       excluded: state.excluded,
+      exclMakers: state.exclMakers || {},
+      exclReason: state.exclReason || {},
       view: { proposal: !!state.proposalMode, matched: $('cMatched').checked, bestOnly: $('cBestOnly').checked, cso: $('cCso').checked, amtCap: $('amtCap').value, sortKey: itemsSort.key, sortAsc: itemsSort.asc },
       step: wizard.step,
       kind: state.kind,
@@ -1633,6 +1655,8 @@
     makerState.swChecked = (proj.checks && proj.checks.sw) || {};
     state.confirm = (proj.confirm && proj.confirm.names) ? { names: proj.confirm.names, itemPick: proj.confirm.itemPick || {} } : { names: {}, itemPick: {} };
     state.excluded = proj.excluded || {};
+    state.exclReason = proj.exclReason || {};
+    state.exclMakers = proj.exclMakers || null;
     if (proj.view) {
       state.proposalMode = !!proj.view.proposal;
       $('cCso').checked = !!proj.view.cso;
@@ -1675,6 +1699,9 @@
     projStatMsg('✓ 불러옴: ' + (name || '') + (proj.savedBy ? ' — 저장: ' + proj.savedBy : ''));
     if (cloudProj.on) loadAvail(true);
     ready();
+    /* 솎아내기: 저장된 제외(있으면) → 보유 제조회사 체크로 변환, 없으면 예전 체크에서 역산(체크 안 된 곳 = 제외) */
+    if (proj.exclMakers) { state.exclMakers = proj.exclMakers; applyExclMakers(); } else { state.exclMakers = {}; exclFromChecks(); }
+    renderExclPanel();
     if (state.result) { state.heldComp = null; buildHead(); renderMakers(); drawRows(); }
     /* 바로 이어서 작업: 요율표·약가파일이 비어 있으면 클라우드에서 자동으로 불러오고, 준비되면 매핑 자동 실행 */
     if (state.pharm) {
@@ -1747,7 +1774,7 @@
   });
   $('projNew').addEventListener('click', function () {
     $('projSel').value = ''; $('projName').value = ''; $('projBiz').value = ''; $('projMemo').value = '';
-    makerState.checked = {}; makerState.swChecked = {}; state.excluded = {}; state.proposalMode = false;
+    makerState.checked = {}; makerState.swChecked = {}; state.excluded = {}; state.exclMakers = {}; state.exclReason = {}; state.proposalMode = false;
     state.modeFromProject = false; if (!state.modeTouched && state.who && state.who.orgType) setMode(state.who.orgType === '직영' ? 'sum' : 'prof', true);
     projStatMsg('새 프로젝트 — 병원명 입력 후 저장');
   });
@@ -2257,7 +2284,7 @@
     var itb = $('cfItems').querySelector('tbody');
     itb.querySelectorAll('.ipRadio').forEach(function (rd) { rd.addEventListener('change', function () { state.confirm.itemPick[this.getAttribute('data-code')] = this.getAttribute('data-comp'); state.heldComp = null; drawConfirm(); autoSave(800); }); });
     itb.querySelectorAll('.ipReset').forEach(function (a) { a.addEventListener('click', function (e) { e.preventDefault(); delete state.confirm.itemPick[this.getAttribute('data-code')]; state.heldComp = null; drawConfirm(); autoSave(800); }); });
-    itb.querySelectorAll('.ipOwn').forEach(function (a) { a.addEventListener('click', function (e) { e.preventDefault(); makerState.checked[this.getAttribute('data-maker')] = true; state.heldComp = null; renderConfirmStep(); autoSave(800); }); });
+    itb.querySelectorAll('.ipOwn').forEach(function (a) { a.addEventListener('click', function (e) { e.preventDefault(); delete state.exclMakers[this.getAttribute('data-maker')]; applyExclMakers(); renderExclPanel(); state.heldComp = null; renderConfirmStep(); autoSave(800); }); });
     itb.querySelectorAll('.ipAdd').forEach(function (a) { a.addEventListener('click', function (e) { e.preventDefault(); state.quickN = null; state.confirm.names[this.getAttribute('data-comp')] = true; state.heldComp = null; drawConfirm(); autoSave(800); }); });
     /* 관리자: 순위 칸의 결과 선택(가능/불가/확인중) → 바로 시트 기록 → 재계산 */
     itb.querySelectorAll('.cfRes').forEach(function (sl) { sl.addEventListener('change', function () { postResult(this.getAttribute('data-comp'), this.value); }); });
@@ -2278,7 +2305,7 @@
       + '<div class="l"><span>커버</span><b>' + A.covered + '/' + A.total + '품목 · ' + won(A.coveredAmt) + '</b></div>'
       + '<div class="l"><span>매출대비 수수료율</span><b>' + pctOf(A.totalProf, A.coveredAmt) + '</b></div>'
       + '<div class="l"><span>저가 인센티브</span><b>' + won(A.totalInc) + '</b></div>'
-      + (state.mx.last && state.mx.last.ownOutCnt ? '<div class="l" style="color:var(--err)"><span>보유 제조회사 체크 해제로 빠진 품목</span><b>' + state.mx.last.ownOutCnt + '품목</b></div><div class="mini" style="color:var(--err)">' + Object.keys(state.mx.last.ownOutMakers).map(function (k) { return esc(k) + ' ' + state.mx.last.ownOutMakers[k]; }).join(' · ') + ' — 「자세히 보기」의 보유 제조회사 패널에서 체크가 풀린 회사 품목은 순위·배정·매출에서 통째로 빠집니다</div><div style="margin-top:4px"><button class="sbtn" id="cfOwnAll" style="border-color:var(--err); color:var(--err); font-weight:700">↩ 제조회사 전부 포함 (' + state.mx.last.ownOutCnt + '품목 되살림)</button></div>' : '')
+      + (state.mx.last && state.mx.last.ownOutCnt ? '<div class="l" style="color:var(--err)"><span>2단계 솎아내기로 제외한 제조회사 품목</span><b>' + state.mx.last.ownOutCnt + '품목</b></div><div class="mini" style="color:var(--err)">' + Object.keys(state.mx.last.ownOutMakers).map(function (k) { return esc(k) + ' ' + state.mx.last.ownOutMakers[k]; }).join(' · ') + ' — 「자세히 보기」의 보유 제조회사 패널에서 체크가 풀린 회사 품목은 순위·배정·매출에서 통째로 빠집니다</div><div style="margin-top:4px"><button class="sbtn" id="cfOwnAll" style="border-color:var(--err); color:var(--err); font-weight:700">↩ 제조회사 전부 포함 (' + state.mx.last.ownOutCnt + '품목 되살림)</button></div>' : '')
       + '<div class="l"><span>조합 밖 품목(확정 제약사에 후보 없음)</span><b>' + (A.total - A.covered) + '품목</b></div>'
       + (function () { var m = {}, cnt = 0; state.confirm.itemRanks.forEach(function (it) { if (!it.assigned && it.okUnchecked && it.okUnchecked.length) { cnt++; it.okUnchecked.forEach(function (c) { m[c] = 1; }); } }); var ks = Object.keys(m);
           return ks.length ? '<div class="l" style="color:var(--warn)"><span>그중 거래가능 후보가 있는데 체크가 안 된 품목</span><b>' + cnt + '품목</b></div><div style="margin-top:4px"><button class="sbtn" id="cfAddOk" style="border-color:var(--ok); color:var(--ok)" title="' + esc(ks.join(', ')) + '">✔ 가능 후보 ' + ks.length + '곳 체크에 추가 → ' + cnt + '품목 배정</button></div>' : ''; })()
@@ -2288,7 +2315,7 @@
           return '<div class="l"><span>정산 합계</span><b>' + won(cur.total) + '</b></div><div class="l"><span>배정</span><b>' + cur.count + '품목 · ' + Object.keys(cur.assign).length + '곳</b></div>'
             + '<div class="l" style="color:var(--err)"><span>확정으로 줄어드는 정산</span><b>−' + won(Math.max(0, cur.total - A.totalProf)) + '</b></div>'; })()
       + '<div class="mini" style="margin-top:6px">제약사를 줄이면 갈 곳 없는 품목·차선 배정만큼 정산이 줄지만, 실제 거래·관리 가능한 조합이 됩니다.</div></div>';
-    var ownAll = $('cfOwnAll'); if (ownAll) ownAll.addEventListener('click', function () { makerState.checked = {}; /* 아무것도 체크 안 함 = 필터 없음(전체 포함) */ state.heldComp = null; renderConfirmStep(); autoSave(800); });
+    var ownAll = $('cfOwnAll'); if (ownAll) ownAll.addEventListener('click', function () { state.exclMakers = {}; makerState.checked = {}; renderExclPanel(); state.heldComp = null; renderConfirmStep(); autoSave(800); });
     var addOk = $('cfAddOk'); if (addOk) addOk.addEventListener('click', function () { state.quickN = null; state.confirm.itemRanks.forEach(function (it) { if (!it.assigned && it.okUnchecked) it.okUnchecked.forEach(function (c) { state.confirm.names[c] = true; }); }); state.heldComp = null; drawConfirm(); autoSave(800); });
   }
   function applyConfirm() {
@@ -2396,9 +2423,9 @@
     var byLbl = { fee: 'N곳 조합 중 합산 수수료 총액 최대', bal: 'N곳 조합 중 총액×이익율 최대', rate: 'N곳 조합 중 매출대비 수수료율(이익율) 최대', cnt: 'N곳 조합 중 배정 품목 최다', mrate: '단독요율 상위 N곳(표 순서)' }[state.quickBy || 'rate'] + (state.lastCombo ? ' · 교체 탐색 ' + state.lastCombo.swaps + '회, 검토 ' + state.lastCombo.evals + '조합' : '');
     if ($('cfSelOrder')) $('cfSelOrder').textContent = (state.quickBy || 'rate') === 'mrate' ? '단독요율 순' : '배정 후 수수료 많은 순';
     $('cfQuickMode').textContent = '· 품목 배정 기준 ' + modeLbl + ' · 제약사 고르는 기준: ' + byLbl + ' · 최소매출 ' + won(parseFloat($('minAmt').value) || 0) + (state.quickN == null ? ' · 수동 선택' : '');
-    var ownWarn = state.mx.last && state.mx.last.ownOutCnt ? '<span style="display:inline-flex; gap:6px; align-items:center; margin-right:10px"><span class="mini" style="color:var(--err)">⚠ 제조회사(' + Object.keys(state.mx.last.ownOutMakers).map(esc).join(', ') + ') 체크 해제로 ' + state.mx.last.ownOutCnt + '품목 제외 중</span><button class="sbtn cfOwnAllBtn" style="border-color:var(--err); color:var(--err); font-weight:700; padding:2px 8px">↩ 전부 포함</button></span>' : '';
+    var ownWarn = state.mx.last && state.mx.last.ownOutCnt ? '<span style="display:inline-flex; gap:6px; align-items:center; margin-right:10px"><span class="mini" style="color:var(--err)">⚠ 2단계 솎아내기로 제외한 제조회사(' + Object.keys(state.mx.last.ownOutMakers).map(function (m) { return esc(m) + (state.exclMakers[m] ? '·' + esc(state.exclMakers[m]) : ''); }).join(', ') + ') ' + state.mx.last.ownOutCnt + '품목</span><button class="sbtn cfOwnAllBtn" style="border-color:var(--err); color:var(--err); font-weight:700; padding:2px 8px">↩ 전부 포함</button></span>' : '';
     $('cfQuickSum').innerHTML = ownWarn + '<span class="k">매출</span><b class="v">' + won(A.coveredAmt) + '</b><span class="k">수수료(합산)</span><b class="v" style="color:var(--blue)">' + won(fee) + '</b><span class="k">매출대비</span><b class="v">' + pctOf(fee, A.coveredAmt) + '</b><span class="k">커버</span><b class="v">' + A.covered + '/' + A.total + '품목</b><span class="k">제약사</span><b class="v">' + used.length + '곳' + (names.length !== used.length ? ' (체크 ' + names.length + ')' : '') + '</b>' + (A.merged ? '<span class="mini">최소매출 미만 → 차순위 ' + A.merged + '품목</span>' : '');
-    $('cfQuickSum').querySelectorAll('.cfOwnAllBtn').forEach(function (b) { b.addEventListener('click', function () { makerState.checked = {}; state.heldComp = null; renderConfirmStep(); autoSave(800); }); });
+    $('cfQuickSum').querySelectorAll('.cfOwnAllBtn').forEach(function (b) { b.addEventListener('click', function () { state.exclMakers = {}; makerState.checked = {}; renderExclPanel(); state.heldComp = null; renderConfirmStep(); autoSave(800); }); });
     var mr = {}; cfRows.forEach(function (r) { mr[r.name] = mrateOf(r); });
     var per = used.map(function (n) { var p = A.per[n]; return { n: n, amt: p.amt, fee: p.prof + (p.yk || 0), cnt: p.cnt, mrate: mr[n] || 0 }; }).sort(function (a, b) { return (state.quickBy || 'rate') === 'mrate' ? b.mrate - a.mrate : b.fee - a.fee; });
     /* 관리자: 결과가 아직 없는(조회전·확인중) 제약사에 가능/불가 버튼 — 체크된 곳 먼저, 그다음 표 순서로 */
@@ -2832,6 +2859,111 @@
     });
     return arr;
   }
+  /* ---- 2단계 솎아내기: 제조회사 단위 제외(사유 포함) + 품목 단위 제외 ----
+     제조회사 제외는 기존 「보유 제조회사」 체크(makerState.checked: 하나라도 체크되면 체크 안 된 곳 제외)로 변환해 적용하고,
+     품목 제외는 state.excluded(코드)로 적용한다. 둘 다 isOut/ownOut 경로를 그대로 타므로 1차 매핑·확정·보고서에 일관되게 빠진다.
+     제조회사는 「우리 요율표에 있는 제약사(CSO 거래 → 흡수율 클레임 우려)」와 「그 외(직영 등)」로 나눠 보여준다. */
+  state.exclMakers = {}; /* 제조회사 → 사유 */
+  state.exclReason = {}; /* 품목코드 → 사유 */
+  state.exclView = 'all';
+  var EXCL_REASONS = ['흡수율 클레임 우려(CSO 거래)', '영업사원 직접 관리', '거래처 요청', '기존 거래 유지', '기타'];
+  var vkey = function (s) { return normVendor(s).replace(/제약|약품|파마|바이오|팜|주식회사|\(주\)|㈜|\s/g, ''); };
+  var _rateSet = null, _rateSetKey = '';
+  function rateCompKeys() {
+    var rp = state.rateParsed; if (!rp || !rp.rows) return {};
+    var key = rp.rows.length + ':' + state.makerCol;
+    if (_rateSet && _rateSetKey === key) return _rateSet;
+    var m = {}; if (state.makerCol >= 0) rp.rows.forEach(function (x) { var c = compOf(x); if (c && c !== '(제약사 미상)') { m[normVendor(c)] = 1; m[vkey(c)] = 1; } });
+    _rateSet = m; _rateSetKey = key; return m;
+  }
+  function makerInRates(name) { var m = rateCompKeys(); if (!name) return false; return !!(m[normVendor(name)] || m[vkey(name)]); }
+  function pharmMakerAggs() {
+    var src = (state.result && state.result.pharm) || state.pharm || [], m = {};
+    src.forEach(function (d) { var name = d.maker || '(제조사 미상)'; var a = m[name] || (m[name] = { name: name, cnt: 0, amt: 0, sub: 0 }); a.cnt++; a.amt += d.amt || 0; if (d.candCount > 0) a.sub++; });
+    var arr = Object.keys(m).map(function (k) { return m[k]; }); arr.forEach(function (a) { a.cso = makerInRates(a.name); });
+    return arr.sort(function (a, b) { return b.amt - a.amt; });
+  }
+  function applyExclMakers() {
+    state.exclMakers = state.exclMakers || {};
+    var ex = Object.keys(state.exclMakers).filter(function (k) { return state.exclMakers[k]; });
+    makerState.checked = {};
+    if (!ex.length) return; /* 아무것도 체크 안 함 = 필터 없음 */
+    pharmMakerAggs().forEach(function (a) { if (!state.exclMakers[a.name]) makerState.checked[a.name] = true; });
+  }
+  /* 예전 프로젝트(보유 제조회사 체크만 저장됨) → 체크 안 된 제조회사를 「기존 설정」 사유로 솎아내기에 표시 */
+  function exclFromChecks() {
+    var ch = checkedMakers(); if (!ch.length) return;
+    state.exclMakers = {}; pharmMakerAggs().forEach(function (a) { if (!makerState.checked[a.name]) state.exclMakers[a.name] = '기존 설정'; });
+  }
+  function exclCount() { var n = 0, amt = 0, cnt = 0; pharmMakerAggs().forEach(function (a) { if (state.exclMakers[a.name]) { n++; amt += a.amt; cnt += a.cnt; } }); return { n: n, amt: amt, cnt: cnt }; }
+  function renderExclPanel() {
+    var card = $('exclCard'); if (!card) return;
+    if (!(state.pharm && state.pharm.length) && !(state.result && state.result.pharm)) { card.style.display = 'none'; return; }
+    card.style.display = '';
+    state.exclMakers = state.exclMakers || {}; state.exclReason = state.exclReason || {};
+    var aggs = pharmMakerAggs(), q = ($('exclQ').value || '').toLowerCase(), only = $('exclOnlyChecked').checked, view = state.exclView || 'all';
+    $('exclView').querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-v') === view); });
+    var ec = exclCount(), itemEx = Object.keys(state.excluded).length;
+    var csoN = aggs.filter(function (a) { return a.cso; }), othN = aggs.filter(function (a) { return !a.cso; });
+    var sumAmt = function (l) { return l.reduce(function (t, a) { return t + a.amt; }, 0); };
+    $('exclSum').innerHTML = '제조회사 ' + aggs.length + '곳 = 요율표 제약사(CSO 거래) <b>' + csoN.length + '곳 ' + won(sumAmt(csoN)) + '</b> + 그 외 <b>' + othN.length + '곳 ' + won(sumAmt(othN)) + '</b> · 제외 <b style="color:var(--err)">' + ec.n + '곳 ' + ec.cnt + '품목 · ' + won(ec.amt) + '</b>' + (itemEx ? ' · 품목 단위 제외 <b>' + itemEx + '개</b>' : '') + (state.result ? '' : ' · 「후보」 수는 매핑 실행 후 표시') + (state.rateParsed ? '' : ' · 요율표를 불러오면 CSO 거래 여부가 표시됩니다');
+    var rs = function (m) { var cur = state.exclMakers[m] || EXCL_REASONS[0]; return '<select class="exRs" data-m="' + esc(m) + '" style="padding:1px 4px; font-size:11.5px; border:1px solid var(--err); color:var(--err); border-radius:5px; font-family:inherit; max-width:150px" title="제외 사유">' + EXCL_REASONS.concat(EXCL_REASONS.indexOf(cur) < 0 ? [cur] : []).map(function (r) { return '<option' + (r === cur ? ' selected' : '') + '>' + esc(r) + '</option>'; }).join('') + '</select>'; };
+    var row = function (a) {
+      var on = !!state.exclMakers[a.name];
+      return '<label style="display:flex; align-items:center; gap:6px; font-size:12.5px; min-height:26px; border-bottom:1px solid #eef0f4' + (on ? '; background:#fff5f5' : '') + '"><input type="checkbox" class="exMk" data-m="' + esc(a.name) + '"' + (on ? ' checked' : '') + '><span style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap' + (on ? '; text-decoration:line-through; color:#999' : '') + '" title="' + esc(a.name) + '">' + esc(a.name) + '</span><span class="mini" style="white-space:nowrap">' + a.cnt + '품목 · ' + won(a.amt) + (state.result ? ' · 후보 ' + a.sub : '') + '</span>' + (on ? rs(a.name) : '') + '</label>';
+    };
+    var pass = function (a) { return (!q || a.name.toLowerCase().indexOf(q) !== -1) && (!only || state.exclMakers[a.name]); };
+    var group = function (title, list, key, note) {
+      var l = list.filter(pass); if (!l.length && view !== 'all') return '<span class="mini">해당 제조회사가 없습니다</span>';
+      var exN = list.filter(function (a) { return state.exclMakers[a.name]; }).length;
+      return '<div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:6px 0 2px; font-weight:700; font-size:13px">' + title + ' <span class="mini" style="font-weight:500">' + list.length + '곳 · 제외 ' + exN + '곳 · ' + note + '</span><button class="sbtn exGrp" data-g="' + key + '" data-on="1" style="padding:1px 8px; font-size:12px; border-color:var(--err); color:var(--err)">이 그룹 전부 제외</button><button class="sbtn exGrp" data-g="' + key + '" data-on="0" style="padding:1px 8px; font-size:12px">해제</button></div>'
+        + '<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:1px 14px">' + (l.map(row).join('') || '<span class="mini">검색 결과 없음</span>') + '</div>';
+    };
+    var html = '';
+    if (view !== 'other') html += group('🏭 우리 요율표에 있는 제약사 (CSO 거래)', csoN, 'cso', '이 제품을 다른 곳으로 바꾸면 흡수율이 떨어져 클레임 우려');
+    if (view !== 'cso') html += group('🏢 그 외 제약사 (직영 등)', othN, 'other', '스위칭해도 우리 흡수율과 무관');
+    $('exclList').innerHTML = html;
+    $('exclList').querySelectorAll('.exMk').forEach(function (c) { c.addEventListener('change', function () {
+      var m = this.getAttribute('data-m');
+      if (this.checked) state.exclMakers[m] = state.exclMakers[m] || (makerInRates(m) ? EXCL_REASONS[0] : EXCL_REASONS[1]); else delete state.exclMakers[m];
+      applyExclMakers(); onExclChanged();
+    }); });
+    $('exclList').querySelectorAll('.exGrp').forEach(function (b) { b.addEventListener('click', function () {
+      var g = this.getAttribute('data-g'), on = this.getAttribute('data-on') === '1';
+      (g === 'cso' ? csoN : othN).forEach(function (a) { if (on) state.exclMakers[a.name] = state.exclMakers[a.name] || (g === 'cso' ? EXCL_REASONS[0] : EXCL_REASONS[1]); else delete state.exclMakers[a.name]; });
+      applyExclMakers(); onExclChanged();
+    }); });
+    $('exclList').querySelectorAll('.exRs').forEach(function (sl) { sl.addEventListener('change', function () { state.exclMakers[this.getAttribute('data-m')] = this.value; autoSave(800); }); });
+    renderExclItems();
+  }
+  function renderExclItems() {
+    var q = ($('exclItemQ').value || '').trim().toLowerCase(), src = (state.result && state.result.pharm) || state.pharm || [];
+    var exIds = Object.keys(state.excluded);
+    var list = q.length >= 2 ? src.filter(function (d) { return String(d.name || '').toLowerCase().indexOf(q) !== -1 || String(d.code || '').indexOf(q) !== -1; }).slice(0, 80)
+      : src.filter(function (d) { return state.excluded[d.code]; });
+    $('exclItemStat').textContent = q.length >= 2 ? '검색 ' + list.length + '개' : (exIds.length ? '품목 단위 제외 ' + exIds.length + '개 (검색해서 추가)' : '검색어를 넣으면 품목이 나옵니다');
+    $('exclItemList').innerHTML = list.map(function (d) {
+      var on = !!state.excluded[d.code];
+      return '<label style="display:flex; align-items:center; gap:6px; font-size:12.5px; min-height:24px; border-bottom:1px solid #eef0f4"><input type="checkbox" class="exIt" data-c="' + esc(d.code) + '"' + (on ? ' checked' : '') + '><span style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap' + (on ? '; text-decoration:line-through; color:#999' : '') + '" title="' + esc(d.name) + '">' + esc(d.name) + '</span><span class="mini" style="white-space:nowrap">' + esc(d.maker || '') + ' · ' + won(d.amt || 0) + '</span></label>';
+    }).join('');
+    $('exclItemList').querySelectorAll('.exIt').forEach(function (c) { c.addEventListener('change', function () {
+      var code = this.getAttribute('data-c');
+      if (this.checked) { state.excluded[code] = true; state.exclReason[code] = '2단계 솎아내기'; } else { delete state.excluded[code]; delete state.exclReason[code]; }
+      onExclChanged();
+    }); });
+  }
+  function onExclChanged() {
+    state.heldComp = null; state.quickN = null;
+    renderExclPanel();
+    if (state.result) { try { if ($('makerPanel') && $('makerPanel').classList.contains('show')) renderMakers(); } catch (e) {} if (state.mx) state.mx.last = null; }
+    autoSave(800);
+  }
+  $('exclQ').addEventListener('input', renderExclPanel);
+  $('exclOnlyChecked').addEventListener('change', renderExclPanel);
+  $('exclItemQ').addEventListener('input', renderExclItems);
+  $('exclView').addEventListener('click', function (e) { var b = e.target.closest('button[data-v]'); if (!b) return; state.exclView = b.getAttribute('data-v'); renderExclPanel(); });
+  $('exclCsoAll').addEventListener('click', function () { var l = pharmMakerAggs().filter(function (a) { return a.cso; }); if (!l.length) { alert('요율표에 있는 제조회사가 없습니다 (요율표를 먼저 불러오세요).'); return; } if (!confirm('요율표 제약사(CSO 거래) ' + l.length + '곳의 품목을 전부 매칭에서 제외할까요?')) return; l.forEach(function (a) { state.exclMakers[a.name] = state.exclMakers[a.name] || EXCL_REASONS[0]; }); applyExclMakers(); onExclChanged(); });
+  $('exclClear').addEventListener('click', function () { if (!confirm('제조회사·품목 제외를 모두 해제할까요?')) return; state.exclMakers = {}; state.excluded = {}; state.exclReason = {}; applyExclMakers(); onExclChanged(); });
   function checkedMakers() {
     return Object.keys(makerState.checked).filter(function (k) { return makerState.checked[k]; });
   }
